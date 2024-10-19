@@ -1,0 +1,17 @@
+{
+  "name": "commander",
+  "version": "1.0.0",
+  "main": " ",
+  "type": "module",
+  "workspaces": [
+    "./*"
+  ],
+  "scripts": {
+    "format-check": "prettier --check \"**/*.{ts,tsx}\"",
+    "lint": "eslint --no-warn-ignored './**/*.{ts,tsx}'",
+    "lint-fix": "npm run lint -- --fix"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

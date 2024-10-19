@@ -1,0 +1,15 @@
+{
+    "files": [],
+    "exclude": [
+        "**/dist/**",
+        "**/build/**"
+    ],
+    "references": [
+        {
+            "path": "./api"
+        },
+        {
+            "path": "./common"
+        },
+    ]
+}

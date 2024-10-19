@@ -1,0 +1,28 @@
+import path from 'path';
+import { Iconify } from 'src/components/iconify';
+import { Label } from 'src/components/label';
+import { SvgColor } from 'src/components/svg-color';
+
+// ----------------------------------------------------------------------
+
+const icon = (name: string) => (
+  <SvgColor width="100%" height="100%" src={`/assets/icons/navbar/${name}.svg`} />
+);
+
+export const navData = [
+  {
+    title: 'Dashboard',
+    path: '/',
+    icon: icon('ic-analytics'),
+  },
+  {
+    title: 'Production',
+    path: '/production',
+    icon: <Iconify icon="mdi:factory" width={24} height={24} />,
+  },
+  {
+    title: 'Players',
+    path: '/players',
+    icon: <Iconify icon="mdi:account-group" width={24} height={24} />,
+  },
+];

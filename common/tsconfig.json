@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./build"
+  },
+  "include": [
+    "./src/**/*",
+    "./tools",
+    "./src/**/*.json"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/generated/edgeClientTemplate.ts"
+  ]
+}
