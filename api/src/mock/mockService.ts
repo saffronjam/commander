@@ -108,8 +108,8 @@ export class MockService {
         count: 200 + Math.random() * 10,
       } as ItemStats,
       {
-        name: "Iron Plate",
-        count: 1700 + Math.random() * 10,
+        name: "Reinforced Iron Plate",
+        count: 10 + Math.random() * 10,
       } as ItemStats,
     ] as ItemStats[]);
   }

@@ -1,5 +1,4 @@
 import { useContext } from 'react';
-import { _tasks, _posts, _timeline } from 'src/_mock';
 
 import Grid from '@mui/material/Unstable_Grid2';
 import { Iconify } from 'src/components/iconify';
@@ -10,8 +9,6 @@ import { DashboardContent } from 'src/layouts/dashboard';
 import { fShortenNumber } from 'src/utils/format-number';
 import { AnalyticsWidgetSummary } from '../analytics-widget-summary';
 import { AnalyticsEnergySources } from '../analytics-energy-sources';
-import { AnalyticsWebsiteVisits } from '../analytics-website-visits';
-import { AnalyticsOrderTimeline } from '../analytics-order-timeline';
 import { AnalyticsCouponsProgress } from '../analytics-coupon-progress';
 
 // ----------------------------------------------------------------------

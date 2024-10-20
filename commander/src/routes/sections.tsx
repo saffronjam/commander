@@ -9,6 +9,7 @@ import { DashboardLayout } from 'src/layouts/dashboard';
 
 import PlayersPage from 'src/pages/players';
 import PoductionPage from 'src/pages/production';
+import InventoryPage from 'src/pages/inventory';
 
 // ----------------------------------------------------------------------
 
@@ -43,6 +44,7 @@ export function Router() {
       children: [
         { element: <HomePage />, index: true },
         { path: 'production', element: <PoductionPage /> },
+        { path: 'inventory', element: <InventoryPage /> },
         { path: 'players', element: <PlayersPage /> },
       ],
     },

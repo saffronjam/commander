@@ -1,6 +1,5 @@
 import path from 'path';
 import { Iconify } from 'src/components/iconify';
-import { Label } from 'src/components/label';
 import { SvgColor } from 'src/components/svg-color';
 
 // ----------------------------------------------------------------------
@@ -19,6 +18,11 @@ export const navData = [
     title: 'Production',
     path: '/production',
     icon: <Iconify icon="mdi:factory" width={24} height={24} />,
+  },
+  {
+    title: 'Inventory',
+    path: '/inventory',
+    icon: <Iconify icon="mdi:package-variant" width={24} height={24} />,
   },
   {
     title: 'Players',

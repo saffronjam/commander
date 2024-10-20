@@ -25,15 +25,18 @@
   "packageManager": "yarn@1.22.22",
   "dependencies": {
     "@emotion/cache": "^11.13.1",
-    "@emotion/react": "^11.13.3",
-    "@emotion/styled": "^11.13.0",
+    "@emotion/react": "^11.10.5",
+    "@emotion/styled": "^11.10.5",
     "@fontsource-variable/dm-sans": "^5.0.7",
     "@fontsource/barlow": "^5.0.14",
     "@fontsource/dm-mono": "^5.1.0",
     "@fontsource/roboto-mono": "^5.1.0",
     "@iconify/react": "^5.0.2",
+    "@mui/joy": "^5.0.0-alpha.67",
     "@mui/lab": "^5.0.0-alpha.173",
-    "@mui/material": "^5.16.7",
+    "@mui/material": "^5.6.3",
+    "@mui/styled-engine-sc": "^5.6.1",
+    "@vitejs/plugin-react": "^4.3.3",
     "apexcharts": "^3.52.0",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.5",
@@ -44,8 +47,10 @@
     "react-dom": "^18.3.1",
     "react-error-overlay": "^6.0.11",
     "react-helmet-async": "^2.0.5",
+    "react-is": "^18.3.1",
     "react-router-dom": "^6.26.1",
-    "simplebar-react": "^3.2.6"
+    "simplebar-react": "^3.2.6",
+    "styled-components": "^5.3.11"
   },
   "devDependencies": {
     "@types/node": "^22.5.0",

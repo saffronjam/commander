@@ -5,8 +5,6 @@ import { useEffect, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import { useTheme } from '@mui/material/styles';
 
-import { _langs, _notifications } from 'src/_mock';
-
 import { Main } from './main';
 import { layoutClasses } from '../classes';
 import { NavMobile, NavDesktop } from './nav';
@@ -38,30 +36,8 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
   const theme = useTheme();
 
   const [navOpen, setNavOpen] = useState(false);
-  const [notifications, setNotifications] = useState([] as Notification[]);
 
   const layoutQuery: Breakpoint = 'lg';
-
-  useEffect(() => {
-    setNotifications([
-      {
-        id: '1',
-        title: 'You have a new message',
-        description: 'Hello, can you help me with this?',
-        type: 'message',
-        postedAt: '2022-01-01T00:00:00.000Z',
-        isUnRead: true,
-      },
-      {
-        id: '2',
-        title: 'New user registered',
-        description: 'Just now',
-        type: 'user',
-        postedAt: '2022-01-01T00:00:00.000Z',
-        isUnRead: true,
-      },
-    ]);
-  }, []);
 
   return (
     <LayoutSection

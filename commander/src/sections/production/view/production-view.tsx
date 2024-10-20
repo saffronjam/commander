@@ -15,10 +15,15 @@ import {
 } from '@mui/material';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { ApiContext } from 'src/contexts/api/useApi';
-import { c } from 'vite/dist/node/types.d-aGj9QkWt';
 
 interface Column {
-  id: 'name' | 'production' | 'consumption' | 'production efficiency' | 'consumption efficiency';
+  id:
+    | 'icon'
+    | 'name'
+    | 'production'
+    | 'consumption'
+    | 'production efficiency'
+    | 'consumption efficiency';
   label: string;
   minWidth?: number;
   align?: 'left' | 'right' | 'center';
@@ -35,6 +40,7 @@ enum severity {
 }
 
 const columns: readonly Column[] = [
+  { id: 'icon', label: '', minWidth: 64, align: 'center' },
   { id: 'name', label: 'Name', minWidth: 170 },
   {
     id: 'production',
@@ -102,14 +108,6 @@ const columns: readonly Column[] = [
   },
 ];
 
-interface Data {
-  name: string;
-  code: string;
-  population: number;
-  size: number;
-  density: number;
-}
-
 export function ProductionView() {
   const apiContext = React.useContext(ApiContext);
   const theme = useTheme();
@@ -167,7 +165,7 @@ export function ProductionView() {
                     align={column.align}
                     style={{
                       minWidth: column.minWidth,
-                      backgroundColor: theme.palette.primary.darker,
+                      backgroundColor: theme.palette.primary.dark,
                       color: theme.palette.primary.contrastText,
                     }}
                   >
@@ -191,6 +189,19 @@ export function ProductionView() {
                       }}
                     >
                       {columns.map((column) => {
+                        if (column.id === 'icon') {
+                          return (
+                            <TableCell key={column.id} align={column.align}>
+                              <img
+                                src={`assets/images/satisfactory/64x64/${row.name}.png`}
+                                alt={row.name}
+                                style={{ width: '50px', height: '50px' }}
+                              />
+                            </TableCell>
+                          );
+                        }
+
+
                         const value = row[column.id];
                         return (
                           <TableCell
