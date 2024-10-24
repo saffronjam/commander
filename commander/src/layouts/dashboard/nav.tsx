@@ -15,7 +15,6 @@ import { varAlpha } from 'src/theme/styles';
 
 import { Logo } from 'src/components/logo';
 import { Scrollbar } from 'src/components/scrollbar';
-import { Divider } from '@mui/material';
 
 // ----------------------------------------------------------------------
 
@@ -109,25 +108,27 @@ export function NavMobile({
 
 export function NavContent({ data, slots, sx }: NavContentProps) {
   const pathname = usePathname();
+  const theme = useTheme();
 
   return (
     <>
-      <Logo />
-
-      <Divider sx={{ my: 2, borderColor: 'transparent' }} /> 
+      <Logo sx={{ display: 'none' }} />
 
       {slots?.topArea}
 
       <Scrollbar fillContent>
+        {/* Separator */}
+        <Box sx={{ mb: 10 }} />
+
         <Box component="nav" display="flex" flex="1 1 auto" flexDirection="column" sx={sx}>
-          <Box component="ul" gap={0.5} display="flex" flexDirection="column">
+          <Box component="ul" gap={1.5} display="flex" flexDirection="column">
             {data.map((item) => {
               const isActived = item.path === pathname;
 
               return (
                 <ListItem disableGutters disablePadding key={item.title}>
                   <ListItemButton
-                    disableGutters
+                    disableRipple
                     component={RouterLink}
                     href={item.path}
                     sx={{
@@ -135,17 +136,22 @@ export function NavContent({ data, slots, sx }: NavContentProps) {
                       py: 1,
                       gap: 2,
                       pr: 1.5,
-                      borderRadius: 0.75,
+                      borderRadius: 2,
                       typography: 'body2',
                       fontWeight: 'fontWeightMedium',
-                      color: 'var(--layout-nav-item-color)',
                       minHeight: 'var(--layout-nav-item-height)',
+                      ...(!isActived && {
+                        color: 'text.primary',
+                        '&:hover': {
+                          bgcolor: 'action.hover',
+                        },
+                      }),
                       ...(isActived && {
                         fontWeight: 'fontWeightSemiBold',
-                        bgcolor: 'var(--layout-nav-item-active-bg)',
-                        color: 'var(--layout-nav-item-active-color)',
+                        bgcolor: varAlpha(theme.palette.primary.darkChannel, 0.66),
+                        color: theme.palette.primary.contrastText,
                         '&:hover': {
-                          bgcolor: 'var(--layout-nav-item-hover-bg)',
+                          bgcolor: varAlpha(theme.palette.primary.darkChannel, 0.86),
                         },
                       }),
                     }}

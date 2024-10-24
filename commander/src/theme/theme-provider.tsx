@@ -16,7 +16,7 @@ export function ThemeProvider({ children }: Props) {
   const theme = createTheme();
 
   return (
-    <CssVarsProvider theme={theme}>
+    <CssVarsProvider defaultColorScheme='dark' theme={theme}>
       <CssBaseline />
       {children}
     </CssVarsProvider>

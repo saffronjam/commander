@@ -56,7 +56,7 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
           sx={header?.sx}
           slots={{
             topArea: (
-              <Alert severity="info" sx={{ display: 'none', borderRadius: 0 }}>
+              <Alert severity="warning" sx={{ borderRadius: 4, m: 2, position: 'fixed', zIndex: 9999, width: 'calc(100% - 32px)', [theme.breakpoints.up(layoutQuery)]: { width: 'calc(100% - 230px - 32px)' } }}>
                 This is an info Alert.
               </Alert>
             ),
@@ -87,7 +87,7 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
        * Style
        *************************************** */
       cssVars={{
-        '--layout-nav-vertical-width': '300px',
+        '--layout-nav-vertical-width': '230px',
         '--layout-dashboard-content-pt': theme.spacing(1),
         '--layout-dashboard-content-pb': theme.spacing(8),
         '--layout-dashboard-content-px': theme.spacing(5),

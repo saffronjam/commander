@@ -29,7 +29,7 @@ export function AnalyticsEnergySources({
   title,
   subheader,
   chart,
-  color = 'grey.700',
+  color = 'primary',
   ...other
 }: Props) {
   const theme = useTheme();
@@ -37,10 +37,10 @@ export function AnalyticsEnergySources({
   const chartSeries = chart.series.map((item) => item.value);
 
   const chartColors = chart.colors ?? [
-    theme.palette.primary.dark,
-    theme.palette.warning.dark,
+    theme.palette.primary.main,
     theme.palette.secondary.dark,
-    theme.palette.error.dark,
+    theme.palette.primary.dark,
+    theme.palette.secondary.main,
   ];
 
   const chartOptions = useChart({
@@ -51,7 +51,7 @@ export function AnalyticsEnergySources({
     dataLabels: { enabled: true, dropShadow: { enabled: false } },
     tooltip: {
       y: {
-        formatter: (value: number) => fNumber(value),
+        formatter: (value: number) => fNumber(value, { decimals: 0}),
         title: { formatter: (seriesName: string) => `${seriesName}` },
       },
     },
@@ -61,13 +61,16 @@ export function AnalyticsEnergySources({
 
   return (
     <Card
-      sx={{
-        color: `white`,
-        backgroundColor: `${color}`,
-      }}
       {...other}
+      sx={{
+        boxShadow: 0
+      }}
     >
-      <CardHeader title={title} subheader={subheader} />
+      <CardHeader
+        title={title}
+        subheader={subheader}
+        titleTypographyProps={{ variant: 'overline' }}
+      />
 
       <Chart
         type="pie"

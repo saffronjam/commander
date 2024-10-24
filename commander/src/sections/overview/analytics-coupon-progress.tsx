@@ -20,7 +20,7 @@ export function AnalyticsCouponsProgress({
   subheader,
   available,
   progress,
-  color = 'grey.700',
+  color = 'primary',
   ...other
 }: Props) {
   const theme = useTheme();
@@ -60,13 +60,16 @@ export function AnalyticsCouponsProgress({
 
   return (
     <Card
-      sx={{
-        color: `white`,
-        backgroundColor: `${color}`,
-      }}
       {...other}
+      sx={{
+        boxShadow: 0
+      }}
     >
-      <CardHeader title={title} subheader={subheader} />
+      <CardHeader
+        title={title}
+        subheader={subheader}
+        titleTypographyProps={{ variant: 'overline' }}
+      />
 
       <Chart
         type="radialBar"
@@ -75,8 +78,6 @@ export function AnalyticsCouponsProgress({
         height={{ xs: 240, xl: 265 }}
         sx={{ my: 10, mx: 'auto' }}
       />
-
-      <Divider sx={{ borderStyle: 'dashed' }} />
     </Card>
   );
 }

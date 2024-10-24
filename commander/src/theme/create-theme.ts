@@ -1,13 +1,16 @@
-import type { Theme } from '@mui/material/styles';
+import type { CssVarsThemeOptions, Theme } from '@mui/material/styles';
 
-import { experimental_extendTheme as extendTheme } from '@mui/material/styles';
+import {
+  createTheme as createMuiTheme,
+  experimental_extendTheme as extendTheme,
+} from '@mui/material/styles';
 
 import { shadows, typography, components, colorSchemes, customShadows } from './core';
 
 // ----------------------------------------------------------------------
 
 export function createTheme(): Theme {
-  const initialTheme = {
+  const initialTheme: CssVarsThemeOptions = {
     colorSchemes,
     shadows: shadows(),
     customShadows: customShadows(),

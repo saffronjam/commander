@@ -1,17 +1,17 @@
 {
-  "name": "commander",
-  "version": "1.0.0",
-  "main": " ",
-  "type": "module",
+  "name": "parent",
+  "private": true,
   "workspaces": [
-    "./*"
+    "api",
+    "commander",
+    "common"
   ],
   "scripts": {
-    "format-check": "prettier --check \"**/*.{ts,tsx}\"",
-    "lint": "eslint --no-warn-ignored './**/*.{ts,tsx}'",
-    "lint-fix": "npm run lint -- --fix"
+    "a": "npm run dev -w api",
+    "f": "npm run dev -w commander",
+    "c": "npm run build -w common"
   },
-  "author": "",
-  "license": "ISC",
-  "description": ""
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  }
 }

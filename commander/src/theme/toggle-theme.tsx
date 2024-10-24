@@ -1,4 +1,4 @@
-import { useColorScheme } from '@mui/joy';
+import { useColorScheme } from '@mui/material';
 import { useEffect } from 'react';
 
 export const ToggleTheme: React.FC<any> = ({ children }: any) => {

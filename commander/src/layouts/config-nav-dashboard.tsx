@@ -12,7 +12,7 @@ export const navData = [
   {
     title: 'Dashboard',
     path: '/',
-    icon: icon('ic-analytics'),
+    icon: <Iconify icon="uim:graph-bar" width={24} height={24} />,
   },
   {
     title: 'Production',

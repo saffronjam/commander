@@ -5,7 +5,10 @@
 
 export type InputNumberValue = string | number | null | undefined;
 
-type Options = (Intl.NumberFormatOptions | undefined) & { ensureConstantDecimals?: boolean };
+type Options = (Intl.NumberFormatOptions | undefined) & {
+  ensureConstantDecimals?: boolean;
+  decimals?: number;
+};
 
 const DEFAULT_LOCALE = { code: 'en-US', currency: 'USD' };
 
@@ -22,13 +25,19 @@ export function fNumber(inputValue: InputNumberValue, options?: Options) {
   const number = processInput(inputValue);
   if (number === null) return '';
 
-  const fm = new Intl.NumberFormat(locale.code, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-    ...options,
-  }).format(number);
+  const fm = (n: number): string => {
+    if (options?.decimals === 0) {
+      return Math.round(n).toString();
+    }
 
-  return fm;
+    return new Intl.NumberFormat(locale.code, {
+      maximumFractionDigits: options?.decimals || 2,
+      minimumFractionDigits: options?.ensureConstantDecimals ? options?.decimals || 2 : 0,
+      ...options,
+    }).format(number);
+  };
+
+  return fm(number);
 }
 
 // ----------------------------------------------------------------------
@@ -39,15 +48,21 @@ export function fCurrency(inputValue: InputNumberValue, options?: Options) {
   const number = processInput(inputValue);
   if (number === null) return '';
 
-  const fm = new Intl.NumberFormat(locale.code, {
-    style: 'currency',
-    currency: locale.currency,
-    minimumFractionDigits: options?.ensureConstantDecimals ? 2 : 0,
-    maximumFractionDigits: 2,
-    ...options,
-  }).format(number);
+  const fm = (n: number): string => {
+    if (options?.decimals === 0) {
+      return Math.round(n).toString();
+    }
 
-  return fm;
+    return new Intl.NumberFormat(locale.code, {
+      style: 'currency',
+      currency: locale.currency,
+      maximumFractionDigits: options?.decimals || 2,
+      minimumFractionDigits: options?.ensureConstantDecimals ? options?.decimals || 2 : 0,
+      ...options,
+    }).format(number);
+  };
+
+  return fm(number);
 }
 
 // ----------------------------------------------------------------------
@@ -58,14 +73,21 @@ export function fPercent(inputValue: InputNumberValue, options?: Options) {
   const number = processInput(inputValue);
   if (number === null) return '';
 
-  const fm = new Intl.NumberFormat(locale.code, {
-    style: 'percent',
-    minimumFractionDigits: options?.ensureConstantDecimals ? 1 : 0,
-    maximumFractionDigits: 1,
-    ...options,
-  }).format(number / 100);
 
-  return fm;
+  const fm = (n: number): string => {
+    if (options?.decimals === 0) {
+      return Math.round(n).toString();
+    }
+
+    return new Intl.NumberFormat(locale.code, {
+      style: 'percent',
+      maximumFractionDigits: options?.decimals || 2,
+      minimumFractionDigits: options?.ensureConstantDecimals ? options?.decimals || 2 : 0,
+      ...options,
+    }).format(number / 100);
+  };
+
+  return fm(number);
 }
 
 // ----------------------------------------------------------------------
@@ -83,14 +105,23 @@ export function fShortenNumber(inputValue: number, units: string[], options?: Op
   const number = processInput(inputValue);
   if (number === null) return '';
 
-  const fm = new Intl.NumberFormat(locale.code, {
-    notation: units.length ? undefined : 'compact',
-    maximumFractionDigits: 2,
-    minimumFractionDigits: options?.ensureConstantDecimals ? 2 : 0,
-    ...options,
-  }).format(number);
+  const fm = (n: number): string => {
+    if (options?.decimals === 0) {
+      return Math.round(n).toString();
+    }
 
-  return fm.replace(/[A-Z]/g, (match) => match.toLowerCase()) + (units?.length ? ` ${units[unitIndex]}` : '');
+    return new Intl.NumberFormat(locale.code, {
+      notation: units.length ? undefined : 'compact',
+      maximumFractionDigits: options?.decimals || 2,
+      minimumFractionDigits: options?.ensureConstantDecimals ? options?.decimals || 2 : 0,
+      ...options,
+    }).format(number);
+  };
+
+  return (
+    fm(inputValue).replace(/[A-Z]/g, (match) => match.toLowerCase()) +
+    (units?.length ? ` ${units[unitIndex]}` : '')
+  );
 }
 
 // ----------------------------------------------------------------------

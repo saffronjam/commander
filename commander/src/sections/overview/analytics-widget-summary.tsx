@@ -8,12 +8,14 @@ import { useTheme } from '@mui/material/styles';
 
 import { fNumber, fShortenNumber } from 'src/utils/format-number';
 import { Chart, useChart } from 'src/components/chart';
+import { bgGradient, varAlpha } from 'src/theme/styles';
+import { Typography } from '@mui/material';
 
 // ----------------------------------------------------------------------
 
 type Props = CardProps & {
   title: string;
-  total: number | string;
+  total: number | string | number[];
   units?: string[];
   color?: ColorType;
   icon: React.ReactNode;
@@ -36,7 +38,7 @@ export function AnalyticsWidgetSummary({
 }: Props) {
   const theme = useTheme();
 
-  const chartColors = [theme.palette[color].darker];
+  const chartColors = [varAlpha(theme.palette[color].mainChannel, 0.48)];
 
   const chartOptions = useChart({
     chart: { sparkline: { enabled: true } },
@@ -57,18 +59,69 @@ export function AnalyticsWidgetSummary({
     ...chart.options,
   });
 
-  const formatNumber = (value: number) => {
+  const formatNumber = (value: number, options?: { decimals?: number }) => {
     if (units) {
-      return fShortenNumber(value, units);
+      return fShortenNumber(value, units, options);
     }
     return Math.round(value);
   };
 
-  const genContent = (value: number | string) => {
+  const genContent = (value: number | string | number[]) => {
+    if (Array.isArray(value)) {
+      // Return a box that has a | in between the two values
+      if (Array.isArray(value) && value.length === 2) {
+        // Format numbers
+        const leftNumber = formatNumber(value[0], { decimals: 0 });
+        const rightNumber = formatNumber(value[1], { decimals: 0 });
+
+        return (
+          <Box
+            sx={{
+              flexGrow: 1,
+              minWidth: 112,
+              display: 'flex',
+              position: 'relative',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            {/* Left number */}
+            <Box sx={{ flex: 1, textAlign: 'center' }}>
+              <Typography sx={{ color: theme.palette.primary.contrastText }} variant="h4">
+                {leftNumber}
+              </Typography>
+            </Box>
+
+            {/* Separator in the center */}
+            <Box
+              sx={{
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)',
+              }}
+            >
+              <Typography variant="body2" sx={{ fontSize: 25 }}>
+                | 
+              </Typography>
+            </Box>
+
+            {/* Right number */}
+            <Box sx={{ flex: 1, textAlign: 'center' }}>
+              <Typography sx={{ color: theme.palette.primary.contrastText }} variant="h4">
+                {rightNumber}
+              </Typography>
+            </Box>
+          </Box>
+        );
+      }
+    }
+
     if (typeof value === 'number') {
       return (
-        <Box sx={{ flexGrow: 1, minWidth: 112 }}>
-          <Box sx={{ typography: 'h4' }}>{formatNumber(value)}</Box>
+        <Box sx={{ flexGrow: 1, minWidth: 112, textAlign: 'center' }}>
+          <Typography sx={{ color: theme.palette.primary.contrastText }} variant="h4">
+            {formatNumber(value)}
+          </Typography>
         </Box>
       );
     }
@@ -76,10 +129,12 @@ export function AnalyticsWidgetSummary({
     if (typeof value === 'string') {
       const newLineSplit = value.split('\n');
       return (
-        <Box sx={{ flexGrow: 1, minWidth: 112 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 112, color: theme.palette.primary.contrastText }}>
           {newLineSplit.map((line, index) => (
-            // Monospace roboto
-            <Box key={index} sx={{ typography: 'h4', fontFamily: "'DM Mono', 'Roboto Mono', monospace" }}>
+            <Box
+              key={index}
+              sx={{ typography: 'h4', fontFamily: "'DM Mono', 'Roboto Mono', monospace" }}
+            >
               {line}
             </Box>
           ))}
@@ -93,36 +148,52 @@ export function AnalyticsWidgetSummary({
   return (
     <Card
       sx={{
+        boxShadow: 0,
         p: 3,
-        boxShadow: 'none',
         position: 'relative',
-        color: `grey.900`,
-        backgroundColor: `${color}.dark`,
+        display: 'flex',
+        flexDirection: 'column', // Ensure content stacks vertically
+        justifyContent: 'space-between', // Space between chart and content
         ...sx,
       }}
       {...other}
     >
-      <Box sx={{ width: 48, height: 48, mb: 3 }}>{icon}</Box>
+      <Box sx={{ width: 38, height: 38, my: 2, mb: 5, mx: 'auto' }}>{icon}</Box>
 
+      {/* Main content area */}
       <Box
         sx={{
           display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'flex-end',
-          justifyContent: 'flex-end',
+          flexDirection: 'column',
+          alignItems: 'center',
+          flexGrow: 1,
+          minHeight: 100,
         }}
       >
-        <Box sx={{ flexGrow: 1, minWidth: 112, minHeight: 100 }}>
-          <Box sx={{ mb: 1, typography: 'subtitle2' }}>{title}</Box>
+        <Box sx={{ mb: 1, typography: 'overline' }}>{title}</Box>
 
-          <Box sx={{ typography: 'h4' }}>{genContent(total)}</Box>
+        {/* Bigger numbers and centered */}
+        <Box
+          sx={{
+            typography: 'h2', // Making numbers bigger
+            display: 'flex',
+            justifyContent: 'center',
+            width: '100%', // Ensure full width
+          }}
+        >
+          {genContent(total)}
         </Box>
+      </Box>
 
+      {/* Wider chart at the bottom */}
+      <Box sx={{ mt: 3, width: '100%' }}>
+        {' '}
+        {/* Add margin at the top */}
         <Chart
           type="line"
           series={[{ data: chart.series }]}
           options={chartOptions}
-          width={84}
+          width="100%"
           height={56}
         />
       </Box>

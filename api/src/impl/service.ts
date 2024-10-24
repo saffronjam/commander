@@ -29,13 +29,19 @@ export class Service {
           .map((circuit: any) => {
             // Parse string from 00:00:00 (HH:MM:SS) to seconds (int)
             const secondsToFullyCharge =
-              circuit.BatteryTimeFull?.split(":").reduce((acc, time, i) => {
-                return acc + parseInt(time) * Math.pow(60, 2 - i);
-              }, 0) || 0;
+              circuit.BatteryTimeFull?.split(":").reduce(
+                (acc: number, time: string, i: number) => {
+                  return acc + parseInt(time) * Math.pow(60, 2 - i);
+                },
+                0
+              ) || 0;
             const secondsToFullyDischarge =
-              circuit.BatteryTimeEmpty?.split(":").reduce((acc, time, i) => {
-                return acc + parseInt(time) * Math.pow(60, 2 - i);
-              }, 0) || 0;
+              circuit.BatteryTimeEmpty?.split(":").reduce(
+                (acc: number, time: string, i: number) => {
+                  return acc + parseInt(time) * Math.pow(60, 2 - i);
+                },
+                0
+              ) || 0;
 
             return {
               id: circuit.CircuitID,
