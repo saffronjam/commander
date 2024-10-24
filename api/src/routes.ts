@@ -38,6 +38,13 @@ export const makeRoutes = (
     },
     {
       method: "get",
+      path: "/api/satisfactoryApiCheck",
+      handler: async (req: Request, res: Response) => {
+        return res.json({ up: service.isSatisfactoryApiAvailable() });
+      },
+    },
+    {
+      method: "get",
       path: "/api/circuits",
       handler: async (req: Request, res: Response) => {
         return dataHandler(res, service.getCircuits.bind(service));

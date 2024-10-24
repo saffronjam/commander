@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 
-import Grid from '@mui/material/Unstable_Grid2';
+import Grid from '@mui/material/Grid';
 import { Iconify } from 'src/components/iconify';
 
 import { ApiContext } from 'src/contexts/api/useApi';

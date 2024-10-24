@@ -33,8 +33,6 @@ export const createServer = async () => {
 
   await loadEnvFile();
 
-  console.log(process.env.USE_MOCK);
-
   const genService = async (): Promise<IService> => {
     if (env.USE_MOCK) {
       const green = "\x1b[32m";

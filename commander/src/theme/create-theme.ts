@@ -1,9 +1,6 @@
 import type { CssVarsThemeOptions, Theme } from '@mui/material/styles';
 
-import {
-  createTheme as createMuiTheme,
-  experimental_extendTheme as extendTheme,
-} from '@mui/material/styles';
+import { extendTheme } from '@mui/material/styles';
 
 import { shadows, typography, components, colorSchemes, customShadows } from './core';
 

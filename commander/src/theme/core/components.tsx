@@ -39,6 +39,7 @@ const MuiButton: Components<Theme>['MuiButton'] = {
 const MuiCard: Components<Theme>['MuiCard'] = {
   styleOverrides: {
     root: ({ theme }) => ({
+      margin: 10,
       zIndex: 0,
       position: 'relative',
       boxShadow: theme.customShadows.card,

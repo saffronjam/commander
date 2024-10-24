@@ -283,6 +283,10 @@ export class Service {
       });
   }
 
+  isSatisfactoryApiAvailable() {
+    return satistactoryApiIsUp();
+  }
+
   async setupSatisfactoryApiCheck() {
     return setInterval(this.checkIfSatisfactoryApiIsUp, 10000);
   }

@@ -10,6 +10,7 @@ import {
 
 export interface Service {
   setupSatisfactoryApiCheck(): void;
+  isSatisfactoryApiAvailable(): boolean;
 
   getCircuits(): Promise<Circuit[]>;
   getFactoryStats(): Promise<FactoryStats>;

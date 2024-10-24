@@ -14,6 +14,10 @@ export class MockService {
 
   setupSatisfactoryApiCheck(): void {}
 
+  isSatisfactoryApiAvailable(): boolean {
+    return true;
+  }
+
   async getCircuits(): Promise<Circuit[]> {
     return this.promisifyWithRandomDelay([
       {

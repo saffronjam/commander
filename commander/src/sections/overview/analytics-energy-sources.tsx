@@ -44,14 +44,24 @@ export function AnalyticsEnergySources({
   ];
 
   const chartOptions = useChart({
-    chart: { sparkline: { enabled: true } },
+    chart: {
+      sparkline: { enabled: true },
+      animations: {
+        enabled: false, // Disables animation on updates
+      },
+    },
     colors: chartColors,
     labels: chart.series.map((item) => item.label),
-    stroke: { width: 0 },
-    dataLabels: { enabled: true, dropShadow: { enabled: false } },
+    stroke: { width: 5, colors: [theme.palette.background.paper] },
+    dataLabels: {
+      enabled: true,
+      style: { fontSize: '15' },
+      textAnchor: 'middle',
+      dropShadow: { enabled: false },
+    },
     tooltip: {
       y: {
-        formatter: (value: number) => fNumber(value, { decimals: 0}),
+        formatter: (value: number) => fNumber(value, { decimals: 0 }),
         title: { formatter: (seriesName: string) => `${seriesName}` },
       },
     },
@@ -63,13 +73,13 @@ export function AnalyticsEnergySources({
     <Card
       {...other}
       sx={{
-        boxShadow: 0
+        boxShadow: 0,
       }}
     >
       <CardHeader
         title={title}
         subheader={subheader}
-        titleTypographyProps={{ variant: 'overline' }}
+        titleTypographyProps={{ variant: 'overline', fontSize: '16px' }}
       />
 
       <Chart

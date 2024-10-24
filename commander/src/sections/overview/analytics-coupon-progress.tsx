@@ -4,6 +4,7 @@ import CardHeader from '@mui/material/CardHeader';
 import { useTheme } from '@mui/material/styles';
 import Divider from '@mui/material/Divider';
 import { Chart } from 'src/components/chart';
+import { varAlpha } from 'src/theme/styles';
 
 // ----------------------------------------------------------------------
 
@@ -47,7 +48,7 @@ export function AnalyticsCouponsProgress({
           value: {
             offsetY: 10,
             show: true,
-            color: theme.palette.primary.dark,
+            color: varAlpha(theme.palette.primary.contrastTextChannel, 0.60),
           },
         },
       },
@@ -68,7 +69,7 @@ export function AnalyticsCouponsProgress({
       <CardHeader
         title={title}
         subheader={subheader}
-        titleTypographyProps={{ variant: 'overline' }}
+        titleTypographyProps={{ variant: 'overline', fontSize: '16px' }}
       />
 
       <Chart

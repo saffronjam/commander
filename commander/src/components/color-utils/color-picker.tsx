@@ -39,7 +39,6 @@ export const ColorPicker = forwardRef<HTMLDivElement, BoxProps & ColorPickerProp
     return (
       <Box
         ref={ref}
-        component="ul"
         sx={{
           flexWrap: 'wrap',
           flexDirection: 'row',

@@ -8,10 +8,11 @@
   ],
   "scripts": {
     "a": "npm run dev -w api",
+    "al": "npm run live -w api",
     "f": "npm run dev -w commander",
     "c": "npm run build -w common"
   },
   "devDependencies": {
-    "typescript": "^5.2.2"
+    "typescript": "^5.6.3"
   }
 }

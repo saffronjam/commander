@@ -1,6 +1,6 @@
 import type { Theme, SxProps, Breakpoint } from '@mui/material/styles';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import Alert from '@mui/material/Alert';
 import { useTheme } from '@mui/material/styles';
@@ -12,6 +12,7 @@ import { navData } from '../config-nav-dashboard';
 import { MenuButton } from '../components/menu-button';
 import { LayoutSection } from '../core/layout-section';
 import { HeaderSection } from '../core/header-section';
+import { useNotifications } from '@toolpad/core';
 
 // ----------------------------------------------------------------------
 
@@ -34,6 +35,7 @@ export type Notification = {
 
 export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) {
   const theme = useTheme();
+  const {show, close} = useNotifications();
 
   const [navOpen, setNavOpen] = useState(false);
 
@@ -56,7 +58,18 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
           sx={header?.sx}
           slots={{
             topArea: (
-              <Alert severity="warning" sx={{ borderRadius: 4, m: 2, position: 'fixed', zIndex: 9999, width: 'calc(100% - 32px)', [theme.breakpoints.up(layoutQuery)]: { width: 'calc(100% - 230px - 32px)' } }}>
+              <Alert
+                severity="warning"
+                sx={{
+                  display: 'none',
+                  borderRadius: 4,
+                  m: 2,
+                  position: 'fixed',
+                  zIndex: 9999,
+                  width: 'calc(100% - 32px)',
+                  [theme.breakpoints.up(layoutQuery)]: { width: 'calc(100% - 230px - 32px)' },
+                }}
+              >
                 This is an info Alert.
               </Alert>
             ),

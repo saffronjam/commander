@@ -13,7 +13,7 @@ type Props = {
 export function HistoryChart({ chart, ...other }: Props) {
   const theme = useTheme();
 
-  const chartColors = [theme.palette.primary.dark];
+  const chartColors = [theme.palette.secondary.dark];
 
   const chartOptions = useChart({
     chart: { sparkline: { enabled: true } },
@@ -21,7 +21,7 @@ export function HistoryChart({ chart, ...other }: Props) {
     xaxis: { categories: chart.categories },
     markers: { size: 0, colors: chartColors, strokeColors: chartColors, strokeWidth: 0 },
     tooltip: {
-      x: { show: false }, // Hide x-axis values in tooltip
+      x: { show: true }, // Hide x-axis values in tooltip
       y: {
         formatter: (value: number) => fNumber(value), // Show y-axis values
         title: { formatter: () => '' },
@@ -35,7 +35,7 @@ export function HistoryChart({ chart, ...other }: Props) {
       type="line"
       series={[{ data: chart.series }]}
       options={chartOptions}
-      width={50}
+      width="90%"
       height={56}
     />
   );

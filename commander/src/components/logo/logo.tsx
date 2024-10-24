@@ -54,12 +54,9 @@ export const Logo = forwardRef<HTMLDivElement, LogoProps>(
     return (
       <Box
         ref={ref}
-        component={RouterLink}
-        href={href}
         className={logoClasses.root.concat(className ? ` ${className}` : '')}
         aria-label="Logo"
         sx={{
-          ...baseSize,
           flexShrink: 0,
           width: 'auto',
           display: 'inline-flex',

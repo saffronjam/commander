@@ -8,9 +8,11 @@ import {
   TableBody,
   TablePagination,
   useTheme,
+  Box,
 } from '@mui/material';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { ApiContext } from 'src/contexts/api/useApi';
+import { varAlpha } from 'src/theme/styles';
 import { HistoryChart } from '../history-chart';
 
 interface Column {
@@ -64,8 +66,12 @@ export function InventoryView() {
     return (
       <DashboardContent maxWidth="xl">
         <TableContainer
-          // maxHeight=fill
-          sx={{ height: 'calc(100vh - 200px)', backgroundColor: 'grey.800' }}
+          sx={{
+            backgroundColor: theme.palette.background.neutral,
+            height: 'calc(100vh - 200px)',
+            borderTopLeftRadius: 15,
+            borderTopRightRadius: 15,
+          }}
         >
           <Table stickyHeader aria-label="sticky table">
             <TableHead>
@@ -76,7 +82,7 @@ export function InventoryView() {
                     align={column.align}
                     style={{
                       minWidth: column.minWidth,
-                      backgroundColor: theme.palette.primary.dark,
+                      backgroundColor: theme.palette.secondary.darker,
                       color: theme.palette.primary.contrastText,
                     }}
                   >
@@ -96,18 +102,35 @@ export function InventoryView() {
                       tabIndex={-1}
                       key={row.name}
                       sx={{
-                        backgroundColor: index % 2 === 0 ? 'grey.800' : 'grey.700', // Alternating row colors
+                        backgroundColor:
+                          index % 2 === 0
+                            ? theme.palette.background.paper
+                            : varAlpha(theme.palette.background.defaultChannel, 0.5),
                       }}
                     >
                       {columns.map((column) => {
                         if (column.id === 'icon') {
                           return (
                             <TableCell key={column.id} align={column.align}>
-                              <img
-                                src={`assets/images/satisfactory/64x64/${row.name}.png`}
-                                alt={row.name}
-                                style={{ width: '50px', height: '50px' }}
-                              />
+                              <div
+                                style={{
+                                  marginLeft: '10px',
+                                  width: '50px',
+                                  height: '50px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <img
+                                  src={`assets/images/satisfactory/64x64/${row.name}.png`}
+                                  alt={row.name}
+                                  style={{
+                                    width: '50px',
+                                    height: '50px',
+                                  }}
+                                />
+                              </div>
                             </TableCell>
                           );
                         }
@@ -116,7 +139,10 @@ export function InventoryView() {
                         if (column.id === 'history') {
                           return (
                             <TableCell key={column.id} align={column.align}>
-                              <HistoryChart chart={{ series: row.history, categories: [] }} />
+                              {/* align middle */}
+                              <Box sx={{ mr: 10, display: 'flex', justifyContent: 'center' }}>
+                                <HistoryChart chart={{ series: row.history, categories: [] }} />
+                              </Box>
                             </TableCell>
                           );
                         }
@@ -150,7 +176,12 @@ export function InventoryView() {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          sx={{ color: theme.palette.primary.contrastText, backgroundColor: 'grey.700' }}
+          sx={{
+            backgroundColor: theme.palette.background.neutral,
+            color: theme.palette.primary.contrastText,
+            borderBottomLeftRadius: 20,
+            borderBottomRightRadius: 20,
+          }}
         />
       </DashboardContent>
     );

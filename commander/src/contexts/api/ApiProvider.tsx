@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Circuit,
   FactoryStats,
@@ -17,13 +17,16 @@ interface ApiProviderProps {
   children: React.ReactNode;
 }
 
+export async function fetchAndParse(path: string) {
+  return fetch(`${API_URL}${path}`).then((response) => response.json());
+}
+
 async function fetchAndSet(
   setter: (data: any) => void,
   path: string,
   onErr: (error: ApiError) => void
 ) {
-  return fetch(`${API_URL}${path}`)
-    .then((response) => response.json())
+  return fetchAndParse(path)
     .then((data) => {
       if (data.code === undefined) {
         setter(data);
