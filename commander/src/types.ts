@@ -1,5 +1,18 @@
-export type Alert = {
-  id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  message: string;
+export type Settings = {
+  apiUrl: string;
+  productionView: {
+    includeMinable: boolean;
+    includeItems: boolean;
+  }
+  intervals: {
+    rerender: number;
+    satisfactoryApiCheck: number;
+    circuits: number;
+    players: number;
+    factoryStats: number;
+    prodStats: number;
+    sinkStats: number;
+    itemStats: number;
+    generatorStats: number;
+  };
 };

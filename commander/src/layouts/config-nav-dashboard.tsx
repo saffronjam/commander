@@ -1,32 +1,37 @@
-import path from 'path';
+import { ReactNode } from 'react';
 import { Iconify } from 'src/components/iconify';
-import { SvgColor } from 'src/components/svg-color';
 
 // ----------------------------------------------------------------------
-
-const icon = (name: string) => (
-  <SvgColor width="100%" height="100%" src={`/assets/icons/navbar/${name}.svg`} />
-);
 
 export const navData = [
   {
     title: 'Dashboard',
     path: '/',
     icon: <Iconify icon="uim:graph-bar" width={24} height={24} />,
+    group: 'main',
   },
   {
     title: 'Production',
     path: '/production',
     icon: <Iconify icon="mdi:factory" width={24} height={24} />,
+    group: 'main',
   },
   {
     title: 'Inventory',
     path: '/inventory',
     icon: <Iconify icon="mdi:package-variant" width={24} height={24} />,
+    group: 'main',
   },
   {
     title: 'Players',
     path: '/players',
     icon: <Iconify icon="mdi:account-group" width={24} height={24} />,
+    group: 'main',
   },
-];
+  {
+    title: 'Settings',
+    path: '/settings',
+    icon: <Iconify icon="mdi:cog" width={24} height={24} />,
+    group: 'sub',
+  },
+] as any;

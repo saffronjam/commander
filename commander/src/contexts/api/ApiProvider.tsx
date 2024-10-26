@@ -10,6 +10,8 @@ import {
 } from 'common/types';
 import { ApiError } from 'common/apiTypes';
 import { ApiContext } from './useApi';
+import { useSettings } from 'src/hooks/use-settings';
+import { Settings } from 'src/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -38,6 +40,7 @@ async function fetchAndSet(
 }
 
 export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
+  const { settings } = useSettings();
   const [dataHistory, setDataHistory] = useState<any[]>([]);
   const [data, setData] = useState({
     isLoading: true,
@@ -71,13 +74,9 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
   const blockFetch = useRef<boolean>(false);
 
   const intervalsStartedRef = useRef(false); // Track whether intervals have been started
+  const timeouts = useRef<NodeJS.Timeout[]>([]);
 
-  useEffect(() => {
-    if (!API_URL) {
-      console.error('API_URL is not defined');
-      return;
-    }
-
+  const startIntervals = () => {
     const onDataUpdate = (newData: any) => {
       if (!blockFetch.current) {
         setDataHistory((prevDataHistory) => {
@@ -109,49 +108,49 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
               newData.circuits = val;
             },
             path: '/api/circuits',
-            interval: 500,
+            interval: settings.intervals.circuits,
           },
           {
             op: (val: any) => {
               newData.factoryStats = val;
             },
             path: '/api/factoryStats',
-            interval: 2000,
+            interval: settings.intervals.factoryStats,
           },
           {
             op: (val: any) => {
               newData.prodStats = val;
             },
             path: '/api/prodStats',
-            interval: 1000,
+            interval: settings.intervals.prodStats,
           },
           {
             op: (val: any) => {
               newData.sinkStats = val;
             },
             path: '/api/sinkStats',
-            interval: 2000,
+            interval: settings.intervals.sinkStats,
           },
           {
             op: (val: any) => {
               newData.itemStats = val;
             },
             path: '/api/itemStats',
-            interval: 2000,
+            interval: settings.intervals.itemStats,
           },
           {
             op: (val: any) => {
               newData.players = val;
             },
             path: '/api/players',
-            interval: 2000,
+            interval: settings.intervals.players,
           },
           {
             op: (val: any) => {
               newData.generatorStats = val;
             },
             path: '/api/generatorStats',
-            interval: 2000,
+            interval: settings.intervals.generatorStats,
           },
         ];
 
@@ -167,23 +166,43 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
         // Set up intervals, and fetch data periodically
         ops.forEach(({ op, path, interval }) => {
           fetchAndSet(op, path, handleFetchFail);
-          setInterval(() => {
+          const id = setInterval(() => {
             if (blockFetch.current) {
               return;
             }
             fetchAndSet(op, path, handleFetchFail);
           }, interval);
+
+          timeouts.current.push(id);
         });
 
         // Update state data periodically, decoupled from the fetch intervals
-        setInterval(() => {
+        const id = setInterval(() => {
           onDataUpdate({ ...newData });
-        }, 1000);
+        }, settings.intervals.rerender);
+
+        timeouts.current.push(id);
       };
 
       startIntervals(); // Start the fetching intervals once
     }
-  }); // Dependency to ensure `data` is accessible within fetch logic
+  };
+
+  const restartIntervals = () => {
+    timeouts.current.forEach((id) => clearInterval(id));
+    intervalsStartedRef.current = false;
+    startIntervals();
+  };
+
+  useEffect(() => {
+    if (!API_URL) {
+      console.error('API_URL is not defined');
+      return;
+    }
+
+    restartIntervals();
+  }, [settings]);
+
 
   const api = useMemo(
     () => ({

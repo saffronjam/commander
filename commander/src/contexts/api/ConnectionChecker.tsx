@@ -1,17 +1,13 @@
-import { Button, Alert, Container } from '@mui/material';
-import { Box } from '@mui/system';
 import { createContext, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAndParse } from './ApiProvider';
-import { on } from 'events';
 import { useNotifications } from '@toolpad/core';
+import { useSettings } from 'src/hooks/use-settings';
 
 export type Info = {
-  msInterval: number;
   checkApiConnection: () => void;
 };
 
 export const defaultValues: Info = {
-  msInterval: 1000,
   checkApiConnection: () => {},
 };
 
@@ -22,17 +18,16 @@ export const ConnectionCheckerProvider: React.FC<any> = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const { show, close } = useNotifications();
-  const [online, setOnline] = useState(false);
-
-  let timeoutId: NodeJS.Timeout;
-
   const currentNotification = useRef<{ id: string; message: string } | null>(null);
+  const timeoutId = useRef<NodeJS.Timeout | null>(null);
 
-  const [msInterval, setMsInterval] = useState(1000);
+  const { show, close } = useNotifications();
+  const { settings } = useSettings();
 
   const checkApiConnection = async () => {
-    clearTimeout(timeoutId);
+    if (timeoutId.current) {
+      clearTimeout(timeoutId.current);
+    }
 
     fetchAndParse('/api/satisfactoryApiCheck')
       .catch(() => {
@@ -43,38 +38,24 @@ export const ConnectionCheckerProvider: React.FC<any> = ({
         let newSeverity: 'success' | 'error' | 'info' | 'warning' | undefined;
 
         if (up) {
-          const message = 'Satifactory API is online';
-
-          if (currentNotification.current) {
-            if (currentNotification.current.message !== message) {
-              close(currentNotification.current.id);
-            }
-
-            if (currentNotification.current.message === message) {
-              return;
-            }
-          }
-
-          newMessage = message;
+          newMessage = 'Satifactory API is online';
           newSeverity = 'success';
         } else {
-          const message = 'Satifactory API is offline';
-
-          if (currentNotification.current) {
-            if (currentNotification.current.message !== message) {
-              close(currentNotification.current.id);
-            }
-
-            if (currentNotification.current.message === message) {
-              return;
-            }
-          }
-
-          newMessage = message;
+          newMessage = 'Satifactory API is offline';
           newSeverity = 'error';
         }
 
         if (newMessage && newSeverity) {
+          if (currentNotification.current) {
+            if (currentNotification.current.message !== newMessage) {
+              close(currentNotification.current.id);
+            }
+
+            if (currentNotification.current.message === newMessage) {
+              return;
+            }
+          }
+
           const newId = show(newMessage, {
             severity: newSeverity,
           });
@@ -83,19 +64,21 @@ export const ConnectionCheckerProvider: React.FC<any> = ({
         }
       });
 
-    timeoutId = setTimeout(checkApiConnection, 1000);
+    timeoutId.current = setTimeout(checkApiConnection, settings.intervals.satisfactoryApiCheck);
   };
 
   useEffect(() => {
+    if (settings.intervals.satisfactoryApiCheck) {
+      checkApiConnection();
+    }
     checkApiConnection();
-  }, []);
+  }, [settings]);
 
   const state = useMemo(
     () => ({
-      msInterval: msInterval,
-      checkApiConnection: checkApiConnection,
+      checkApiConnection,
     }),
-    [msInterval]
+    []
   );
 
   return (

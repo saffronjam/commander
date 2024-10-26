@@ -20,4 +20,6 @@ export const baseVars = (theme: Theme) => ({
   '--layout-header-zIndex': 1100,
   '--layout-header-mobile-height': '64px',
   '--layout-header-desktop-height': '72px',
+  // mobile
+  '--layout-nav-bg': theme.vars.palette.background.paper,
 });

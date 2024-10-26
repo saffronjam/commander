@@ -7,7 +7,6 @@ import App from './app';
 import { ApiProvider } from './contexts/api/ApiProvider';
 import '@fontsource/roboto-mono';
 import '@fontsource/dm-mono';
-import { AlertProvider } from './contexts/AlertProvider';
 import { NotificationsProvider } from '@toolpad/core';
 import { ConnectionCheckerProvider } from './contexts/api/ConnectionChecker';
 

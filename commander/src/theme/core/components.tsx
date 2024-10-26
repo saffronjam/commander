@@ -22,12 +22,18 @@ const MuiButton: Components<Theme>['MuiButton'] = {
     disableElevation: true,
   },
   styleOverrides: {
-    containedInherit: ({ theme }) => ({
-      color: theme.vars.palette.common.white,
-      backgroundColor: theme.vars.palette.grey[800],
+    root: {
+      borderRadius: 18,
+    },
+    contained: ({ theme }) => ({
+      backgroundColor: theme.palette.primary.dark,
       '&:hover': {
-        color: theme.vars.palette.common.white,
-        backgroundColor: theme.vars.palette.grey[800],
+        backgroundColor: varAlpha(theme.palette.primary.darkChannel, 0.8),
+      },
+    }),
+    text: ({ theme }) => ({
+      '&:hover': {
+        backgroundColor: varAlpha(theme.palette.primary.darkChannel, 0.12),
       },
     }),
     sizeLarge: {
@@ -94,6 +100,7 @@ const MuiTableCell: Components<Theme>['MuiTableCell'] = {
 const MuiMenuItem: Components<Theme>['MuiMenuItem'] = {
   styleOverrides: {
     root: ({ theme }) => ({
+      boxShadow: '0',
       ...theme.typography.body2,
     }),
   },
@@ -156,6 +163,51 @@ const MuiRadio: Components<Theme>['MuiRadio'] = {
   },
 };
 
+const MuiDialog: Components<Theme>['MuiDialog'] = {
+  styleOverrides: {
+    paper: ({ theme }) => ({
+      borderRadius: 20,
+      boxShadow: 'none',
+      backgroundColor: theme.vars.palette.background.paper,
+      color: theme.vars.palette.text.secondary, // Set the font color
+    }),
+  },
+};
+
+const MuiDialogTitle: Components<Theme>['MuiDialogTitle'] = {
+  styleOverrides: {
+    root: ({ theme }) => ({
+      color: theme.vars.palette.text.primary,
+    }),
+  },
+};
+
+const MuiDialogContentText: Components<Theme>['MuiDialogContentText'] = {
+  styleOverrides: {
+    root: ({ theme }) => ({
+      color: varAlpha(theme.vars.palette.text.primaryChannel, 0.6),
+    }),
+  },
+};
+
+const MuiTextField: Components<Theme>['MuiTextField'] = {
+  styleOverrides: {
+    root: {
+      '& .MuiOutlinedInput-root': {
+        borderRadius: 20,
+      },
+    },
+  },
+};
+
+const MuiSelect: Components<Theme>['MuiSelect'] = {
+  styleOverrides: {
+    root: {
+      borderRadius: 20,
+    },
+  },
+};
+
 // ----------------------------------------------------------------------
 
 export const components = {
@@ -171,4 +223,9 @@ export const components = {
   MuiCardHeader,
   MuiOutlinedInput,
   MuiFormControlLabel,
+  MuiDialog,
+  MuiDialogTitle,
+  MuiDialogContentText,
+  MuiTextField,
+  MuiSelect,
 };

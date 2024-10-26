@@ -51,6 +51,7 @@
     "react-is": "^18.3.1",
     "react-router-dom": "^6.27.0",
     "react-toastify": "^10.0.6",
+    "sentence-case": "^3.0.4",
     "simplebar-react": "^3.2.6",
     "styled-components": "^6.1.13"
   },

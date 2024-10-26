@@ -16,6 +16,7 @@ import {
 import { DashboardContent } from 'src/layouts/dashboard';
 import { ApiContext } from 'src/contexts/api/useApi';
 import { varAlpha } from 'src/theme/styles';
+import { useSettings } from 'src/hooks/use-settings';
 
 interface Column {
   id:
@@ -116,8 +117,7 @@ export function ProductionView() {
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
 
-  const [includeMinable, setIncludeMinable] = React.useState(false);
-  const [includeItems, setIncludeItems] = React.useState(true);
+  const {settings, saveSettings} = useSettings();
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -133,11 +133,11 @@ export function ProductionView() {
     const rows =
       apiContext?.prodStats.items
         .filter((item) => {
-          if (includeMinable && item.minable) {
+          if (settings.productionView.includeItems && item.minable) {
             return true;
           }
 
-          if (includeItems && !item.minable) {
+          if (settings.productionView.includeItems && !item.minable) {
             return true;
           }
 
@@ -293,7 +293,7 @@ export function ProductionView() {
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={includeMinable}
+                  checked={settings.productionView.includeMinable}
                   sx={{
                     '&:hover': {
                       backgroundColor: 'transparent', // Removes hover background color
@@ -303,12 +303,12 @@ export function ProductionView() {
               }
               label="Minable"
               sx={{ color: 'white', marginRight: '1rem' }}
-              onChange={(event: any) => setIncludeMinable(event.target.checked)}
+              onChange={(event: any) => saveSettings({ ...settings, productionView: { ...settings.productionView, includeMinable: event.target.checked } })}
             />
             <FormControlLabel
               control={
                 <Checkbox
-                  checked={includeItems}
+                  checked={settings.productionView.includeItems}
                   sx={{
                     '&:hover': {
                       backgroundColor: 'transparent', // Removes hover background color
@@ -319,7 +319,7 @@ export function ProductionView() {
               label="Items"
               // No hover color
               sx={{ color: 'white', marginRight: '1rem' }}
-              onChange={(event: any) => setIncludeItems(event.target.checked)}
+              onChange={(event: any) => saveSettings({ ...settings, productionView: { ...settings.productionView, includeItems: event.target.checked } })}
             />
           </Box>
 

@@ -15,6 +15,7 @@ import { varAlpha } from 'src/theme/styles';
 
 import { Logo } from 'src/components/logo';
 import { Scrollbar } from 'src/components/scrollbar';
+import { Divider } from '@mui/material';
 
 // ----------------------------------------------------------------------
 
@@ -23,6 +24,7 @@ export type NavContentProps = {
     path: string;
     title: string;
     icon: React.ReactNode;
+    group: 'main' | 'sub';
     info?: React.ReactNode;
   }[];
   slots?: {
@@ -95,6 +97,7 @@ export function NavMobile({
           overflow: 'unset',
           bgcolor: 'var(--layout-nav-bg)',
           width: 'var(--layout-nav-mobile-width)',
+          boxShadow: 'none',
           ...sx,
         },
       }}
@@ -110,6 +113,10 @@ export function NavContent({ data, slots, sx }: NavContentProps) {
   const pathname = usePathname();
   const theme = useTheme();
 
+  // Separate the data into main and sub groups
+  const mainItems = data.filter((item) => item.group === 'main');
+  const subItems = data.filter((item) => item.group === 'sub');
+
   return (
     <>
       <Logo sx={{ display: 'none' }} />
@@ -122,7 +129,60 @@ export function NavContent({ data, slots, sx }: NavContentProps) {
 
         <Box component="nav" display="flex" flex="1 1 auto" flexDirection="column" sx={sx}>
           <Box component="ul" gap={1.5} display="flex" flexDirection="column">
-            {data.map((item) => {
+            {/* Render main items */}
+            {mainItems.map((item) => {
+              const isActived = item.path === pathname;
+
+              return (
+                <ListItem disableGutters disablePadding key={item.title}>
+                  <ListItemButton
+                    disableRipple
+                    component={RouterLink}
+                    href={item.path}
+                    sx={{
+                      pl: 2,
+                      py: 1,
+                      gap: 2,
+                      pr: 1.5,
+                      borderRadius: 2,
+                      typography: 'body2',
+                      fontWeight: 'fontWeightMedium',
+                      minHeight: 'var(--layout-nav-item-height)',
+                      ...(!isActived && {
+                        color: 'text.primary',
+                        '&:hover': {
+                          bgcolor: 'action.hover',
+                        },
+                      }),
+                      ...(isActived && {
+                        fontWeight: 'fontWeightSemiBold',
+                        bgcolor: varAlpha(theme.palette.primary.darkChannel, 0.66),
+                        color: theme.palette.primary.contrastText,
+                        '&:hover': {
+                          bgcolor: varAlpha(theme.palette.primary.darkChannel, 0.86),
+                        },
+                      }),
+                    }}
+                  >
+                    <Box component="span" sx={{ width: 24, height: 24 }}>
+                      {item.icon}
+                    </Box>
+
+                    <Box component="span" flexGrow={1}>
+                      {item.title}
+                    </Box>
+
+                    {item.info && item.info}
+                  </ListItemButton>
+                </ListItem>
+              );
+            })}
+
+            {/* Divider between main and sub items */}
+            {subItems.length > 0 && <Divider sx={{ my: 2 }} />}
+
+            {/* Render sub items */}
+            {subItems.map((item) => {
               const isActived = item.path === pathname;
 
               return (

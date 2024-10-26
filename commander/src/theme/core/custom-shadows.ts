@@ -22,6 +22,7 @@ export interface CustomShadows {
   card?: string;
   dialog?: string;
   dropdown?: string;
+  menuItem?: string;
 }
 
 declare module '@mui/material/styles' {
@@ -55,8 +56,10 @@ export function customShadows() {
     z24: `0 24px 48px 0 ${varAlpha(colorChannel, 0.16)}`,
     //
     dialog: `-40px 40px 80px -8px ${varAlpha(common.blackChannel, 0.24)}`,
-    card: `0 0 2px 0 ${varAlpha(colorChannel, 0.2)}, 0 12px 24px -4px ${varAlpha(colorChannel, 0.12)}`,
+    // card: `0 0 2px 0 ${varAlpha(colorChannel, 0.2)}, 0 12px 24px -4px ${varAlpha(colorChannel, 0.12)}`,
+    card: '0',
     dropdown: `0 0 2px 0 ${varAlpha(colorChannel, 0.24)}, -20px 20px 40px -4px ${varAlpha(colorChannel, 0.24)}`,
+    menuItem: '0',
     //
     primary: createShadowColor(primary.mainChannel),
     secondary: createShadowColor(secondary.mainChannel),
