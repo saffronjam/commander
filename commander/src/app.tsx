@@ -5,7 +5,7 @@ import { Router } from 'src/routes/sections';
 import { useScrollToTop } from 'src/hooks/use-scroll-to-top';
 
 import { ThemeProvider } from 'src/theme/theme-provider';
-import { ToggleTheme } from './theme/toggle-theme';
+import { ConnectionCheckerProvider } from './contexts/api/ConnectionChecker';
 
 // ----------------------------------------------------------------------
 
@@ -14,6 +14,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
+      <ConnectionCheckerProvider />
       <Router />
     </ThemeProvider>
   );

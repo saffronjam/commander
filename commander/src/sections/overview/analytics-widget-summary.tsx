@@ -120,7 +120,7 @@ export function AnalyticsWidgetSummary({
       return (
         <Box sx={{ flexGrow: 1, minWidth: 112, textAlign: 'center' }}>
           <Typography sx={{ color: theme.palette.primary.contrastText }} variant="h4">
-            {formatNumber(value)}
+            {formatNumber(value, { decimals: 0 })}
           </Typography>
         </Box>
       );

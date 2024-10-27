@@ -46,17 +46,19 @@ export class Service {
             return {
               id: circuit.CircuitID,
               consumption: {
-                total: circuit.PowerConsumed,
+                total: circuit.PowerConsumed * 1_000_000,
+                max: circuit.PowerMaxConsumed * 1_000_000,
               },
               production: {
-                total: circuit.PowerProduction,
+                total: circuit.PowerProduction * 1_000_000,
               },
               capacity: {
-                total: circuit.PowerCapacity,
+                total: circuit.PowerCapacity * 1_000_000,
               },
               battery: {
                 percentage: circuit.BatteryPercent,
-                capacity: circuit.BatteryCapacity,
+                capacity: circuit.BatteryCapacity * 1_000_000,
+                differential: circuit.BatteryDifferential * 1_000_000,
                 untilFull: secondsToFullyCharge,
                 untilEmpty: secondsToFullyDischarge,
               },
@@ -189,19 +191,23 @@ export class Service {
 
   async getPlayers(): Promise<Player[]> {
     return await this.makeSatisfactoryCall("/getPlayer").then((data) => {
-      return (
-        data
-          .map((player: any) => {
-            return {
-              id: player.Id,
-              name: player.Name,
-              health: player.Health,
-              pingMs: player.PingMs,
-            } as Player;
-          })
-          // Filter out players with no name
-          .filter((player: Player) => player.name)
-      );
+      console.log(data);
+      return data
+        .filter((player: any) => player.Name)
+        .map((player: any) => {
+          return {
+            id: player.Id,
+            name: player.Name,
+            health: player.PlayerHP,
+            items: player.Inventory.map((item: any) => {
+              return {
+                name: item.Name,
+                count: item.Amount,
+              } as ItemStats;
+            }).sort((a: any, b: any) => b.count - a.count),
+          } as Player;
+        });
+      // Filter out players with no name
     });
   }
 
@@ -288,6 +294,7 @@ export class Service {
   }
 
   async setupSatisfactoryApiCheck() {
+    this.checkIfSatisfactoryApiIsUp();
     return setInterval(this.checkIfSatisfactoryApiIsUp, 10000);
   }
 

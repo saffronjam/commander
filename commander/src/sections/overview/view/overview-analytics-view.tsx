@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 
-import Grid from '@mui/material/Grid';
+import { Grid2 as Grid } from '@mui/material';
 import { Iconify } from 'src/components/iconify';
 
 import { ApiContext } from 'src/contexts/api/useApi';
@@ -36,7 +36,11 @@ export function OverviewAnalyticsView() {
     <>
       <Backdrop
         open={!apiContext || apiContext.isLoading === true}
-        sx={{ color: theme.palette.primary.main, backgroundColor: varAlpha(theme.palette.background.defaultChannel, 0.5), zIndex: (t) => t.zIndex.drawer + 1 }}
+        sx={{
+          color: theme.palette.primary.main,
+          backgroundColor: varAlpha(theme.palette.background.defaultChannel, 0.5),
+          zIndex: (t) => t.zIndex.drawer + 1,
+        }}
       >
         <CircularProgress color="inherit" />
       </Backdrop>
@@ -44,7 +48,7 @@ export function OverviewAnalyticsView() {
       {!apiContext?.isLoading && (
         <DashboardContent maxWidth="xl">
           <Grid container spacing={3}>
-            <Grid xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <AnalyticsWidgetSummary
                 title="Energy Consumption (P/C)"
                 total={[totalEnergyProduced, totalEnergyConsumed]}
@@ -63,7 +67,7 @@ export function OverviewAnalyticsView() {
               />
             </Grid>
 
-            <Grid xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <AnalyticsWidgetSummary
                 title="Mined Resources (P/C)"
                 total={[totalMinableProduced, totalMinableConsumed]}
@@ -80,7 +84,7 @@ export function OverviewAnalyticsView() {
               />
             </Grid>
 
-            <Grid xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <AnalyticsWidgetSummary
                 title="Produced Resources (P/C)"
                 total={[totalItemsProduced, totalItemsConsumed]}
@@ -98,7 +102,7 @@ export function OverviewAnalyticsView() {
               />
             </Grid>
 
-            <Grid xs={12} sm={6} md={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <AnalyticsWidgetSummary
                 title="Sink Points"
                 total={apiContext?.sinkStats.totalPoints || 0}
@@ -115,7 +119,7 @@ export function OverviewAnalyticsView() {
               />
             </Grid>
 
-            <Grid xs={12} md={6} lg={4}>
+            <Grid size={{ xs: 12, md: 6, lg: 4 }}>
               <AnalyticsEnergySources
                 title="Energy Sources"
                 chart={{
@@ -153,7 +157,7 @@ export function OverviewAnalyticsView() {
               />
             </Grid>
 
-            <Grid xs={12} md={6} lg={4}>
+            <Grid size={{ xs: 12, md: 6, lg: 4 }}>
               <AnalyticsEnergySources
                 title="Machine Efficiency"
                 chart={{
@@ -183,7 +187,7 @@ export function OverviewAnalyticsView() {
               />
             </Grid>
 
-            <Grid xs={12} md={6} lg={4}>
+            <Grid size={{ xs: 12, md: 6, lg: 4 }}>
               <AnalyticsCouponsProgress
                 title="Coupon Progress"
                 progress={apiContext?.sinkStats.nextCouponProgress || 0}

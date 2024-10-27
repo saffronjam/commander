@@ -3,6 +3,7 @@ import { createContext } from 'react';
 
 type ApiContextType = {
   isLoading: boolean;
+  isOnline: boolean;
 
   circuits: Circuit[];
   factoryStats: FactoryStats;
@@ -25,4 +26,28 @@ type ApiContextType = {
   }];
 };
 
-export const ApiContext = createContext<ApiContextType | undefined>(undefined);
+const defaultApiContext: ApiContextType = {
+  isLoading: true,
+  isOnline: false,
+
+  circuits: [],
+  factoryStats: {} as FactoryStats,
+  prodStats: {} as ProdStats,
+  sinkStats: {} as SinkStats,
+  itemStats: [],
+  players: [],
+  generatorStats: {} as GeneratorStats,
+
+  history: [{
+    timestamp: new Date(),
+    circuits: [],
+    factoryStats: {} as FactoryStats,
+    prodStats: {} as ProdStats,
+    sinkStats: {} as SinkStats,
+    itemStats: [],
+    players: [],
+    generatorStats: {} as GeneratorStats,
+  }],
+};
+
+export const ApiContext = createContext<ApiContextType>(defaultApiContext);

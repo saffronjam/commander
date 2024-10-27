@@ -11,7 +11,6 @@ import {
 import { ApiError } from 'common/apiTypes';
 import { ApiContext } from './useApi';
 import { useSettings } from 'src/hooks/use-settings';
-import { Settings } from 'src/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -36,7 +35,9 @@ async function fetchAndSet(
         onErr(data);
       }
     })
-    .catch((error) => console.error('Failed to fetch:', error));
+    .catch((err) => {
+      onErr({ code: 500, message: err.message });
+    });
 }
 
 export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
@@ -44,6 +45,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
   const [dataHistory, setDataHistory] = useState<any[]>([]);
   const [data, setData] = useState({
     isLoading: true,
+    isOnline: false,
     circuits: [] as Circuit[],
     factoryStats: {
       efficiency: { machinesOperating: 0, machinesIdle: 0, machinesPaused: 0 },
@@ -75,6 +77,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
 
   const intervalsStartedRef = useRef(false); // Track whether intervals have been started
   const timeouts = useRef<NodeJS.Timeout[]>([]);
+  const canDoRequest = useRef<Map<string, boolean>>(new Map());
 
   const startIntervals = () => {
     const onDataUpdate = (newData: any) => {
@@ -103,6 +106,19 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
         newData.isLoading = false;
 
         const ops = [
+          {
+            op: (val: any) => {
+              newData.isOnline = val.up;
+            },
+            path: '/api/satisfactoryApiCheck',
+            interval: settings.intervals.satisfactoryApiCheck,
+            healthCheck: true,
+            onErr: (err: ApiError) => {
+              if (err.code >= 500) {
+                newData.isOnline = false;
+              }
+            },
+          },
           {
             op: (val: any) => {
               newData.circuits = val;
@@ -157,20 +173,26 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
         const handleFetchFail = (err: ApiError) => {
           if (err.code === 503) {
             blockFetch.current = true;
-            setTimeout(() => {
-              blockFetch.current = false;
-            }, 10000);
           }
         };
 
         // Set up intervals, and fetch data periodically
-        ops.forEach(({ op, path, interval }) => {
+        ops.forEach(({ op, path, interval, healthCheck, onErr }) => {
+          canDoRequest.current.set(path, true);
           fetchAndSet(op, path, handleFetchFail);
           const id = setInterval(() => {
-            if (blockFetch.current) {
+            if (!healthCheck && blockFetch.current) {
               return;
             }
-            fetchAndSet(op, path, handleFetchFail);
+
+            if (!canDoRequest.current.get(path)) {
+              return;
+            }
+
+            canDoRequest.current.set(path, false);
+            fetchAndSet(op, path, onErr || handleFetchFail).then(() => {
+              canDoRequest.current.set(path, true);
+            });
           }, interval);
 
           timeouts.current.push(id);
@@ -203,10 +225,10 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
     restartIntervals();
   }, [settings]);
 
-
   const api = useMemo(
     () => ({
       isLoading: data.isLoading,
+      isOnline: data.isOnline,
 
       circuits: data.circuits,
       factoryStats: data.factoryStats,

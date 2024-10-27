@@ -11,6 +11,7 @@ export type Circuit = {
 
   consumption: {
     total: number;
+    max: number;
   };
 
   production: {
@@ -24,6 +25,7 @@ export type Circuit = {
   battery: {
     percentage: number;
     capacity: number;
+    differential: number;
     // Parsed from 00:00:00
     untilFull: number;
     // Parsed from 00:00:00
@@ -60,7 +62,7 @@ export type ProdStats = {
   items: [
     {
       name: string;
-      
+
       producedPerMinute: number;
       maxProducePerMinute: number;
       produceEfficiency: number;
@@ -70,7 +72,7 @@ export type ProdStats = {
       consumeEfficiency: number;
 
       minable: boolean;
-    }
+    },
   ];
 };
 
@@ -89,5 +91,5 @@ export type Player = {
   id: string;
   name: string;
   health: number;
-  pingMs: number;
+  items: ItemStats[];
 };

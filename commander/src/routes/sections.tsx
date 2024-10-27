@@ -10,6 +10,7 @@ import { DashboardLayout } from 'src/layouts/dashboard';
 import PlayersPage from 'src/pages/players';
 import PoductionPage from 'src/pages/production';
 import InventoryPage from 'src/pages/inventory';
+import PowerPage from 'src/pages/power';
 import SettingsPage from 'src/pages/settings';
 
 // ----------------------------------------------------------------------
@@ -46,6 +47,7 @@ export function Router() {
         { element: <HomePage />, index: true },
         { path: 'production', element: <PoductionPage /> },
         { path: 'inventory', element: <InventoryPage /> },
+        { path: 'power', element: <PowerPage /> },
         { path: 'players', element: <PlayersPage /> },
         { path: 'settings', element: <SettingsPage /> },
       ],

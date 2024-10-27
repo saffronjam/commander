@@ -5,6 +5,9 @@
 
 export type InputNumberValue = string | number | null | undefined;
 
+export const WattUnits = ['W', 'KW', 'MW', 'GW', 'TW', 'PW', 'EW', 'ZW', 'YW'];
+export const WattHoursUnits = ['', 'KWh', 'MWh', 'GWh', 'TWh', 'PWh', 'EWh', 'ZWh', 'YWh'];
+
 type Options = (Intl.NumberFormatOptions | undefined) & {
   ensureConstantDecimals?: boolean;
   decimals?: number;

@@ -23,38 +23,41 @@ export class MockService {
       {
         id: "1",
         consumption: {
-          total: 100 + Math.random() * 10,
+          total: 100_000_000 + Math.random() * 25_000_000,
+          max: 200_000_000 + Math.random() * 25_000_000,
         },
         production: {
-          total: 200 + Math.random() * 10,
+          total: 200_000_000 + Math.random() * 25_000_000,
         },
         capacity: {
-          total: 300 + Math.random() * 10,
+          total: 300_000_000 + Math.random() * 25_000_000,
         },
         battery: {
-          percentage: 50 + Math.random() * 10,
-          capacity: 100 + Math.random() * 10,
-          untilFull: 1000 + Math.random() * 10,
-          untilEmpty: 2000 + Math.random() * 10,
+          percentage: 50 + Math.random() * 25,
+          capacity: 100_000_000 + Math.random() * 25_000_000,
+          differential: 10_000_000 + Math.random() * 50_000_000,
+          untilFull: 10 + Math.random() * 25,
+          untilEmpty: 10 + Math.random() * 25,
         },
         fuseTriggered: false,
       },
       {
         id: "2",
         consumption: {
-          total: 100 + Math.random() * 10,
+          total: 100_000_000 + Math.random() * 50_000_000,
         },
         production: {
-          total: 200 + Math.random() * 10,
+          total: 200_000_000 + Math.random() * 50_000_000,
         },
         capacity: {
-          total: 300 + Math.random() * 10,
+          total: 300_000_000 + Math.random() * 50_000_000,
         },
         battery: {
-          percentage: 50 + Math.random() * 10,
-          capacity: 100 + Math.random() * 10,
-          untilFull: 1000 + Math.random() * 10,
-          untilEmpty: 2000 + Math.random() * 10,
+          percentage: 50 + Math.random() * 50,
+          capacity: 100_000_000 + Math.random() * 50_000_000,
+          differential: 10_000_000 + Math.random() * 50_000_000,
+          untilFull: 10 + Math.random() * 50,
+          untilEmpty: 10 + Math.random() * 50,
         },
         fuseTriggered: true,
       },
@@ -122,11 +125,33 @@ export class MockService {
     return this.promisifyWithRandomDelay([
       {
         id: "1",
-        name: "player1",
+        name: "Kyoshi",
+        health: 30 + Math.random() * 10,
+        items: [
+          {
+            name: "Caterium Ingot",
+            count: 200 + Math.random() * 10,
+          },
+          {
+            name: "Copper Ore",
+            count: 50 + Math.random() * 10,
+          },
+        ],
       },
       {
         id: "2",
-        name: "player2",
+        name: "ellaurgor",
+        health: 90 + Math.random() * 10,
+        items: [
+          {
+            name: "Iron Ore",
+            count: 300 + Math.random() * 10,
+          },
+          {
+            name: "Copper Ore",
+            count: 200 + Math.random() * 10,
+          },
+        ],
       },
     ] as Player[]);
   }

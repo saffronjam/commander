@@ -21,9 +21,7 @@ root.render(
         <Suspense>
           <ApiProvider>
             <NotificationsProvider>
-              <ConnectionCheckerProvider>
-                <App />
-              </ConnectionCheckerProvider>
+              <App />
             </NotificationsProvider>
           </ApiProvider>
         </Suspense>
