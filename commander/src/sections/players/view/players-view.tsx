@@ -13,6 +13,7 @@ import { Grid2 as Grid } from '@mui/material';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { ApiContext } from 'src/contexts/api/useApi';
 import { fNumber } from 'src/utils/format-number';
+import { useContextSelector } from 'use-context-selector';
 
 const HealthBar = ({ health }: { health: number }) => {
   const getColor = () => {
@@ -39,7 +40,15 @@ const FavoriteItem = ({ item }: { item: { name: string; count: number } }) => {
     <Card sx={{ marginTop: '20px' }} variant="outlined">
       <CardHeader title="Favorite Item" />
       {/* Center horizontal and verical */}
-      <CardContent sx={{  height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+      <CardContent
+        sx={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+        }}
+      >
         <img
           src={`assets/images/satisfactory/64x64/${item.name}.png`}
           alt={item.name}
@@ -49,7 +58,7 @@ const FavoriteItem = ({ item }: { item: { name: string; count: number } }) => {
           }}
         />{' '}
         <Stack direction="row" spacing={2}>
-          <Typography variant='button'>{fNumber(item.count)}</Typography>
+          <Typography variant="button">{fNumber(item.count)}</Typography>
         </Stack>
       </CardContent>
     </Card>
@@ -58,7 +67,9 @@ const FavoriteItem = ({ item }: { item: { name: string; count: number } }) => {
 
 // "pingMs" should be in the top right corner always
 export function PlayersView() {
-  const api = useContext(ApiContext);
+  const api = useContextSelector(ApiContext, (v) => {
+    return { players: v.players };
+  });
 
   return (
     <DashboardContent maxWidth="xl">

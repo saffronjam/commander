@@ -5,6 +5,7 @@
 
 export type InputNumberValue = string | number | null | undefined;
 
+export const MetricUnits = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'];
 export const WattUnits = ['W', 'KW', 'MW', 'GW', 'TW', 'PW', 'EW', 'ZW', 'YW'];
 export const WattHoursUnits = ['', 'KWh', 'MWh', 'GWh', 'TWh', 'PWh', 'EWh', 'ZWh', 'YWh'];
 

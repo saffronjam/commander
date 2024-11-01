@@ -17,6 +17,8 @@ const defaultSettings: Settings = {
     itemStats: 2000,
     players: 2000,
     generatorStats: 2000,
+    trains: 2000,
+    trainStations: 2000,
   },
 };
 

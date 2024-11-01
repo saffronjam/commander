@@ -12,14 +12,68 @@ import {
   PowerType,
   ProdStats,
   SinkStats,
+  Train,
+  TrainStation,
+  TrainStatus,
+  TrainTimetableEntry,
 } from "common/types";
 import { ApiError } from "common/src/apiTypes";
+import { SatisfactoryEventType } from "../types";
+import { SatisfactoryEventCallback } from "../service";
+
+const satisfactoryStatusToTrainStatus = (trainData: any) => {
+  if (trainData.Derailed) {
+    return TrainStatus.derailed;
+  }
+
+  if (trainData.Docking) {
+    return TrainStatus.docking;
+  }
+
+  switch (trainData.Status) {
+    case "Self-Driving":
+      return TrainStatus.selfDriving;
+    case "Manual Driving":
+      return TrainStatus.manualDriving;
+    case "Parked":
+      return TrainStatus.parked;
+    default:
+      return "Unknown (" + trainData.Status + ")";
+  }
+};
 
 export class Service {
   private hasCheckedIfSatisfactoryApiIsUpOnce: boolean;
 
   constructor() {
     this.hasCheckedIfSatisfactoryApiIsUpOnce = false;
+  }
+
+  setupWebsocket(callback: SatisfactoryEventCallback) {
+    const endpoints = new Map<SatisfactoryEventType, () => Promise<any>>([
+      [SatisfactoryEventType.Circuit, this.getCircuits.bind(this)],
+      [SatisfactoryEventType.FactoryStats, this.getFactoryStats.bind(this)],
+      [SatisfactoryEventType.ProdStats, this.getProdStats.bind(this)],
+      [SatisfactoryEventType.SinkStats, this.getSinkStats.bind(this)],
+      [SatisfactoryEventType.ItemStats, this.getItemStats.bind(this)],
+      [SatisfactoryEventType.Player, this.getPlayers.bind(this)],
+      [SatisfactoryEventType.GeneratorStats, this.getGeneratorStats.bind(this)],
+      [SatisfactoryEventType.Train, this.getTrains.bind(this)],
+      [SatisfactoryEventType.TrainStation, this.getTrainStations.bind(this)],
+    ]);
+
+    // Setup callbacks for each endpoint and return data in the callback randomly between every 200-500ms, one interval per endpoint
+    for (const [type, endpoint] of endpoints) {
+      setInterval(
+        async () => {
+          callback({
+            type,
+            data: await endpoint(),
+          });
+        },
+        2000
+      );
+    }
   }
 
   async getCircuits(): Promise<Circuit[]> {
@@ -191,7 +245,6 @@ export class Service {
 
   async getPlayers(): Promise<Player[]> {
     return await this.makeSatisfactoryCall("/getPlayer").then((data) => {
-      console.log(data);
       return data
         .filter((player: any) => player.Name)
         .map((player: any) => {
@@ -212,30 +265,38 @@ export class Service {
   }
 
   async getGeneratorStats(): Promise<GeneratorStats> {
-    // return await makeSatisfactoryCall("/getGenerators").then((data) => {
-    //   let sources = {} as any;
+    // const res = await this.makeSatisfactoryCall("/getGenerators").then(
+    //   (data) => {
+    //     let sources = {} as any;
 
-    //   for (const generator of data) {
-    //     const generatorType = blueprintGeneratorNameToType(generator.Name);
-    //     if (generatorType) {
-    //       if (sources[generatorType]) {
-    //         sources[generatorType].count += 1;
-    //         sources[generatorType].totalProduction += generator.Production;
-    //       }else {
-    //         sources[generatorType] = {
-    //           count: 1,
-    //           totalProduction: generator.Production,
-    //         };
+    //     for (const generator of data) {
+    //       const generatorType = this.blueprintGeneratorNameToType(
+    //         generator.Name
+    //       );
+    //       if (generatorType) {
+    //         if (sources[generatorType]) {
+    //           sources[generatorType].count += 1;
+    //           sources[generatorType].totalProduction += generator.Production;
+    //         } else {
+    //           sources[generatorType] = {
+    //             count: 1,
+    //             totalProduction: generator.Production,
+    //           };
+    //         }
     //       }
     //     }
+
+    //     return {
+    //       sources: sources,
+    //     } as GeneratorStats;
     //   }
+    // );
 
-    //   return {
-    //     sources: sources
-    //   } as GeneratorStats;
-    // });
+    // console.log(res);
 
-    throw new Error("Not implemented");
+    // return res;
+
+    // throw new Error("Not implemented");
 
     return {
       sources: {
@@ -258,6 +319,58 @@ export class Service {
         },
       },
     };
+  }
+
+  async getTrains(): Promise<Train[]> {
+    return await this.makeSatisfactoryCall("/getTrains").then((data) => {
+      return data.map((train: any) => {
+        return {
+          name: train.Name,
+          location: {
+            x: train.location.x,
+            y: train.location.y,
+            z: train.location.z,
+            rotation: train.location.rotation,
+          },
+          speed: train.ForwardSpeed,
+          timetable: train.TimeTable.map((stop: any) => {
+            return {
+              station: stop.StationName,
+            } as TrainTimetableEntry;
+          }),
+          status: satisfactoryStatusToTrainStatus(train),
+          powerConsumption: train.PowerConsumed,
+          vechicles: train.Vehicles.map((vehicle: any) => {
+            return {
+              type: vehicle.Type,
+              capacity: vehicle.Capacity,
+              inventory: vehicle.Inventory.map((item: any) => {
+                return {
+                  name: item.Name,
+                  count: item.Amount,
+                } as ItemStats;
+              }),
+            };
+          }),
+        } as Train;
+      });
+    });
+  }
+
+  async getTrainStations(): Promise<TrainStation[]> {
+    return await this.makeSatisfactoryCall("/getTrainStation").then((data) => {
+      return data.map((station: any) => {
+        return {
+          name: station.Name,
+          location: {
+            x: station.location.x,
+            y: station.location.y,
+            z: station.location.z,
+            rotation: station.location.rotation,
+          },
+        } as TrainStation;
+      });
+    });
   }
 
   async checkIfSatisfactoryApiIsUp() {

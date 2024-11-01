@@ -87,9 +87,54 @@ export type ItemStats = {
   count: number;
 };
 
+export type Location = {
+  x: number;
+  y: number;
+  z: number;
+  rotation: number;
+};
+
 export type Player = {
   id: string;
   name: string;
   health: number;
   items: ItemStats[];
+};
+
+export type TrainStation = {
+  name: string;
+  location: Location;
+};
+
+export enum TrainType {
+  freight = "freight",
+  locomotive = "locomotive",
+}
+
+export enum TrainStatus {
+  selfDriving = "selfDriving",
+  manualDriving = "manualDriving",
+  parked = "parked",
+  docking = "docking",
+  derailed = "derailed",
+}
+
+export type TrainVehicle = {
+  type: TrainType;
+  capacity: number;
+  inventory: ItemStats[];
+};
+
+export type TrainTimetableEntry = {
+  station: string;
+};
+
+export type Train = {
+  name: string;
+  location: Location;
+  speed: number;
+  status: TrainStatus;
+  powerConsumption: number;
+  vechicles: TrainVehicle[];
+  timetable: TrainTimetableEntry[];
 };

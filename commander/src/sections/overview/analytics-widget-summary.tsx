@@ -56,6 +56,9 @@ export function AnalyticsWidgetSummary({
     tooltip: {
       y: { formatter: (value: number) => fNumber(value), title: { formatter: () => '' } },
     },
+    stroke: {
+      curve: 'smooth',
+    },
     ...chart.options,
   });
 
@@ -101,7 +104,7 @@ export function AnalyticsWidgetSummary({
               }}
             >
               <Typography variant="body2" sx={{ fontSize: 25 }}>
-                | 
+                |
               </Typography>
             </Box>
 

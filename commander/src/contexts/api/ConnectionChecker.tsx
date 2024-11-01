@@ -1,7 +1,8 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Snackbar, IconButton, Alert } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { ApiContext } from './useApi';
+import { useContextSelector } from 'use-context-selector';
 
 export const ConnectionCheckerProvider: React.FC<any> = () => {
   type AlertProps = {
@@ -12,7 +13,9 @@ export const ConnectionCheckerProvider: React.FC<any> = () => {
   const upMessage = 'Satifactory API is online';
   const downMessage = 'Satifactory API is offline';
 
-  const api = useContext(ApiContext);
+  const isOnline = useContextSelector(ApiContext, (v) => {
+    return v.isOnline;
+  });
   const [props, setProps] = useState<AlertProps>({ severity: 'success', message: upMessage });
   const [open, setOpen] = useState<boolean>(false);
   const [didFirstCheck, setDidFirstCheck] = useState<boolean>(false);
@@ -23,7 +26,7 @@ export const ConnectionCheckerProvider: React.FC<any> = () => {
       return;
     }
 
-    const up = api.isOnline;
+    const up = isOnline;
     let newMessage = '';
     let newSeverity: 'success' | 'error' | 'info' | 'warning' | undefined;
 
@@ -46,7 +49,7 @@ export const ConnectionCheckerProvider: React.FC<any> = () => {
 
   useEffect(() => {
     checkApiConnection();
-  }, [api.isOnline]);
+  }, [isOnline]);
 
   const handleClose = (_event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason !== 'clickaway') {
@@ -54,6 +57,7 @@ export const ConnectionCheckerProvider: React.FC<any> = () => {
     }
   };
 
+  // console.log('render ConnectionCheckerProvider');
   return (
     <Snackbar
       anchorOrigin={{ vertical: 'top', horizontal: 'right' }}

@@ -1,7 +1,17 @@
-import { Circuit, FactoryStats, GeneratorStats, ItemStats, Player, ProdStats, SinkStats } from 'common/types';
-import { createContext } from 'react';
+import {
+  Circuit,
+  FactoryStats,
+  GeneratorStats,
+  ItemStats,
+  Player,
+  ProdStats,
+  SinkStats,
+  Train,
+  TrainStation,
+} from 'common/types';
+import { createContext } from 'use-context-selector';
 
-type ApiContextType = {
+export type ApiData = {
   isLoading: boolean;
   isOnline: boolean;
 
@@ -12,21 +22,15 @@ type ApiContextType = {
   itemStats: ItemStats[];
   players: Player[];
   generatorStats: GeneratorStats;
-
-  // Keep one minute of history
-  history: [{
-    timestamp: Date;
-    circuits: Circuit[];
-    factoryStats: FactoryStats;
-    prodStats: ProdStats;
-    sinkStats: SinkStats;
-    itemStats: ItemStats[];
-    players: Player[];
-    generatorStats: GeneratorStats;
-  }];
+  trains: Train[];
+  trainStations: TrainStation[];
 };
 
-const defaultApiContext: ApiContextType = {
+export type ApiContextType = ApiData & {
+  history: (ApiData & { timestamp: Date })[];
+};
+
+export const DefaultApiContext: ApiContextType = {
   isLoading: true,
   isOnline: false,
 
@@ -37,17 +41,23 @@ const defaultApiContext: ApiContextType = {
   itemStats: [],
   players: [],
   generatorStats: {} as GeneratorStats,
+  trains: [],
+  trainStations: [],
 
-  history: [{
-    timestamp: new Date(),
-    circuits: [],
-    factoryStats: {} as FactoryStats,
-    prodStats: {} as ProdStats,
-    sinkStats: {} as SinkStats,
-    itemStats: [],
-    players: [],
-    generatorStats: {} as GeneratorStats,
-  }],
+  history: [
+    {
+      timestamp: new Date(),
+      circuits: [],
+      factoryStats: {} as FactoryStats,
+      prodStats: {} as ProdStats,
+      sinkStats: {} as SinkStats,
+      itemStats: [],
+      players: [],
+      generatorStats: {} as GeneratorStats,
+      trains: [],
+      trainStations: [],
+    },
+  ] as any,
 };
 
-export const ApiContext = createContext<ApiContextType>(defaultApiContext);
+export const ApiContext = createContext<ApiContextType>(DefaultApiContext);

@@ -20,6 +20,7 @@ import { ApiContext } from 'src/contexts/api/useApi';
 import { varAlpha } from 'src/theme/styles';
 import { useSettings } from 'src/hooks/use-settings';
 import { Iconify } from 'src/components/iconify';
+import { useContextSelector } from 'use-context-selector';
 
 type Column = {
   id:
@@ -114,7 +115,9 @@ const columns: readonly Column[] = [
 ];
 
 export function ProductionView() {
-  const api = React.useContext(ApiContext);
+  const api = useContextSelector(ApiContext, (v) => {
+    return { prodStats: v.prodStats };
+  });
   const theme = useTheme();
 
   const [page, setPage] = React.useState(0);
@@ -145,7 +148,7 @@ export function ProductionView() {
 
   const sortedRows = React.useMemo(() => {
     const rows =
-      api?.prodStats.items
+      api.prodStats.items
         .filter((item) => settings.productionView.includeItems || item.minable)
         .map((item) => ({
           name: item.name,

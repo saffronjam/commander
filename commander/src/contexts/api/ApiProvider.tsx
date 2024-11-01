@@ -7,10 +7,10 @@ import {
   Player,
   ProdStats,
   SinkStats,
+  Train,
 } from 'common/types';
-import { ApiError } from 'common/apiTypes';
-import { ApiContext } from './useApi';
-import { useSettings } from 'src/hooks/use-settings';
+import { SseEvent } from 'common/apiTypes';
+import { ApiContext, ApiContextType, ApiData } from './useApi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -18,202 +18,123 @@ interface ApiProviderProps {
   children: React.ReactNode;
 }
 
-export async function fetchAndParse(path: string) {
-  return fetch(`${API_URL}${path}`).then((response) => response.json());
-}
-
-async function fetchAndSet(
-  setter: (data: any) => void,
-  path: string,
-  onErr: (error: ApiError) => void
-) {
-  return fetchAndParse(path)
-    .then((data) => {
-      if (data.code === undefined) {
-        setter(data);
-      } else {
-        onErr(data);
-      }
-    })
-    .catch((err) => {
-      onErr({ code: 500, message: err.message });
-    });
-}
-
 export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
-  const { settings } = useSettings();
-  const [dataHistory, setDataHistory] = useState<any[]>([]);
-  const [data, setData] = useState({
+  // const [circuits, setCircuits] = useState<Circuit[]>([]);
+  // const [factoryStats, setFactoryStats] = useState<FactoryStats>({} as FactoryStats);
+  // const [prodStats, setProdStats] = useState<ProdStats>({} as ProdStats);
+  // const [sinkStats, setSinkStats] = useState<SinkStats>({} as SinkStats);
+  // const [itemStats, setItemStats] = useState<ItemStats[]>([]);
+  // const [players, setPlayers] = useState<Player[]>([]);
+  // const [generatorStats, setGeneratorStats] = useState<GeneratorStats>({} as GeneratorStats);
+  // const [trains, setTrains] = useState<Train[]>([]);
+  // const [trainStations, setTrainStations] = useState<Train[]>([]);
+
+  // const [isLoading, setIsLoading] = useState(true);
+  // const [isOnline, setIsOnline] = useState(false);
+
+  const [data, setData] = useState<ApiData>({
     isLoading: true,
     isOnline: false,
-    circuits: [] as Circuit[],
-    factoryStats: {
-      efficiency: { machinesOperating: 0, machinesIdle: 0, machinesPaused: 0 },
-      totalMachines: 0,
-    } as FactoryStats,
-    prodStats: {
-      minableProducedPerMinute: 0,
-      minableConsumedPerMinute: 0,
-      itemsProducedPerMinute: 0,
-      itemsConsumedPerMinute: 0,
-
-      items: [] as any[],
-    } as ProdStats,
-    sinkStats: { totalPoints: 0, coupons: 0, nextCouponProgress: 0 } as SinkStats,
-    itemStats: [] as ItemStats[],
-    players: [] as Player[],
-    generatorStats: {
-      sources: {
-        biomass: { count: 0, totalProduction: 0 },
-        coal: { count: 0, totalProduction: 0 },
-        fuel: { count: 0, totalProduction: 0 },
-        geothermal: { count: 0, totalProduction: 0 },
-        nuclear: { count: 0, totalProduction: 0 },
-      },
-    } as GeneratorStats,
+    circuits: [],
+    factoryStats: {} as FactoryStats,
+    prodStats: {} as ProdStats,
+    sinkStats: {} as SinkStats,
+    itemStats: [],
+    players: [],
+    generatorStats: {} as GeneratorStats,
+    trains: [],
+    trainStations: [],
   });
 
-  const blockFetch = useRef<boolean>(false);
+  const [dataHistory, setDataHistory] = useState<(ApiData & { timestamp: Date })[]>([]);
 
-  const intervalsStartedRef = useRef(false); // Track whether intervals have been started
-  const timeouts = useRef<NodeJS.Timeout[]>([]);
-  const canDoRequest = useRef<Map<string, boolean>>(new Map());
+  const websocketRef = useRef<boolean>(false);
+  const historyCheckOn = useRef<boolean>(false);
 
-  const startIntervals = () => {
-    const onDataUpdate = (newData: any) => {
-      if (!blockFetch.current) {
-        setDataHistory((prevDataHistory) => {
-          const now = new Date();
-          const updatedHistory = [...prevDataHistory, { ...newData, timestamp: now }];
+  // Use SSE to update data, /api/events
+  const startSse = () => {
+    const newData = { ...data };
+    const eventSource = new EventSource(`${API_URL}/api/events`);
 
-          // Keep one minute of history, check timestamps
-          const oneMinuteAgo = new Date(now.getTime() - 60000);
-          const filteredHistory = updatedHistory.filter((entry) => entry.timestamp > oneMinuteAgo);
+    newData.isLoading = true;
 
-          return filteredHistory;
-        });
+    eventSource.onmessage = (event) => {
+      newData.isOnline = true;
+
+      const parsed = JSON.parse(event.data) as SseEvent<any>;
+      switch (parsed.type) {
+        case 'initial':
+          const allData = parsed.data as ApiContextType;
+
+          newData.isLoading = false;
+          newData.circuits = allData.circuits;
+          newData.factoryStats = allData.factoryStats;
+          newData.prodStats = allData.prodStats;
+          newData.sinkStats = allData.sinkStats;
+          newData.itemStats = allData.itemStats;
+          newData.players = allData.players;
+          newData.generatorStats = allData.generatorStats;
+          newData.trains = allData.trains;
+          newData.trainStations = allData.trainStations;
+          break;
+        case 'circuit':
+          newData.circuits = parsed.data;
+          break;
+        case 'factoryStats':
+          newData.factoryStats = parsed.data;
+          break;
+        case 'prodStats':
+          newData.prodStats = parsed.data;
+          break;
+        case 'sinkStats':
+          newData.sinkStats = parsed.data;
+          break;
+        case 'itemStats':
+          newData.itemStats = parsed.data;
+          break;
+        case 'player':
+          newData.players = parsed.data;
+          break;
+        case 'generatorStats':
+          newData.generatorStats = parsed.data;
+          break;
+        case 'train':
+          newData.trains = parsed.data;
+          break;
+        case 'trainStation':
+          newData.trainStations = parsed.data;
+          break;
       }
+
       setData(newData);
     };
 
-    // Only start intervals if they haven't been started yet
-    if (!intervalsStartedRef.current) {
-      intervalsStartedRef.current = true;
+    eventSource.onerror = () => {
+      newData.isOnline = false;
+      newData.isLoading = false;
+      websocketRef.current = false;
+    };
 
-      const startIntervals = () => {
-        const newData = { ...data };
-
-        newData.isLoading = false;
-
-        const ops = [
-          {
-            op: (val: any) => {
-              newData.isOnline = val.up;
-            },
-            path: '/api/satisfactoryApiCheck',
-            interval: settings.intervals.satisfactoryApiCheck,
-            healthCheck: true,
-            onErr: (err: ApiError) => {
-              if (err.code >= 500) {
-                newData.isOnline = false;
-              }
-            },
-          },
-          {
-            op: (val: any) => {
-              newData.circuits = val;
-            },
-            path: '/api/circuits',
-            interval: settings.intervals.circuits,
-          },
-          {
-            op: (val: any) => {
-              newData.factoryStats = val;
-            },
-            path: '/api/factoryStats',
-            interval: settings.intervals.factoryStats,
-          },
-          {
-            op: (val: any) => {
-              newData.prodStats = val;
-            },
-            path: '/api/prodStats',
-            interval: settings.intervals.prodStats,
-          },
-          {
-            op: (val: any) => {
-              newData.sinkStats = val;
-            },
-            path: '/api/sinkStats',
-            interval: settings.intervals.sinkStats,
-          },
-          {
-            op: (val: any) => {
-              newData.itemStats = val;
-            },
-            path: '/api/itemStats',
-            interval: settings.intervals.itemStats,
-          },
-          {
-            op: (val: any) => {
-              newData.players = val;
-            },
-            path: '/api/players',
-            interval: settings.intervals.players,
-          },
-          {
-            op: (val: any) => {
-              newData.generatorStats = val;
-            },
-            path: '/api/generatorStats',
-            interval: settings.intervals.generatorStats,
-          },
-        ];
-
-        const handleFetchFail = (err: ApiError) => {
-          if (err.code === 503) {
-            blockFetch.current = true;
-          }
-        };
-
-        // Set up intervals, and fetch data periodically
-        ops.forEach(({ op, path, interval, healthCheck, onErr }) => {
-          canDoRequest.current.set(path, true);
-          fetchAndSet(op, path, handleFetchFail);
-          const id = setInterval(() => {
-            if (!healthCheck && blockFetch.current) {
-              return;
-            }
-
-            if (!canDoRequest.current.get(path)) {
-              return;
-            }
-
-            canDoRequest.current.set(path, false);
-            fetchAndSet(op, path, onErr || handleFetchFail).then(() => {
-              canDoRequest.current.set(path, true);
-            });
-          }, interval);
-
-          timeouts.current.push(id);
-        });
-
-        // Update state data periodically, decoupled from the fetch intervals
-        const id = setInterval(() => {
-          onDataUpdate({ ...newData });
-        }, settings.intervals.rerender);
-
-        timeouts.current.push(id);
-      };
-
-      startIntervals(); // Start the fetching intervals once
+    if (historyCheckOn.current) {
+      return;
     }
-  };
+    historyCheckOn.current = true;
 
-  const restartIntervals = () => {
-    timeouts.current.forEach((id) => clearInterval(id));
-    intervalsStartedRef.current = false;
-    startIntervals();
+    // Setup interval that snapshots the current data
+    // then saves to history
+    setInterval(() => {
+      const latestData = { ...newData, timestamp: new Date() };
+
+      setDataHistory((prevDataHistory) => {
+        const newHistory = [...prevDataHistory, latestData];
+
+        // Keep one minute of history, check timestamps
+        const oneMinuteAgo = new Date(latestData.timestamp.getTime() - 60000);
+        const filteredHistory = newHistory.filter((entry) => entry.timestamp > oneMinuteAgo);
+
+        return filteredHistory;
+      });
+    }, 1000);
   };
 
   useEffect(() => {
@@ -222,37 +143,14 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
       return;
     }
 
-    restartIntervals();
-  }, [settings]);
+    if (websocketRef.current) {
+      return;
+    }
 
-  const api = useMemo(
-    () => ({
-      isLoading: data.isLoading,
-      isOnline: data.isOnline,
+    startSse();
+  }, []);
 
-      circuits: data.circuits,
-      factoryStats: data.factoryStats,
-      prodStats: data.prodStats,
-      sinkStats: data.sinkStats,
-      itemStats: data.itemStats,
-      players: data.players,
-      generatorStats: data.generatorStats,
+  const contextValue = useMemo(() => ({ ...data, history: dataHistory }), [data, dataHistory]);
 
-      history: dataHistory as [
-        {
-          timestamp: Date;
-          circuits: Circuit[];
-          factoryStats: FactoryStats;
-          prodStats: ProdStats;
-          sinkStats: SinkStats;
-          itemStats: ItemStats[];
-          players: Player[];
-          generatorStats: GeneratorStats;
-        },
-      ],
-    }),
-    [data, dataHistory]
-  );
-
-  return <ApiContext.Provider value={api}>{children}</ApiContext.Provider>;
+  return <ApiContext.Provider value={contextValue}>{children}</ApiContext.Provider>;
 };

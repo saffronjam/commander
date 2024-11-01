@@ -16,6 +16,7 @@ import { ApiContext } from 'src/contexts/api/useApi';
 import { varAlpha } from 'src/theme/styles';
 import { HistoryChart } from '../history-chart';
 import { Iconify } from 'src/components/iconify';
+import { useContextSelector } from 'use-context-selector';
 
 interface Column {
   id: 'icon' | 'name' | 'inventory' | 'history';
@@ -38,7 +39,9 @@ const columns: readonly Column[] = [
 ];
 
 export function InventoryView() {
-  const api = React.useContext(ApiContext);
+  const api = useContextSelector(ApiContext, (v) => {
+    return { itemStats: v.itemStats, history: v.history };
+  });
   const theme = useTheme();
 
   const [page, setPage] = React.useState(0);
@@ -161,77 +164,79 @@ export function InventoryView() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortedRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((row, index) => {
-              return (
-                <TableRow
-                  hover
-                  role="checkbox"
-                  tabIndex={-1}
-                  key={row.name}
-                  sx={{
-                    backgroundColor:
-                      index % 2 === 0
-                        ? theme.palette.background.paper
-                        : varAlpha(theme.palette.background.defaultChannel, 0.5),
-                  }}
-                >
-                  {columns.map((column) => {
-                    if (column.id === 'icon') {
-                      return (
-                        <TableCell key={column.id} align={column.align}>
-                          <div
-                            style={{
-                              marginLeft: '10px',
-                              width: '50px',
-                              height: '50px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            <img
-                              src={`assets/images/satisfactory/64x64/${row.name}.png`}
-                              alt={row.name}
+            {sortedRows
+              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+              .map((row, index) => {
+                return (
+                  <TableRow
+                    hover
+                    role="checkbox"
+                    tabIndex={-1}
+                    key={row.name}
+                    sx={{
+                      backgroundColor:
+                        index % 2 === 0
+                          ? theme.palette.background.paper
+                          : varAlpha(theme.palette.background.defaultChannel, 0.5),
+                    }}
+                  >
+                    {columns.map((column) => {
+                      if (column.id === 'icon') {
+                        return (
+                          <TableCell key={column.id} align={column.align}>
+                            <div
                               style={{
+                                marginLeft: '10px',
                                 width: '50px',
                                 height: '50px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                               }}
-                            />
-                          </div>
-                        </TableCell>
-                      );
-                    }
+                            >
+                              <img
+                                src={`assets/images/satisfactory/64x64/${row.name}.png`}
+                                alt={row.name}
+                                style={{
+                                  width: '50px',
+                                  height: '50px',
+                                }}
+                              />
+                            </div>
+                          </TableCell>
+                        );
+                      }
 
-                    // Apex chart
-                    if (column.id === 'history') {
+                      // Apex chart
+                      if (column.id === 'history') {
+                        return (
+                          <TableCell key={column.id} align={column.align}>
+                            {/* align middle */}
+                            <Box sx={{ mr: 10, display: 'flex', justifyContent: 'center' }}>
+                              <HistoryChart chart={{ series: row.history, categories: [] }} />
+                            </Box>
+                          </TableCell>
+                        );
+                      }
+
+                      const value = row[column.id];
                       return (
-                        <TableCell key={column.id} align={column.align}>
-                          {/* align middle */}
-                          <Box sx={{ mr: 10, display: 'flex', justifyContent: 'center' }}>
-                            <HistoryChart chart={{ series: row.history, categories: [] }} />
-                          </Box>
+                        <TableCell
+                          key={column.id}
+                          align={column.align}
+                          style={{ color: theme.palette.primary.contrastText }}
+                        >
+                          <>
+                            {column.format && typeof value === 'number'
+                              ? column.format(value)
+                              : value}
+                          </>
                         </TableCell>
                       );
-                    }
-
-                    const value = row[column.id];
-                    return (
-                      <TableCell
-                        key={column.id}
-                        align={column.align}
-                        style={{ color: theme.palette.primary.contrastText }}
-                      >
-                        <>
-                          {column.format && typeof value === 'number'
-                            ? column.format(value)
-                            : value}
-                        </>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              );
-            })}
+                    })}
+                  </TableRow>
+                );
+              })}
           </TableBody>
         </Table>
       </TableContainer>

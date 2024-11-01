@@ -1,3 +1,9 @@
+export type SseEvent<T> = {
+  type: string;
+  clientId: number;
+  data: T;
+};
+
 export class ApiError {
   code: number;
   message: string;

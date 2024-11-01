@@ -14,5 +14,7 @@ export type Settings = {
     sinkStats: number;
     itemStats: number;
     generatorStats: number;
+    trains: number;
+    trainStations: number;
   };
 };

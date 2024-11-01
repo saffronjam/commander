@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import path from "path";
-import { access } from 'fs/promises';
+import { access } from "fs/promises";
 
 import express from "express";
 
@@ -12,6 +12,7 @@ import cookieParser from "cookie-parser";
 import { makeRoutes, RouteContext } from "./routes";
 import { env } from "process";
 import { Service as IService } from "./service";
+import { createClient } from "redis";
 
 const loadEnvFile = async () => {
   const envFile =
@@ -45,8 +46,21 @@ export const createServer = async () => {
     }
   };
 
+  const publisher = await createClient({
+    url: "redis://localhost:6379",
+  }).connect();
+
+  const subscriber = await createClient({
+    url: "redis://localhost:6379",
+  }).connect();
+
   const service = await genService();
   service.setupSatisfactoryApiCheck();
+
+  // Right now, assume we can always set up the websocket (we don't need to check for other instances)
+  service.setupWebsocket((event) => {
+    publisher.publish("satisfactory-event", JSON.stringify(event));
+  });
 
   const app = express();
   app.use(cors());
@@ -55,10 +69,8 @@ export const createServer = async () => {
   app.use(bodyParser.urlencoded({ extended: true }));
   app.use(cookieParser());
 
-  const context = {} as RouteContext;
-
+  const context = { redis: subscriber } as RouteContext;
   const routes = makeRoutes(service, context);
-
   routes.forEach((route) => {
     app[route.method](route.path, route.handler);
   });

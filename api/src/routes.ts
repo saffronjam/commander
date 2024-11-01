@@ -1,8 +1,12 @@
 import { Request, RequestHandler, Response } from "express";
 import { Service } from "./service";
-import { ApiError } from "common/src/apiTypes";
+import { SseEvent } from "common/src/apiTypes";
+import { RedisClientType } from "@redis/client";
+import { Client, SatisfactoryEvent } from "./types";
 
-export type RouteContext = {};
+export type RouteContext = {
+  redis: RedisClientType;
+};
 
 export type Route = {
   method: "get" | "post" | "put" | "delete";
@@ -10,18 +14,23 @@ export type Route = {
   handler: RequestHandler;
 };
 
-const dataHandler = async (res: Response, getData: () => Promise<any>) => {
-  return await getData()
-    .then((data) => {
-      return res.json(data);
-    })
-    .catch((err) => {
-      if (err instanceof ApiError) {
-        return res.status(err.code).json(err);
-      }
+let clients: Map<number, Client> = new Map();
 
-      return res.status(500).json({ error: err.message, code: 500 });
-    });
+const createNewClient = () => {
+  const client = {
+    id: Date.now(),
+  } as Client;
+
+  clients.set(client.id, client);
+
+  console.log(`Adding new client ${client.id} [currently ${clients.size}]`);
+
+  return client;
+};
+
+const removeClient = (client: Client) => {
+  clients.delete(client.id);
+  console.log(`Removing client ${client.id} [currently ${clients.size}]`);
 };
 
 export const makeRoutes = (
@@ -31,66 +40,83 @@ export const makeRoutes = (
   return [
     {
       method: "get",
+      path: "/api/events",
+      handler: (request: any, response: any) => {
+        const headers = {
+          "Content-Type": "text/event-stream",
+          Connection: "keep-alive",
+          "Cache-Control": "no-cache",
+        };
+        response.writeHead(200, headers);
+
+        const client = createNewClient();
+
+        const redisListener = (message: string, _channel: string) => {
+          const parsed = JSON.parse(message) as SatisfactoryEvent<any>;
+          pushSseEvent({
+            type: parsed.type,
+            clientId: client.id,
+            data: parsed.data,
+          });
+        };
+
+        clients.set(client.id, client);
+        request.on("close", () => {
+          removeClient(client);
+          context.redis.removeListener("satisfactory-event", redisListener);
+        });
+
+        const pushSseEvent = <T>(event: SseEvent<T>) => {
+          response.write(`data: ${JSON.stringify(event)}\n\n`);
+        };
+
+        // Setup Redis pub/sub
+        context.redis.subscribe("satisfactory-event", redisListener);
+
+        // Send initial event
+        getInitialEvent(service).then((data) => {
+          pushSseEvent({
+            type: "initial",
+            clientId: client.id,
+            data: data,
+          });
+        });
+      },
+    },
+    {
+      method: "get",
       path: "/",
       handler: (req: Request, res: Response) => {
         res.json({ message: "Ouch! Look like you hit the API" });
       },
     },
-    {
-      method: "get",
-      path: "/api/satisfactoryApiCheck",
-      handler: async (req: Request, res: Response) => {
-        return res.json({ up: service.isSatisfactoryApiAvailable() });
-      },
-    },
-    {
-      method: "get",
-      path: "/api/circuits",
-      handler: async (req: Request, res: Response) => {
-        return dataHandler(res, service.getCircuits.bind(service));
-      },
-    },
-    {
-      method: "get",
-      path: "/api/factoryStats",
-      handler: async (req: Request, res: Response) => {
-        return await dataHandler(res, service.getFactoryStats.bind(service));
-      },
-    },
-    {
-      method: "get",
-      path: "/api/prodStats",
-      handler: async (req: Request, res: Response) => {
-        return dataHandler(res, service.getProdStats.bind(service));
-      },
-    },
-    {
-      method: "get",
-      path: "/api/sinkStats",
-      handler: async (req: Request, res: Response) => {
-        return dataHandler(res, service.getSinkStats.bind(service));
-      },
-    },
-    {
-      method: "get",
-      path: "/api/itemStats",
-      handler: async (req: Request, res: Response) => {
-        return dataHandler(res, service.getItemStats.bind(service));
-      },
-    },
-    {
-      method: "get",
-      path: "/api/players",
-      handler: async (req: Request, res: Response) => {
-        return dataHandler(res, service.getPlayers.bind(service));
-      },
-    },
-    {
-      method: "get",
-      path: "/api/generatorStats",
-      handler: async (req: Request, res: Response) => {
-        return dataHandler(res, service.getGeneratorStats.bind(service));
-      },
-    },
   ];
+};
+
+const getInitialEvent = async (service: Service) => {
+  const allPromises = Promise.all([
+    service.getCircuits(),
+    service.getFactoryStats(),
+    service.getProdStats(),
+    service.getSinkStats(),
+    service.getItemStats(),
+    service.getPlayers(),
+    service.getGeneratorStats(),
+    service.getTrains(),
+    service.getTrainStations(),
+  ]);
+
+  return await allPromises.then((values) => {
+    return {
+      circuits: values[0],
+      factoryStats: values[1],
+      prodStats: values[2],
+      sinkStats: values[3],
+      itemStats: values[4],
+      players: values[5],
+      generatorStats: values[6],
+      trains: values[7],
+      trainStations: values[8],
+    };
+  });
 };

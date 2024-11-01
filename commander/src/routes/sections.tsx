@@ -11,6 +11,7 @@ import PlayersPage from 'src/pages/players';
 import PoductionPage from 'src/pages/production';
 import InventoryPage from 'src/pages/inventory';
 import PowerPage from 'src/pages/power';
+import TrainsPage from 'src/pages/trains';
 import SettingsPage from 'src/pages/settings';
 
 // ----------------------------------------------------------------------
@@ -48,6 +49,7 @@ export function Router() {
         { path: 'production', element: <PoductionPage /> },
         { path: 'inventory', element: <InventoryPage /> },
         { path: 'power', element: <PowerPage /> },
+        { path: 'trains', element: <TrainsPage /> },
         { path: 'players', element: <PlayersPage /> },
         { path: 'settings', element: <SettingsPage /> },
       ],

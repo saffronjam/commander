@@ -9,16 +9,18 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import { useContext } from 'react';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { ApiContext } from 'src/contexts/api/useApi';
 import { CircuitCard } from '../circuit-card';
 import { Circuit } from 'common/types';
 import { fShortenNumber, WattHoursUnits, WattUnits } from 'src/utils/format-number';
+import { useContextSelector } from 'use-context-selector';
 
 export function PowerView() {
   const theme = useTheme();
-  const api = useContext(ApiContext);
+  const api = useContextSelector(ApiContext, (v) => {
+    return { circuits: v.circuits, isLoading: v.isLoading, isOnline: v.isOnline };
+  });
 
   const allCapacity = api.circuits.reduce((acc, circuit) => acc + circuit.capacity.total, 0);
   const allProduction = api.circuits.reduce((acc, circuit) => acc + circuit.production.total, 0);
