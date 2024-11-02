@@ -111,6 +111,19 @@ const TrainCard = ({ train }: { train: Train }) => {
           ste: 'Steel',
           alu: 'Aluminum',
           slt: 'Silica',
+
+          mtr: 'Motor',
+          mot: 'Motor',
+          str: 'Stator',
+          sta: 'Stator',
+          rpl: 'Rotor',
+          rot: 'Rotor',
+
+          cbl: 'Cable',
+          cab: 'Cable',
+          wir: 'Wire',
+          scr: 'Screw',
+          sce: 'Screw',
         };
         return groupShort in groupMap ? groupMap[groupShort as keyof typeof groupMap] : groupShort;
       };
@@ -164,7 +177,7 @@ const TrainCard = ({ train }: { train: Train }) => {
         src={`assets/images/satisfactory/64x64/${group}.png`}
         alt={group}
         style={{
-          height: 50,
+          height: 64,
         }}
       />
     );
@@ -182,12 +195,34 @@ const TrainCard = ({ train }: { train: Train }) => {
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Stack direction="row" spacing={3} sx={{ alignItems: 'center' }}>
               {group && <ChipIcon group={group} />}
-              <Typography variant="h4">{`${train.name}`}</Typography>
-              <Stack direction="row" spacing={1}>
-                {group && <Chip label={group} />}
-                {category && <Chip label={category} />}
+              <Stack direction="row" spacing={3}>
+                <Typography variant="h4">{`${train.name}`}</Typography>
+                <Stack direction="row" spacing={1}>
+                  {group && (
+                    <Chip label={group} sx={{ color: theme.palette.primary.contrastText }} />
+                  )}
+                  {category && (
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {category === 'Import' && (
+                          <Iconify icon="bi:arrow-right" sx={{ width: '20px', height: '20px' }} />
+                        )}
+                        <Chip
+                          label={category}
+                          sx={{
+                            backgroundColor: theme.palette.info.darker,
+                            color: theme.palette.primary.contrastText,
+                          }}
+                        />
+                        {category === 'Export' && (
+                          <Iconify icon="bi:arrow-right" sx={{ width: '20px', height: '20px' }} />
+                        )}
+                      </Box>
+                    </Box>
+                  )}
+                </Stack>
               </Stack>
             </Stack>
           </Box>

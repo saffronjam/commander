@@ -90,7 +90,7 @@ export function TrainsView() {
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2">Current</Typography>
                         <Typography variant="body1" sx={{ pl: 0.5, fontWeight: 'bold' }}>
-                          {fShortenNumber(totalPowerConsumption, WattUnits, { decimals: 2 })}
+                          {fShortenNumber(totalPowerConsumption, WattUnits, { decimals: 1, ensureConstantDecimals: true })}
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>

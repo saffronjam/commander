@@ -200,7 +200,7 @@ export class MockService {
   async getTrains(): Promise<Train[]> {
     return this.promisifyWithRandomDelay([
       {
-        name: "[IRN Im] Train 1",
+        name: "[IRN Ex] Train 1",
         location: {
           x: 0,
           y: 0,
