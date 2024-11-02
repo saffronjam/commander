@@ -3,7 +3,6 @@ import {
   FactoryStats,
   ProdStats,
   SinkStats,
-  ItemStats,
   Player,
   GeneratorStats,
   Train,
@@ -23,9 +22,7 @@ export interface Service {
   getFactoryStats(): Promise<FactoryStats>;
   getProdStats(): Promise<ProdStats>;
   getSinkStats(): Promise<SinkStats>;
-  getItemStats(): Promise<ItemStats[]>;
   getPlayers(): Promise<Player[]>;
   getGeneratorStats(): Promise<GeneratorStats>;
   getTrains(): Promise<Train[]>;
-  getTrainStations(): Promise<TrainStation[]>;
 }

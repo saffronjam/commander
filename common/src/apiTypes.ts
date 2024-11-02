@@ -13,3 +13,14 @@ export class ApiError {
     this.code = code;
   }
 }
+
+export enum SatisfactoryEventType {
+  initial = "initial",
+  circuits = "circuits",
+  factoryStats = "factoryStats",
+  prodStats = "prodStats",
+  sinkStats = "sinkStats",
+  players = "players",
+  generatorStats = "generatorStats",
+  trains = "trains",
+}

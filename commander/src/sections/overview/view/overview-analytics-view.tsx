@@ -1,5 +1,3 @@
-import { useContext } from 'react';
-
 import { Grid2 as Grid } from '@mui/material';
 import { Iconify } from 'src/components/iconify';
 
@@ -9,7 +7,7 @@ import { varAlpha } from 'src/theme/styles';
 import { Backdrop, CircularProgress, useTheme } from '@mui/material';
 
 import { AnalyticsWidgetSummary } from '../analytics-widget-summary';
-import { AnalyticsEnergySources } from '../analytics-energy-sources';
+import { AnalyticsPieChart } from '../analytics-pie-chart';
 import { AnalyticsCouponsProgress } from '../analytics-coupon-progress';
 import { useContextSelector } from 'use-context-selector';
 
@@ -125,7 +123,7 @@ export function OverviewAnalyticsView() {
             </Grid>
 
             <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-              <AnalyticsEnergySources
+              <AnalyticsPieChart
                 title="Energy Sources"
                 chart={{
                   series: (() => {
@@ -163,7 +161,7 @@ export function OverviewAnalyticsView() {
             </Grid>
 
             <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-              <AnalyticsEnergySources
+              <AnalyticsPieChart
                 title="Machine Efficiency"
                 chart={{
                   series: (() => {

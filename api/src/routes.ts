@@ -86,7 +86,7 @@ export const makeRoutes = (
     {
       method: "get",
       path: "/",
-      handler: (req: Request, res: Response) => {
+      handler: (_req: Request, res: Response) => {
         res.json({ message: "Ouch! Look like you hit the API" });
       },
     },
@@ -99,24 +99,21 @@ const getInitialEvent = async (service: Service) => {
     service.getFactoryStats(),
     service.getProdStats(),
     service.getSinkStats(),
-    service.getItemStats(),
     service.getPlayers(),
     service.getGeneratorStats(),
     service.getTrains(),
-    service.getTrainStations(),
   ]);
 
   return await allPromises.then((values) => {
+    let i = 0;
     return {
-      circuits: values[0],
-      factoryStats: values[1],
-      prodStats: values[2],
-      sinkStats: values[3],
-      itemStats: values[4],
-      players: values[5],
-      generatorStats: values[6],
-      trains: values[7],
-      trainStations: values[8],
+      circuits: values[i++],
+      factoryStats: values[i++],
+      prodStats: values[i++],
+      sinkStats: values[i++],
+      players: values[i++],
+      generatorStats: values[i++],
+      trains: values[i++],
     };
   });
 };

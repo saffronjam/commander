@@ -6,19 +6,7 @@ const defaultSettings: Settings = {
   productionView: {
     includeMinable: true,
     includeItems: true,
-  },
-  intervals: {
-    rerender: 1000,
-    satisfactoryApiCheck: 1000,
-    circuits: 500,
-    factoryStats: 2000,
-    prodStats: 2000,
-    sinkStats: 2000,
-    itemStats: 2000,
-    players: 2000,
-    generatorStats: 2000,
-    trains: 2000,
-    trainStations: 2000,
+    showTrend: true,
   },
 };
 

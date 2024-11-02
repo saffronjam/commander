@@ -25,7 +25,7 @@ type Props = CardProps & {
   };
 };
 
-export function AnalyticsEnergySources({
+export function AnalyticsPieChart({
   title,
   subheader,
   chart,
@@ -56,7 +56,7 @@ export function AnalyticsEnergySources({
     dataLabels: {
       enabled: true,
       style: { fontSize: '15' },
-      textAnchor: 'middle',
+      textAnchor: 'start',
       dropShadow: { enabled: false },
     },
     tooltip: {
@@ -65,7 +65,7 @@ export function AnalyticsEnergySources({
         title: { formatter: (seriesName: string) => `${seriesName}` },
       },
     },
-    plotOptions: { pie: { donut: { labels: { show: false } } } },
+    plotOptions: { pie: { expandOnClick: false, dataLabels: {offset: -20}, donut: { labels: { show: false } } } },
     ...chart.options,
   });
 

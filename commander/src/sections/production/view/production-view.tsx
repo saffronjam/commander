@@ -12,20 +12,24 @@ import {
   FormControlLabel,
   Checkbox,
   Tooltip,
-  Skeleton,
   Typography,
+  Backdrop,
+  CircularProgress,
+  Stack,
 } from '@mui/material';
 import { DashboardContent } from 'src/layouts/dashboard';
-import { ApiContext } from 'src/contexts/api/useApi';
+import { ApiContext, ApiContextType } from 'src/contexts/api/useApi';
 import { varAlpha } from 'src/theme/styles';
 import { useSettings } from 'src/hooks/use-settings';
 import { Iconify } from 'src/components/iconify';
 import { useContextSelector } from 'use-context-selector';
+import { fNumber, fPercent, fShortenNumber, MetricUnits } from 'src/utils/format-number';
 
 type Column = {
   id:
     | 'icon'
     | 'name'
+    | 'inventory'
     | 'production'
     | 'consumption'
     | 'production efficiency'
@@ -34,10 +38,11 @@ type Column = {
   minWidth?: number;
   align?: 'left' | 'right' | 'center';
   format?: (value: number) => string;
-  severity?: (value: number | string) => severity;
+  severity?: (value: number | string) => Severity;
+  trend?: (row: any, history: any) => number;
 };
 
-enum severity {
+enum Severity {
   none = 'none',
   awesome = 'awesome',
   ok = 'ok',
@@ -45,16 +50,77 @@ enum severity {
   poor = 'poor',
 }
 
+function calculateTrend(data: number[]): number {
+  if (data.length < 2) {
+    throw new Error('At least two data points are required to calculate a trend.');
+  }
+
+  const n = data.length;
+  const xSum = data.reduce((sum, _, index) => sum + index, 0);
+  const ySum = data.reduce((sum, value) => sum + value, 0);
+  const xySum = data.reduce((sum, value, index) => sum + index * value, 0);
+  const xSquaredSum = data.reduce((sum, _, index) => sum + index ** 2, 0);
+
+  // Calculate the slope (m) of the line y = mx + b
+  const slope = (n * xySum - xSum * ySum) / (n * xSquaredSum - xSum ** 2);
+
+  return slope;
+}
+
 const columns: readonly Column[] = [
   { id: 'icon', label: '', minWidth: 64, align: 'center' },
-  { id: 'name', label: 'Name', minWidth: 170 },
+  { id: 'name', label: 'Name', minWidth: 100, align: 'left' },
+
+  {
+    id: 'inventory',
+    label: 'Inventory',
+    minWidth: 200,
+    align: 'center',
+    format: (value) =>
+      fShortenNumber(value, MetricUnits, { decimals: 1, ensureConstantDecimals: true }),
+    severity: (_value: number | string) => Severity.none,
+    trend: (row: any, history: ApiContextType['history']) => {
+      if (history.length < 10) {
+        return 0;
+      }
+
+      // Collect all values for the current item
+      const itemProdHistory = history.map((dataPoint) =>
+        dataPoint.prodStats.items.find((i) => i.name === row.name)
+      );
+
+      const itemProdHistoryCount = itemProdHistory
+        .map((item) => item?.count)
+        .filter((item) => item !== undefined);
+
+      // Calculate the trend
+      return calculateTrend(itemProdHistoryCount) * itemProdHistory.length;
+    },
+  },
   {
     id: 'production',
     label: 'Production',
     minWidth: 100,
     align: 'center',
-    format: (value: number) => `${Math.round(value)}/min`,
-    severity: (_value: number | string) => severity.none,
+    format: (value: number) => `${fNumber(value, { decimals: 0 })}/min`,
+    severity: (_value: number | string) => Severity.none,
+    trend: (row: any, history: ApiContextType['history']) => {
+      if (history.length < 10) {
+        return 0;
+      }
+
+      // Collect all values for the current item
+      const itemProdHistory = history.map((dataPoint) =>
+        dataPoint.prodStats.items.find((i) => i.name === row.name)
+      );
+
+      const itemValues = itemProdHistory
+        .map((item) => item?.producedPerMinute)
+        .filter((item) => item !== undefined);
+
+      // Calculate the trend
+      return calculateTrend(itemValues) * itemProdHistory.length;
+    },
   },
   {
     id: 'consumption',
@@ -62,7 +128,24 @@ const columns: readonly Column[] = [
     minWidth: 100,
     align: 'center',
     format: (value: number) => `${Math.round(value)}/min`,
-    severity: (_value: number | string) => severity.none,
+    severity: (_value: number | string) => Severity.none,
+    trend: (row: any, history: ApiContextType['history']) => {
+      if (history.length < 10) {
+        return 0;
+      }
+
+      // Collect all values for the current item
+      const itemProdHistory = history.map((dataPoint) =>
+        dataPoint.prodStats.items.find((i) => i.name === row.name)
+      );
+
+      const itemValues = itemProdHistory
+        .map((item) => item?.consumedPerMinute)
+        .filter((item) => item !== undefined);
+
+      // Calculate the trend
+      return calculateTrend(itemValues) * itemProdHistory.length;
+    },
   },
   {
     id: 'production efficiency',
@@ -72,20 +155,20 @@ const columns: readonly Column[] = [
     format: (value: number) => `${Math.round(value * 100)}%`,
     severity: (value: number | string) => {
       if (typeof value === 'string') {
-        return severity.none;
+        return Severity.none;
       }
 
       if (value >= 0.9) {
-        return severity.awesome;
+        return Severity.awesome;
       }
 
       if (value >= 0.75) {
-        return severity.ok;
+        return Severity.ok;
       }
       if (value >= 0.5) {
-        return severity.unsatisfactory;
+        return Severity.unsatisfactory;
       }
-      return severity.poor;
+      return Severity.poor;
     },
   },
   {
@@ -96,27 +179,47 @@ const columns: readonly Column[] = [
     format: (value: number) => `${Math.round(value * 100)}%`,
     severity: (value: number | string) => {
       if (typeof value === 'string') {
-        return severity.none;
+        return Severity.none;
       }
 
       if (value >= 0.9) {
-        return severity.awesome;
+        return Severity.awesome;
       }
 
       if (value >= 0.75) {
-        return severity.ok;
+        return Severity.ok;
       }
       if (value >= 0.5) {
-        return severity.unsatisfactory;
+        return Severity.unsatisfactory;
       }
-      return severity.poor;
+      return Severity.poor;
     },
   },
 ];
 
+const severityToStyle = (severity: Severity) => {
+  switch (severity) {
+    case Severity.awesome:
+      return { label: 'Awesome', color: 'green' };
+    case Severity.ok:
+      return { label: 'OK', color: 'yellow' };
+    case Severity.unsatisfactory:
+      return { label: 'Unsatisfactory', color: 'orange' };
+    case Severity.poor:
+      return { label: 'Poor', color: 'red' };
+    default:
+      return { label: '', color: 'transparent' };
+  }
+};
+
 export function ProductionView() {
   const api = useContextSelector(ApiContext, (v) => {
-    return { prodStats: v.prodStats };
+    return {
+      prodStats: v.prodStats,
+      isLoading: v.isLoading,
+      isOnline: v.isOnline,
+      history: v.history,
+    };
   });
   const theme = useTheme();
 
@@ -147,11 +250,17 @@ export function ProductionView() {
   };
 
   const sortedRows = React.useMemo(() => {
+    if (api.isLoading || !api.isOnline) {
+      return [];
+    }
+
     const rows =
       api.prodStats.items
         .filter((item) => settings.productionView.includeItems || item.minable)
+        .filter((item) => settings.productionView.includeMinable || !item.minable)
         .map((item) => ({
           name: item.name,
+          inventory: item.count,
           production: item.producedPerMinute,
           consumption: item.consumedPerMinute,
           'production efficiency': item.produceEfficiency,
@@ -170,6 +279,11 @@ export function ProductionView() {
           typeof aValue === 'number' && typeof bValue === 'number'
             ? aValue - bValue
             : String(aValue).localeCompare(String(bValue));
+
+        // If same, sort by name
+        if (compareResult === 0) {
+          return a.name.localeCompare(b.name);
+        }
         return sortDirection === 'asc' ? compareResult : -compareResult;
       });
     }
@@ -177,245 +291,317 @@ export function ProductionView() {
   }, [api, sortColumn, sortDirection, settings.productionView.includeItems]);
 
   return (
-    <DashboardContent maxWidth="xl">
-      <TableContainer
+    <>
+      <Backdrop
+        open={api.isLoading || !api.isOnline}
         sx={{
-          backgroundColor: theme.palette.background.neutral,
-          height: 'calc(100vh - 200px)',
-          borderTopLeftRadius: 15,
-          borderTopRightRadius: 15,
+          color: theme.palette.primary.main,
+          backgroundColor: varAlpha(theme.palette.background.defaultChannel, 0.5),
+          zIndex: (t) => t.zIndex.drawer + 1,
         }}
       >
-        <Table stickyHeader aria-label="sticky table">
-          <TableHead>
-            <TableRow>
-              {columns.map((column) => (
-                <TableCell
-                  key={column.id}
-                  align={column.align}
-                  style={{
-                    minWidth: column.minWidth,
-                    backgroundColor: theme.palette.primary.darker,
-                    color: theme.palette.primary.contrastText,
-                    cursor: column.id !== 'icon' ? 'pointer' : 'default',
-                  }}
-                  onClick={() => {
-                    if (column.id !== 'icon') {
-                      handleSort(column.id);
-                    }
-                  }}
-                >
-                  <Typography
-                    variant="overline"
-                    sx={{
-                      display: 'flex', // Set display to flex
-                      alignItems: 'center', // Center vertically
-                      justifyContent: column.align,
+        <CircularProgress color="inherit" />
+      </Backdrop>
 
-                      userSelect: 'none', // Prevent text selection
-                      WebkitUserSelect: 'none', // For Safari
-                      MozUserSelect: 'none', // For Firefox
-                      msUserSelect: 'none', // For older IE versions
-                    }}
-                  >
-                    {column.label}
-                    {sortDirection === 'asc' ? (
-                      <Iconify
-                        icon="bi:caret-up-fill"
-                        fontSize="small"
+      {!api.isLoading && api.isOnline && (
+        <DashboardContent maxWidth="xl">
+          <TableContainer
+            sx={{
+              backgroundColor: theme.palette.background.neutral,
+              height: 'calc(100vh - 200px)',
+              borderTopLeftRadius: 15,
+              borderTopRightRadius: 15,
+            }}
+          >
+            <Table stickyHeader aria-label="sticky table">
+              <TableHead>
+                <TableRow>
+                  {columns.map((column) => (
+                    <TableCell
+                      key={column.id}
+                      align={column.align}
+                      style={{
+                        minWidth: column.minWidth,
+                        backgroundColor: theme.palette.primary.darker,
+                        color: theme.palette.primary.contrastText,
+                        cursor: column.id !== 'icon' ? 'pointer' : 'default',
+                      }}
+                      onClick={() => {
+                        if (column.id !== 'icon') {
+                          handleSort(column.id);
+                        }
+                      }}
+                    >
+                      <Typography
+                        variant="overline"
                         sx={{
-                          ml: 0.5,
-                          color: sortColumn === column.id ? 'white' : 'transparent',
+                          display: 'flex', // Set display to flex
+                          alignItems: 'center', // Center vertically
+                          justifyContent: column.align,
+
+                          userSelect: 'none', // Prevent text selection
+                          WebkitUserSelect: 'none', // For Safari
+                          MozUserSelect: 'none', // For Firefox
+                          msUserSelect: 'none', // For older IE versions
                         }}
-                      />
-                    ) : (
-                      <Iconify
-                        icon="bi:caret-down-fill"
-                        fontSize="small"
+                      >
+                        {column.label}
+                        {sortDirection === 'asc' ? (
+                          <Iconify
+                            icon="bi:caret-up-fill"
+                            fontSize="small"
+                            sx={{
+                              ml: 0.5,
+                              color: sortColumn === column.id ? 'white' : 'transparent',
+                            }}
+                          />
+                        ) : (
+                          <Iconify
+                            icon="bi:caret-down-fill"
+                            fontSize="small"
+                            sx={{
+                              ml: 0.5,
+                              color: sortColumn === column.id ? 'white' : 'transparent',
+                            }}
+                          />
+                        )}
+                      </Typography>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedRows
+                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                  .map((row, index) => {
+                    return (
+                      <TableRow
+                        hover
+                        role="checkbox"
+                        tabIndex={-1}
+                        key={row.name}
                         sx={{
-                          ml: 0.5,
-                          color: sortColumn === column.id ? 'white' : 'transparent',
+                          backgroundColor:
+                            index % 2 === 0
+                              ? theme.palette.background.paper
+                              : varAlpha(theme.palette.background.defaultChannel, 0.5),
                         }}
-                      />
-                    )}
-                  </Typography>
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sortedRows
-              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map((row, index) => {
-                return (
-                  <TableRow
-                    hover
-                    role="checkbox"
-                    tabIndex={-1}
-                    key={row.name}
-                    sx={{
-                      backgroundColor:
-                        index % 2 === 0
-                          ? theme.palette.background.paper
-                          : varAlpha(theme.palette.background.defaultChannel, 0.5),
-                    }}
-                  >
-                    {columns.map((column) => {
-                      if (column.id === 'icon') {
-                        return (
-                          <TableCell key={column.id} align={column.align}>
-                            <div
-                              style={{
-                                marginLeft: '10px',
-                                width: '50px',
-                                height: '50px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              <img
-                                src={`assets/images/satisfactory/64x64/${row.name}.png`}
-                                alt={row.name}
-                                style={{
-                                  width: '50px',
-                                  height: '50px',
+                      >
+                        {columns.map((column) => {
+                          if (column.id === 'icon') {
+                            return (
+                              <TableCell key={column.id} align={column.align}>
+                                <div
+                                  style={{
+                                    marginLeft: '10px',
+                                    width: '50px',
+                                    height: '50px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  <img
+                                    src={`assets/images/satisfactory/64x64/${row.name}.png`}
+                                    alt={row.name}
+                                    style={{
+                                      width: '50px',
+                                      height: '50px',
+                                    }}
+                                  />
+                                </div>
+                              </TableCell>
+                            );
+                          }
+
+                          const value = row[column.id];
+
+                          const EndDecorator = () => {
+                            const severity = column.severity
+                              ? column.severity(value)
+                              : Severity.none;
+                            const severityStyle = severityToStyle(severity);
+
+                            if (severity !== Severity.none) {
+                              return (
+                                <Tooltip title={severityStyle.label} arrow>
+                                  <Box
+                                    sx={{
+                                      display: 'inline-block',
+                                      width: '10px',
+                                      height: '10px',
+                                      borderRadius: '50%',
+                                      backgroundColor: severityStyle.color,
+                                      marginLeft: '0.5rem',
+                                    }}
+                                  />
+                                </Tooltip>
+                              );
+                            }
+
+                            if (settings.productionView.showTrend && typeof value === 'number') {
+                              const trendValue = column.trend ? column.trend(row, api.history) : 0;
+
+                              const color =
+                                trendValue === 0 ? 'transparent' : trendValue > 0 ? 'green' : 'red';
+
+                              return (
+                                <Stack direction="row" spacing={0.3} sx={{ ml: 1 }}>
+                                  <Iconify
+                                    icon={
+                                      settings.productionView.showTrend
+                                        ? trendValue > 0
+                                          ? 'bi:caret-up-fill'
+                                          : 'bi:caret-down-fill'
+                                        : ''
+                                    }
+                                    fontSize="small"
+                                    sx={{ color: color }}
+                                  />
+                                  <Typography variant="caption" sx={{ color: color }}>
+                                    {fShortenNumber(trendValue, MetricUnits, { decimals: 0 })}
+                                  </Typography>
+                                </Stack>
+                              );
+                            }
+
+                            return (
+                              <Box
+                                sx={{
+                                  display: 'inline-block',
+                                  width: '10px',
+                                  height: '10px',
+                                  borderRadius: '50%',
+                                  backgroundColor: severityStyle.color,
+                                  marginLeft: '0.5rem',
                                 }}
                               />
-                            </div>
-                          </TableCell>
-                        );
-                      }
+                            );
+                          };
 
-                      const value = row[column.id];
-                      return (
-                        <TableCell
-                          key={column.id}
-                          align={column.align}
-                          style={{ color: theme.palette.primary.contrastText }}
-                        >
-                          <>
-                            {column.format && typeof value === 'number'
-                              ? column.format(value)
-                              : value}
-                            {column.severity && (
-                              <Tooltip
-                                title={
-                                  column.severity(value) === severity.awesome
-                                    ? 'Awesome'
-                                    : column.severity(value) === severity.ok
-                                      ? 'OK'
-                                      : column.severity(value) === severity.unsatisfactory
-                                        ? 'Unsatisfactory'
-                                        : column.severity(value) === severity.poor
-                                          ? 'Poor'
-                                          : ''
-                                }
-                                arrow
+                          return (
+                            <TableCell
+                              key={column.id}
+                              align={column.align}
+                              style={{ color: theme.palette.primary.contrastText }}
+                            >
+                              <Box
+                                display="flex"
+                                alignItems="center"
+                                justifyContent={column.align || 'flex-start'}
                               >
-                                <Box
-                                  sx={{
-                                    display: 'inline-block',
-                                    width: '10px',
-                                    height: '10px',
-                                    borderRadius: '50%',
-                                    backgroundColor:
-                                      column.severity && column.severity(value) === severity.awesome
-                                        ? theme.palette.success.main
-                                        : column.severity(value) === severity.ok
-                                          ? theme.palette.info.main
-                                          : column.severity(value) === severity.unsatisfactory
-                                            ? theme.palette.warning.main
-                                            : column.severity(value) === severity.poor
-                                              ? theme.palette.error.main
-                                              : 'transparent',
-                                    marginLeft: '0.5rem',
-                                  }}
-                                />
-                              </Tooltip>
-                            )}
-                          </>
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                );
-              })}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{
-          backgroundColor: theme.palette.background.neutral,
-          color: theme.palette.primary.contrastText,
-          borderBottomLeftRadius: 20,
-          borderBottomRightRadius: 20,
-        }}
-      >
-        <Box display="flex" alignItems="center" sx={{ marginLeft: '1rem' }}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={settings.productionView.includeMinable}
-                sx={{
-                  '&:hover': {
-                    backgroundColor: 'transparent', // Removes hover background color
-                  },
-                }}
+                                {column.format && typeof value === 'number'
+                                  ? column.format(value)
+                                  : value}
+                                <EndDecorator />
+                              </Box>
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            sx={{
+              backgroundColor: theme.palette.background.neutral,
+              color: theme.palette.primary.contrastText,
+              borderBottomLeftRadius: 20,
+              borderBottomRightRadius: 20,
+            }}
+          >
+            <Box display="flex" alignItems="center" sx={{ marginLeft: '1rem' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={settings.productionView.includeMinable}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'transparent', // Removes hover background color
+                      },
+                    }}
+                  />
+                }
+                label="Minable"
+                sx={{ color: 'white', marginRight: '1rem' }}
+                onChange={(event: any) =>
+                  saveSettings({
+                    ...settings,
+                    productionView: {
+                      ...settings.productionView,
+                      includeMinable: event.target.checked,
+                    },
+                  })
+                }
               />
-            }
-            label="Minable"
-            sx={{ color: 'white', marginRight: '1rem' }}
-            onChange={(event: any) =>
-              saveSettings({
-                ...settings,
-                productionView: {
-                  ...settings.productionView,
-                  includeMinable: event.target.checked,
-                },
-              })
-            }
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={settings.productionView.includeItems}
-                sx={{
-                  '&:hover': {
-                    backgroundColor: 'transparent', // Removes hover background color
-                  },
-                }}
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={settings.productionView.includeItems}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'transparent', // Removes hover background color
+                      },
+                    }}
+                  />
+                }
+                label="Items"
+                // No hover color
+                sx={{ color: 'white', marginRight: '1rem' }}
+                onChange={(event: any) =>
+                  saveSettings({
+                    ...settings,
+                    productionView: {
+                      ...settings.productionView,
+                      includeItems: event.target.checked,
+                    },
+                  })
+                }
               />
-            }
-            label="Items"
-            // No hover color
-            sx={{ color: 'white', marginRight: '1rem' }}
-            onChange={(event: any) =>
-              saveSettings({
-                ...settings,
-                productionView: {
-                  ...settings.productionView,
-                  includeItems: event.target.checked,
-                },
-              })
-            }
-          />
-        </Box>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={settings.productionView.showTrend}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'transparent', // Removes hover background color
+                      },
+                    }}
+                  />
+                }
+                label="Show Trend"
+                // No hover color
+                sx={{ color: 'white', marginRight: '1rem' }}
+                onChange={(event: any) =>
+                  saveSettings({
+                    ...settings,
+                    productionView: {
+                      ...settings.productionView,
+                      showTrend: event.target.checked,
+                    },
+                  })
+                }
+              />
+            </Box>
 
-        <TablePagination
-          rowsPerPageOptions={[10, 25, 100]}
-          component="div"
-          count={sortedRows.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          sx={{ color: 'white' }}
-        />
-      </Box>
-    </DashboardContent>
+            <TablePagination
+              rowsPerPageOptions={[10, 25, 100]}
+              component="div"
+              count={sortedRows.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              sx={{ color: 'white' }}
+            />
+          </Box>
+        </DashboardContent>
+      )}
+    </>
   );
 }

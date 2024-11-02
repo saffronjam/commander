@@ -7,19 +7,13 @@ export const navData = [
   {
     title: 'Dashboard',
     path: '/',
-    icon: <Iconify icon="uim:graph-bar" width={24} height={24} />,
+    icon: <Iconify icon="mage:dashboard-fill" width={24} height={24} />,
     group: 'main',
   },
   {
     title: 'Production',
     path: '/production',
     icon: <Iconify icon="mdi:factory" width={24} height={24} />,
-    group: 'main',
-  },
-  {
-    title: 'Inventory',
-    path: '/inventory',
-    icon: <Iconify icon="mdi:package-variant" width={24} height={24} />,
     group: 'main',
   },
   {

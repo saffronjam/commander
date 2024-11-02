@@ -60,9 +60,7 @@ export type ProdStats = {
   itemsConsumedPerMinute: number;
 
   items: [
-    {
-      name: string;
-
+    ItemStats & {
       producedPerMinute: number;
       maxProducePerMinute: number;
       produceEfficiency: number;

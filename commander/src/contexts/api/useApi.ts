@@ -19,7 +19,6 @@ export type ApiData = {
   factoryStats: FactoryStats;
   prodStats: ProdStats;
   sinkStats: SinkStats;
-  itemStats: ItemStats[];
   players: Player[];
   generatorStats: GeneratorStats;
   trains: Train[];
@@ -38,7 +37,6 @@ export const DefaultApiContext: ApiContextType = {
   factoryStats: {} as FactoryStats,
   prodStats: {} as ProdStats,
   sinkStats: {} as SinkStats,
-  itemStats: [],
   players: [],
   generatorStats: {} as GeneratorStats,
   trains: [],

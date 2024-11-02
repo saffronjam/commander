@@ -90,88 +90,14 @@ export const SettingsView = () => {
                 />
               </CardContent>
             </Card>
-
-            <Card variant="outlined" sx={{ marginTop: '20px' }}>
-              <CardContent>
-                <Typography variant="h5">Preferences</Typography>
-
-                {/* rerender select */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'flex-start',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Select
-                    sx={{ marginTop: '15px', boxShadow: 'none', minWidth: '120px' }}
-                    value={settings.intervals.rerender}
-                    onChange={(e) => {
-                      const newInterval = Number(e.target.value);
-                      saveSettings({
-                        ...settings,
-                        intervals: {
-                          ...settings.intervals,
-                          rerender: newInterval,
-                        },
-                      });
-                    }}
-                  >
-                    <MenuItem value={250}>250ms</MenuItem>
-                    <MenuItem value={500}>500ms</MenuItem>
-                    <MenuItem value={1000}>1s</MenuItem>
-                    <MenuItem value={2000}>2s</MenuItem>
-                    <MenuItem value={5000}>5s</MenuItem>
-                  </Select>
-                  <Typography variant="body2" marginTop={'15px'} sx={{ marginLeft: '10px' }}>
-                    Re-render
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
           </Grid>
-          <Grid size={{ xs: 4 }}>
+          <Grid>
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="h5">Data Interval Speed</Typography>
-                {Object.keys(settings.intervals)
-                  .filter((k) => k != 'rerender')
-                  .map((key) => {
-                    return (
-                      <Box
-                        key={key}
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'flex-start',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <Select
-                          sx={{ marginTop: '15px', boxShadow: 'none', minWidth: '120px' }}
-                          value={settings.intervals[key as keyof Settings['intervals']]}
-                          onChange={(e) => {
-                            const newInterval = Number(e.target.value);
-                            saveSettings({
-                              ...settings,
-                              intervals: {
-                                ...settings.intervals,
-                                [key]: newInterval,
-                              },
-                            });
-                          }}
-                        >
-                          <MenuItem value={250}>250ms</MenuItem>
-                          <MenuItem value={500}>500ms</MenuItem>
-                          <MenuItem value={1000}>1s</MenuItem>
-                          <MenuItem value={2000}>2s</MenuItem>
-                          <MenuItem value={5000}>5s</MenuItem>
-                        </Select>
-                        <Typography variant="body2" marginTop={'15px'} sx={{ marginLeft: '10px' }}>
-                          {intervalKeyToDisplay(key)}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
+                <Typography variant="h5">Preferences</Typography>
+                <Typography variant="body2" sx={{ marginTop: '15px' }}>
+                  Coming Soon
+                </Typography>
               </CardContent>
             </Card>
           </Grid>

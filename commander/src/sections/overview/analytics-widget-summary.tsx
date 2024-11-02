@@ -90,7 +90,7 @@ export function AnalyticsWidgetSummary({
           >
             {/* Left number */}
             <Box sx={{ flex: 1, textAlign: 'center' }}>
-              <Typography sx={{ color: theme.palette.primary.contrastText }} variant="h4">
+              <Typography sx={{ color: theme.palette.primary.contrastText, textAlign: 'right', mr: 2 }} variant="h4">
                 {leftNumber}
               </Typography>
             </Box>
@@ -110,7 +110,7 @@ export function AnalyticsWidgetSummary({
 
             {/* Right number */}
             <Box sx={{ flex: 1, textAlign: 'center' }}>
-              <Typography sx={{ color: theme.palette.primary.contrastText }} variant="h4">
+              <Typography sx={{ color: theme.palette.primary.contrastText, textAlign: 'left', ml: 2 }} variant="h4">
                 {rightNumber}
               </Typography>
             </Box>

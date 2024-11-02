@@ -18,7 +18,7 @@ import {
   TrainTimetableEntry,
 } from "common/types";
 import { ApiError } from "common/src/apiTypes";
-import { SatisfactoryEventType } from "../types";
+import { SatisfactoryEventType } from "common/src/apiTypes";
 import { SatisfactoryEventCallback } from "../service";
 
 const satisfactoryStatusToTrainStatus = (trainData: any) => {
@@ -51,28 +51,23 @@ export class Service {
 
   setupWebsocket(callback: SatisfactoryEventCallback) {
     const endpoints = new Map<SatisfactoryEventType, () => Promise<any>>([
-      [SatisfactoryEventType.Circuit, this.getCircuits.bind(this)],
-      [SatisfactoryEventType.FactoryStats, this.getFactoryStats.bind(this)],
-      [SatisfactoryEventType.ProdStats, this.getProdStats.bind(this)],
-      [SatisfactoryEventType.SinkStats, this.getSinkStats.bind(this)],
-      [SatisfactoryEventType.ItemStats, this.getItemStats.bind(this)],
-      [SatisfactoryEventType.Player, this.getPlayers.bind(this)],
-      [SatisfactoryEventType.GeneratorStats, this.getGeneratorStats.bind(this)],
-      [SatisfactoryEventType.Train, this.getTrains.bind(this)],
-      [SatisfactoryEventType.TrainStation, this.getTrainStations.bind(this)],
+      [SatisfactoryEventType.circuits, this.getCircuits.bind(this)],
+      [SatisfactoryEventType.factoryStats, this.getFactoryStats.bind(this)],
+      [SatisfactoryEventType.prodStats, this.getProdStats.bind(this)],
+      [SatisfactoryEventType.sinkStats, this.getSinkStats.bind(this)],
+      [SatisfactoryEventType.players, this.getPlayers.bind(this)],
+      [SatisfactoryEventType.generatorStats, this.getGeneratorStats.bind(this)],
+      [SatisfactoryEventType.trains, this.getTrains.bind(this)],
     ]);
 
     // Setup callbacks for each endpoint and return data in the callback randomly between every 200-500ms, one interval per endpoint
     for (const [type, endpoint] of endpoints) {
-      setInterval(
-        async () => {
-          callback({
-            type,
-            data: await endpoint(),
-          });
-        },
-        2000
-      );
+      setInterval(async () => {
+        callback({
+          type,
+          data: await endpoint(),
+        });
+      }, 2000);
     }
   }
 
@@ -166,49 +161,57 @@ export class Service {
   }
 
   async getProdStats(): Promise<ProdStats> {
-    return await this.makeSatisfactoryCall("/getProdStats").then((data) => {
-      let minableBeingProduced = 0;
-      let minableBeingConsumed = 0;
-      let itemsBeingProduced = 0;
-      let itemsBeingConsumed = 0;
+    const prodData = await this.makeSatisfactoryCall("/getProdStats");
+    const itemData = await this.makeSatisfactoryCall("/getWorldInv");
+    
+    // Convert itemData to a map for easier lookup
+    const itemMap = itemData.reduce((acc: any, item: any) => {
+      acc[item.Name] = item;
+      return acc;
+    }, {});
 
-      const items = [];
+    let minableBeingProduced = 0;
+    let minableBeingConsumed = 0;
+    let itemsBeingProduced = 0;
+    let itemsBeingConsumed = 0;
 
-      for (const item of data) {
-        const minable = this.isMinableResource(item.Name);
+    const items = [];
 
-        if (minable) {
-          minableBeingProduced += item.CurrentProd || 0;
-          minableBeingConsumed += item.CurrentConsumed || 0;
-        } else {
-          itemsBeingProduced += item.CurrentProd || 0;
-          itemsBeingConsumed += item.CurrentConsumed || 0;
-        }
+    for (const item of prodData) {
+      const minable = this.isMinableResource(item.Name);
 
-        items.push({
-          name: item.Name,
-
-          producedPerMinute: item.CurrentProd,
-          maxProducePerMinute: item.MaxProd,
-          produceEfficiency: item.ProdPercent / 100,
-
-          consumedPerMinute: item.CurrentConsumed,
-          maxConsumePerMinute: item.MaxConsumed,
-          consumeEfficiency: item.ConsPercent / 100,
-
-          minable: minable,
-        });
+      if (minable) {
+        minableBeingProduced += item.CurrentProd || 0;
+        minableBeingConsumed += item.CurrentConsumed || 0;
+      } else {
+        itemsBeingProduced += item.CurrentProd || 0;
+        itemsBeingConsumed += item.CurrentConsumed || 0;
       }
 
-      return {
-        minableProducedPerMinute: Math.round(minableBeingProduced),
-        minableConsumedPerMinute: Math.round(minableBeingConsumed),
-        itemsProducedPerMinute: Math.round(itemsBeingProduced),
-        itemsConsumedPerMinute: Math.round(itemsBeingConsumed),
+      items.push({
+        name: item.Name,
+        count: itemMap[item.Name]?.Amount || 0,
 
-        items: items.sort((a, b) => b.producedPerMinute - a.producedPerMinute),
-      } as ProdStats;
-    });
+        producedPerMinute: item.CurrentProd,
+        maxProducePerMinute: item.MaxProd,
+        produceEfficiency: item.ProdPercent / 100,
+
+        consumedPerMinute: item.CurrentConsumed,
+        maxConsumePerMinute: item.MaxConsumed,
+        consumeEfficiency: item.ConsPercent / 100,
+
+        minable: minable,
+      });
+    }
+
+    return {
+      minableProducedPerMinute: Math.round(minableBeingProduced),
+      minableConsumedPerMinute: Math.round(minableBeingConsumed),
+      itemsProducedPerMinute: Math.round(itemsBeingProduced),
+      itemsConsumedPerMinute: Math.round(itemsBeingConsumed),
+
+      items: items.sort((a, b) => b.producedPerMinute - a.producedPerMinute),
+    } as ProdStats;
   }
 
   async getSinkStats(): Promise<SinkStats> {
@@ -229,17 +232,6 @@ export class Service {
         coupons: sink.NumCoupon,
         nextCouponProgress: sink.Percent,
       } as SinkStats;
-    });
-  }
-
-  async getItemStats(): Promise<ItemStats[]> {
-    return await this.makeSatisfactoryCall("/getWorldInv").then((data) => {
-      return data.map((item: any) => {
-        return {
-          name: item.Name,
-          count: item.Amount,
-        };
-      }) as ItemStats[];
     });
   }
 

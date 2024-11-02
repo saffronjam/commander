@@ -13,7 +13,9 @@ import {
   TrainStatus,
 } from "common/src/types";
 import { SatisfactoryEventCallback } from "../service";
-import { SatisfactoryEventType } from "../types";
+import { SatisfactoryEventType } from "common/src/apiTypes";
+
+const now = new Date().getTime();
 
 export class MockService {
   constructor() {}
@@ -26,15 +28,13 @@ export class MockService {
 
   setupWebsocket(callback: SatisfactoryEventCallback) {
     const endpoints = new Map<SatisfactoryEventType, () => Promise<any>>([
-      [SatisfactoryEventType.Circuit, this.getCircuits.bind(this)],
-      [SatisfactoryEventType.FactoryStats, this.getFactoryStats.bind(this)],
-      [SatisfactoryEventType.ProdStats, this.getProdStats.bind(this)],
-      [SatisfactoryEventType.SinkStats, this.getSinkStats.bind(this)],
-      [SatisfactoryEventType.ItemStats, this.getItemStats.bind(this)],
-      [SatisfactoryEventType.Player, this.getPlayers.bind(this)],
-      [SatisfactoryEventType.GeneratorStats, this.getGeneratorStats.bind(this)],
-      [SatisfactoryEventType.Train, this.getTrains.bind(this)],
-      [SatisfactoryEventType.TrainStation, this.getTrainStations.bind(this)],
+      [SatisfactoryEventType.circuits, this.getCircuits.bind(this)],
+      [SatisfactoryEventType.factoryStats, this.getFactoryStats.bind(this)],
+      [SatisfactoryEventType.prodStats, this.getProdStats.bind(this)],
+      [SatisfactoryEventType.sinkStats, this.getSinkStats.bind(this)],
+      [SatisfactoryEventType.players, this.getPlayers.bind(this)],
+      [SatisfactoryEventType.generatorStats, this.getGeneratorStats.bind(this)],
+      [SatisfactoryEventType.trains, this.getTrains.bind(this)],
     ]);
 
     // Setup callbacks for each endpoint and return data in the callback randomly between every 200-500ms, one interval per endpoint
@@ -116,7 +116,9 @@ export class MockService {
       itemsConsumedPerMinute: 400 + Math.random() * 10,
       items: ["Iron Ore", "Copper Ore", "Iron Plate"].map((name, index) => ({
         name,
-        minable: index > 1,
+        count: index < 2 ? 15423 + (new Date().getTime() - now) / 10 : 3643 + (new Date().getTime() - now) / 100,
+
+        minable: index < 2,
 
         producedPerMinute: 100 + Math.random() * 10,
         maxProducePerMinute: 200 + Math.random() * 10,
@@ -135,23 +137,6 @@ export class MockService {
       coupons: 200 + Math.random() * 10,
       nextCouponProgress: 0.3 + Math.random() * 0.1,
     } as SinkStats);
-  }
-
-  async getItemStats(): Promise<ItemStats[]> {
-    return this.promisifyWithRandomDelay([
-      {
-        name: "Iron Ore",
-        count: 300 + Math.random() * 10,
-      } as ItemStats,
-      {
-        name: "Copper Ore",
-        count: 200 + Math.random() * 10,
-      } as ItemStats,
-      {
-        name: "Reinforced Iron Plate",
-        count: 10 + Math.random() * 10,
-      } as ItemStats,
-    ] as ItemStats[]);
   }
 
   async getPlayers(): Promise<Player[]> {

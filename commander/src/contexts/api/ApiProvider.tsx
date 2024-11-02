@@ -1,15 +1,6 @@
-import React, { createContext, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Circuit,
-  FactoryStats,
-  GeneratorStats,
-  ItemStats,
-  Player,
-  ProdStats,
-  SinkStats,
-  Train,
-} from 'common/types';
-import { SseEvent } from 'common/apiTypes';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FactoryStats, GeneratorStats, ProdStats, SinkStats } from 'common/types';
+import { SatisfactoryEventType, SseEvent } from 'common/src/apiTypes';
 import { ApiContext, ApiContextType, ApiData } from './useApi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -19,19 +10,6 @@ interface ApiProviderProps {
 }
 
 export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
-  // const [circuits, setCircuits] = useState<Circuit[]>([]);
-  // const [factoryStats, setFactoryStats] = useState<FactoryStats>({} as FactoryStats);
-  // const [prodStats, setProdStats] = useState<ProdStats>({} as ProdStats);
-  // const [sinkStats, setSinkStats] = useState<SinkStats>({} as SinkStats);
-  // const [itemStats, setItemStats] = useState<ItemStats[]>([]);
-  // const [players, setPlayers] = useState<Player[]>([]);
-  // const [generatorStats, setGeneratorStats] = useState<GeneratorStats>({} as GeneratorStats);
-  // const [trains, setTrains] = useState<Train[]>([]);
-  // const [trainStations, setTrainStations] = useState<Train[]>([]);
-
-  // const [isLoading, setIsLoading] = useState(true);
-  // const [isOnline, setIsOnline] = useState(false);
-
   const [data, setData] = useState<ApiData>({
     isLoading: true,
     isOnline: false,
@@ -39,13 +17,11 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
     factoryStats: {} as FactoryStats,
     prodStats: {} as ProdStats,
     sinkStats: {} as SinkStats,
-    itemStats: [],
     players: [],
     generatorStats: {} as GeneratorStats,
     trains: [],
     trainStations: [],
   });
-
   const [dataHistory, setDataHistory] = useState<(ApiData & { timestamp: Date })[]>([]);
 
   const websocketRef = useRef<boolean>(false);
@@ -62,47 +38,39 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
       newData.isOnline = true;
 
       const parsed = JSON.parse(event.data) as SseEvent<any>;
-      switch (parsed.type) {
-        case 'initial':
+      switch (parsed.type as SatisfactoryEventType) {
+        case SatisfactoryEventType.initial:
           const allData = parsed.data as ApiContextType;
-
           newData.isLoading = false;
           newData.circuits = allData.circuits;
           newData.factoryStats = allData.factoryStats;
           newData.prodStats = allData.prodStats;
           newData.sinkStats = allData.sinkStats;
-          newData.itemStats = allData.itemStats;
           newData.players = allData.players;
           newData.generatorStats = allData.generatorStats;
           newData.trains = allData.trains;
           newData.trainStations = allData.trainStations;
           break;
-        case 'circuit':
+        case SatisfactoryEventType.circuits:
           newData.circuits = parsed.data;
           break;
-        case 'factoryStats':
+        case SatisfactoryEventType.factoryStats:
           newData.factoryStats = parsed.data;
           break;
-        case 'prodStats':
+        case SatisfactoryEventType.prodStats:
           newData.prodStats = parsed.data;
           break;
-        case 'sinkStats':
+        case SatisfactoryEventType.sinkStats:
           newData.sinkStats = parsed.data;
           break;
-        case 'itemStats':
-          newData.itemStats = parsed.data;
-          break;
-        case 'player':
+        case SatisfactoryEventType.players:
           newData.players = parsed.data;
           break;
-        case 'generatorStats':
+        case SatisfactoryEventType.generatorStats:
           newData.generatorStats = parsed.data;
           break;
-        case 'train':
+        case SatisfactoryEventType.trains:
           newData.trains = parsed.data;
-          break;
-        case 'trainStation':
-          newData.trainStations = parsed.data;
           break;
       }
 
@@ -134,7 +102,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
 
         return filteredHistory;
       });
-    }, 1000);
+    }, 500);
   };
 
   useEffect(() => {
