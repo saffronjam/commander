@@ -6,6 +6,17 @@
 export type InputNumberValue = string | number | null | undefined;
 
 export const MetricUnits = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'];
+export const PerMinuteMetricUnits = [
+  '/min',
+  'K/min',
+  'M/min',
+  'G/min',
+  'T/min',
+  'P/min',
+  'E/min',
+  'Z/min',
+  'Y/min',
+];
 export const WattUnits = ['W', 'KW', 'MW', 'GW', 'TW', 'PW', 'EW', 'ZW', 'YW'];
 export const WattHoursUnits = ['', 'KWh', 'MWh', 'GWh', 'TWh', 'PWh', 'EWh', 'ZWh', 'YWh'];
 
@@ -76,7 +87,6 @@ export function fPercent(inputValue: InputNumberValue, options?: Options) {
 
   const number = processInput(inputValue);
   if (number === null) return '';
-
 
   const fm = (n: number): string => {
     if (options?.decimals === 0) {

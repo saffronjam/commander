@@ -45,7 +45,7 @@ export function PowerView() {
                     width={'80px'}
                   />
                 ) : (
-                  <>{fShortenNumber(allCapacity, WattUnits, { decimals: 0 })}</>
+                  <>{fShortenNumber(allCapacity, WattUnits, { decimals: 2})}</>
                 )}
               </Typography>
               <Typography>Total Power Capacity</Typography>
@@ -62,7 +62,7 @@ export function PowerView() {
                     width={'80px'}
                   />
                 ) : (
-                  <>{fShortenNumber(allProduction, WattUnits, { decimals: 0 })}</>
+                  <>{fShortenNumber(allProduction, WattUnits, { decimals: 2 })}</>
                 )}
               </Typography>
               <Typography>Total Production</Typography>
@@ -79,7 +79,7 @@ export function PowerView() {
                     width={'80px'}
                   />
                 ) : (
-                  <>{fShortenNumber(allBatteryCapacity, WattHoursUnits, { decimals: 0 })}</>
+                  <>{fShortenNumber(allBatteryCapacity, WattHoursUnits, { decimals: 2 })}</>
                 )}
               </Typography>
               <Typography>Battery Capacity</Typography>

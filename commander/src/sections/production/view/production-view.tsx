@@ -23,7 +23,7 @@ import { varAlpha } from 'src/theme/styles';
 import { useSettings } from 'src/hooks/use-settings';
 import { Iconify } from 'src/components/iconify';
 import { useContextSelector } from 'use-context-selector';
-import { fNumber, fPercent, fShortenNumber, MetricUnits } from 'src/utils/format-number';
+import { fNumber, fPercent, fShortenNumber, MetricUnits, PerMinuteMetricUnits } from 'src/utils/format-number';
 
 type Column = {
   id:
@@ -74,10 +74,9 @@ const columns: readonly Column[] = [
   {
     id: 'inventory',
     label: 'Inventory',
-    minWidth: 200,
+    minWidth: 150,
     align: 'center',
-    format: (value) =>
-      fShortenNumber(value, MetricUnits, { decimals: 1, ensureConstantDecimals: true }),
+    format: (value) => fShortenNumber(value, MetricUnits, { decimals: 2 }),
     severity: (_value: number | string) => Severity.none,
     trend: (row: any, history: ApiContextType['history']) => {
       if (history.length < 10) {
@@ -89,9 +88,11 @@ const columns: readonly Column[] = [
         dataPoint.prodStats.items.find((i) => i.name === row.name)
       );
 
+      console.log(itemProdHistory);
+
       const itemProdHistoryCount = itemProdHistory
-        .map((item) => item?.count)
-        .filter((item) => item !== undefined);
+        .filter((item) => item !== undefined)
+        .map((item) => item.count);
 
       // Calculate the trend
       return calculateTrend(itemProdHistoryCount) * itemProdHistory.length;
@@ -100,9 +101,9 @@ const columns: readonly Column[] = [
   {
     id: 'production',
     label: 'Production',
-    minWidth: 100,
+    minWidth: 150,
     align: 'center',
-    format: (value: number) => `${fNumber(value, { decimals: 0 })}/min`,
+    format: (value: number) => `${fShortenNumber(value, PerMinuteMetricUnits, { decimals: 2 })}`,
     severity: (_value: number | string) => Severity.none,
     trend: (row: any, history: ApiContextType['history']) => {
       if (history.length < 10) {
@@ -125,9 +126,9 @@ const columns: readonly Column[] = [
   {
     id: 'consumption',
     label: 'Consumption',
-    minWidth: 100,
+    minWidth: 150,
     align: 'center',
-    format: (value: number) => `${Math.round(value)}/min`,
+    format: (value: number) => `${fShortenNumber(value, PerMinuteMetricUnits, { decimals: 2 })}`,
     severity: (_value: number | string) => Severity.none,
     trend: (row: any, history: ApiContextType['history']) => {
       if (history.length < 10) {
