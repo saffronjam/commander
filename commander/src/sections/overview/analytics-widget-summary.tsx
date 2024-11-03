@@ -74,8 +74,8 @@ export function AnalyticsWidgetSummary({
       // Return a box that has a | in between the two values
       if (Array.isArray(value) && value.length === 2) {
         // Format numbers
-        const leftNumber = formatNumber(value[0], { decimals: 0 });
-        const rightNumber = formatNumber(value[1], { decimals: 0 });
+        const leftNumber = formatNumber(value[0], { decimals: 1 });
+        const rightNumber = formatNumber(value[1], { decimals: 1 });
 
         return (
           <Box

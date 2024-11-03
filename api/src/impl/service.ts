@@ -21,13 +21,22 @@ import { ApiError } from "common/src/apiTypes";
 import { SatisfactoryEventType } from "common/src/apiTypes";
 import { SatisfactoryEventCallback } from "../service";
 
-const satisfactoryStatusToTrainStatus = (trainData: any) => {
+const satisfactoryStatusToTrainStatus = (
+  trainData: any,
+  relevantTrainStations: any
+) => {
   if (trainData.Derailed) {
     return TrainStatus.derailed;
   }
 
-  if (trainData.Docking) {
-    return TrainStatus.docking;
+  for (const station of relevantTrainStations) {
+    if (
+      Math.abs(trainData.location.z - station.location.z) < 0.1 &&
+      Math.abs(trainData.location.x - station.location.x) < 10 &&
+      Math.abs(trainData.location.y - station.location.y) < 10
+    ) {
+      return TrainStatus.docking;
+    }
   }
 
   switch (trainData.Status) {
@@ -163,7 +172,7 @@ export class Service {
   async getProdStats(): Promise<ProdStats> {
     const prodData = await this.makeSatisfactoryCall("/getProdStats");
     const itemData = await this.makeSatisfactoryCall("/getWorldInv");
-    
+
     // Convert itemData to a map for easier lookup
     const itemMap = itemData.reduce((acc: any, item: any) => {
       acc[item.Name] = item;
@@ -257,36 +266,51 @@ export class Service {
   }
 
   async getGeneratorStats(): Promise<GeneratorStats> {
-    // const res = await this.makeSatisfactoryCall("/getGenerators").then(
-    //   (data) => {
-    //     let sources = {} as any;
+    const res = await this.makeSatisfactoryCall("/getGenerators").then(
+      (data) => {
+        const powerByType = (generator: any, generatorType: PowerType) => {
+          switch (generatorType) {
+            case PowerType.biomass:
+              return generator.RegulatedDemandProd;
+            case PowerType.coal:
+              return generator.RegulatedDemandProd;
+            case PowerType.fuel:
+              return generator.RegulatedDemandProd;
+            case PowerType.geothermal:
+              return generator.PowerProductionPotential;
+            case PowerType.nuclear:
+              return generator.RegulatedDemandProd;
+          }
+        }
 
-    //     for (const generator of data) {
-    //       const generatorType = this.blueprintGeneratorNameToType(
-    //         generator.Name
-    //       );
-    //       if (generatorType) {
-    //         if (sources[generatorType]) {
-    //           sources[generatorType].count += 1;
-    //           sources[generatorType].totalProduction += generator.Production;
-    //         } else {
-    //           sources[generatorType] = {
-    //             count: 1,
-    //             totalProduction: generator.Production,
-    //           };
-    //         }
-    //       }
-    //     }
 
-    //     return {
-    //       sources: sources,
-    //     } as GeneratorStats;
-    //   }
-    // );
+        let sources = {} as any;
 
-    // console.log(res);
+        for (const generator of data) {
+          const generatorType = this.blueprintGeneratorNameToType(
+            generator.Name
+          );
+          if (generatorType) {
+            if (sources[generatorType]) {
+              sources[generatorType].count += 1;
 
-    // return res;
+              sources[generatorType].totalProduction += powerByType(generator, generatorType);
+            } else {
+              sources[generatorType] = {
+                count: 1,
+                totalProduction: powerByType(generator, generatorType),
+              };
+            }
+          }
+        }
+
+        return {
+          sources: sources,
+        } as GeneratorStats;
+      }
+    );
+
+    return res;
 
     // throw new Error("Not implemented");
 
@@ -314,38 +338,46 @@ export class Service {
   }
 
   async getTrains(): Promise<Train[]> {
-    return await this.makeSatisfactoryCall("/getTrains").then((data) => {
-      return data.map((train: any) => {
-        return {
-          name: train.Name,
-          location: {
-            x: train.location.x,
-            y: train.location.y,
-            z: train.location.z,
-            rotation: train.location.rotation,
-          },
-          speed: train.ForwardSpeed,
-          timetable: train.TimeTable.map((stop: any) => {
-            return {
-              station: stop.StationName,
-            } as TrainTimetableEntry;
-          }),
-          status: satisfactoryStatusToTrainStatus(train),
-          powerConsumption: train.PowerConsumed,
-          vechicles: train.Vehicles.map((vehicle: any) => {
-            return {
-              type: vehicle.Type,
-              capacity: vehicle.Capacity,
-              inventory: vehicle.Inventory.map((item: any) => {
-                return {
-                  name: item.Name,
-                  count: item.Amount,
-                } as ItemStats;
-              }),
-            };
-          }),
-        } as Train;
-      });
+    const trainStations = await this.makeSatisfactoryCall("/getTrainStation");
+    const trains = await this.makeSatisfactoryCall("/getTrains");
+
+    const timeTableStationsSet = new Set(
+      trainStations.map((station: any) => station.Name)
+    );
+    const relevantTrainStations = trainStations.filter((station: any) =>
+      timeTableStationsSet.has(station.Name)
+    );
+
+    return trains.map((train: any) => {
+      return {
+        name: train.Name,
+        location: {
+          x: train.location.x,
+          y: train.location.y,
+          z: train.location.z,
+          rotation: train.location.rotation,
+        },
+        speed: train.ForwardSpeed,
+        timetable: train.TimeTable.map((stop: any) => {
+          return {
+            station: stop.StationName,
+          } as TrainTimetableEntry;
+        }),
+        status: satisfactoryStatusToTrainStatus(train, relevantTrainStations),
+        powerConsumption: train.PowerConsumed,
+        vechicles: train.Vehicles.map((vehicle: any) => {
+          return {
+            type: vehicle.Type,
+            capacity: vehicle.Capacity,
+            inventory: vehicle.Inventory.map((item: any) => {
+              return {
+                name: item.Name,
+                count: item.Amount,
+              } as ItemStats;
+            }),
+          };
+        }),
+      } as Train;
     });
   }
 

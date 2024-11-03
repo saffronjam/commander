@@ -11,6 +11,7 @@ import PlayersPage from 'src/pages/players';
 import PoductionPage from 'src/pages/production';
 import PowerPage from 'src/pages/power';
 import TrainsPage from 'src/pages/trains';
+import DronesPage from 'src/pages/drones';
 import SettingsPage from 'src/pages/settings';
 
 // ----------------------------------------------------------------------
@@ -48,6 +49,7 @@ export function Router() {
         { path: 'production', element: <PoductionPage /> },
         { path: 'power', element: <PowerPage /> },
         { path: 'trains', element: <TrainsPage /> },
+        { path: 'drones', element: <DronesPage /> },
         { path: 'players', element: <PlayersPage /> },
         { path: 'settings', element: <SettingsPage /> },
       ],

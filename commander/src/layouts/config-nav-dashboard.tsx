@@ -29,6 +29,12 @@ export const navData = [
     group: 'main',
   },
   {
+    title: 'Drones',
+    path: '/drones',
+    icon: <Iconify icon="mdi:drone" width={24} height={24} />,
+    group: 'main',
+  },
+  {
     title: 'Players',
     path: '/players',
     icon: <Iconify icon="mdi:account-group" width={24} height={24} />,
