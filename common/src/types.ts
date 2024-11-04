@@ -78,6 +78,7 @@ export type SinkStats = {
   totalPoints: number;
   coupons: number;
   nextCouponProgress: number;
+  pointsPerMinute: number;
 };
 
 export type ItemStats = {

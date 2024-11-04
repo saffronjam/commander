@@ -72,10 +72,21 @@ export class Service {
     // Setup callbacks for each endpoint and return data in the callback randomly between every 200-500ms, one interval per endpoint
     for (const [type, endpoint] of endpoints) {
       setInterval(async () => {
-        callback({
-          type,
-          data: await endpoint(),
-        });
+        try {
+          const data = await endpoint();
+          callback({
+            type,
+            data,
+          });
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.message !== "Satisfactory API is down") {
+              console.error(`[${type}] ${error.message}`);
+            }
+          } else {
+            console.error(`[${type}] ${JSON.stringify(error)}`);
+          }
+        }
       }, 2000);
     }
   }
@@ -233,6 +244,7 @@ export class Service {
           totalPoints: 0,
           coupons: 0,
           nextCouponProgress: 0,
+          pointsPerMinute: 0,
         } as SinkStats;
       }
 
@@ -240,6 +252,10 @@ export class Service {
         totalPoints: sink.TotalPoints,
         coupons: sink.NumCoupon,
         nextCouponProgress: sink.Percent,
+        pointsPerMinute:
+          Array.isArray(sink.GraphPoints) && sink.GraphPoints.length > 0
+            ? sink.GraphPoints[sink.GraphPoints.length - 1]
+            : 0,
       } as SinkStats;
     });
   }
@@ -281,8 +297,7 @@ export class Service {
             case PowerType.nuclear:
               return generator.RegulatedDemandProd;
           }
-        }
-
+        };
 
         let sources = {} as any;
 
@@ -294,7 +309,10 @@ export class Service {
             if (sources[generatorType]) {
               sources[generatorType].count += 1;
 
-              sources[generatorType].totalProduction += powerByType(generator, generatorType);
+              sources[generatorType].totalProduction += powerByType(
+                generator,
+                generatorType
+              );
             } else {
               sources[generatorType] = {
                 count: 1,

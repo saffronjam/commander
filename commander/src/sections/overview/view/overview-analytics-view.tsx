@@ -31,16 +31,16 @@ export function OverviewAnalyticsView() {
   const mPerMinUnits = ['/min', 'k/min', 'M/min', 'B/min', 'T/min'];
   const wUnits = ['W', 'kW', 'MW', 'GW', 'TW', 'PW'];
 
-  const totalEnergyProduced =
+  const totalEnergyProduced = () =>
     api.circuits.reduce((acc, circuit) => acc + circuit.production.total, 0) || 0;
-  const totalEnergyConsumed =
+  const totalEnergyConsumed = () =>
     api.circuits.reduce((acc, circuit) => acc + circuit.consumption.total, 0) || 0;
 
-  const totalMinableProduced = api.prodStats.minableProducedPerMinute || 0;
-  const totalMinableConsumed = api.prodStats.minableConsumedPerMinute || 0;
+  const totalMinableProduced = () => api.prodStats.minableProducedPerMinute || 0;
+  const totalMinableConsumed = () => api.prodStats.minableConsumedPerMinute || 0;
 
-  const totalItemsProduced = api.prodStats.itemsProducedPerMinute || 0;
-  const totalItemsConsumed = api.prodStats.itemsConsumedPerMinute || 0;
+  const totalItemsProduced = () => api.prodStats.itemsProducedPerMinute || 0;
+  const totalItemsConsumed = () => api.prodStats.itemsConsumedPerMinute || 0;
 
   return (
     <>
@@ -61,16 +61,13 @@ export function OverviewAnalyticsView() {
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <AnalyticsWidgetSummary
                 title="Energy Consumption (P/C)"
-                total={[totalEnergyProduced, totalEnergyConsumed]}
+                total={[totalEnergyProduced(), totalEnergyConsumed()]}
                 icon={
                   <Iconify icon="bi:lightning-charge-fill" sx={{ width: '100%', height: '100%' }} />
                 }
                 chart={{
                   categories: api.history.map((data) => data.timestamp.toLocaleTimeString()) || [],
-                  series:
-                    api.history.map((data) =>
-                      data.circuits.reduce((acc, circuit) => acc + circuit.consumption.total, 0)
-                    ) || [],
+                  series: api.history.map((data) => data.prodStats.itemsConsumedPerMinute) || [],
                 }}
                 units={wUnits}
               />
@@ -79,7 +76,7 @@ export function OverviewAnalyticsView() {
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <AnalyticsWidgetSummary
                 title="Mined Resources (P/C)"
-                total={[totalMinableProduced, totalMinableConsumed]}
+                total={[totalMinableProduced(), totalMinableConsumed()]}
                 color="secondary"
                 icon={<Iconify icon="bi:gem" sx={{ width: '100%', height: '100%' }} />}
                 chart={{
@@ -93,7 +90,7 @@ export function OverviewAnalyticsView() {
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <AnalyticsWidgetSummary
                 title="Produced Resources (P/C)"
-                total={[totalItemsProduced, totalItemsConsumed]}
+                total={[totalItemsProduced(), totalItemsConsumed()]}
                 color="info"
                 icon={
                   <Iconify icon="material-symbols:factory" sx={{ width: '100%', height: '100%' }} />
@@ -116,7 +113,7 @@ export function OverviewAnalyticsView() {
                 }
                 chart={{
                   categories: api.history.map((data) => data.timestamp.toLocaleTimeString()) || [],
-                  series: api.history.map((data) => data.sinkStats.totalPoints) || [],
+                  series: api.history.map((data) => data.sinkStats.pointsPerMinute) || [],
                 }}
                 units={['', 'k', 'M', 'B', 'T']}
               />

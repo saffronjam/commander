@@ -21,7 +21,8 @@ type Props = CardProps & {
   icon: React.ReactNode;
   chart: {
     series: number[];
-    categories: string[];
+    // If not provided, a [0, 1 ... n] will be used, where n is the length of the series
+    categories?: string[];
     options?: ChartOptions;
   };
 };
@@ -43,7 +44,7 @@ export function AnalyticsWidgetSummary({
   const chartOptions = useChart({
     chart: { sparkline: { enabled: true } },
     colors: chartColors,
-    xaxis: { categories: chart.categories },
+    xaxis: { categories: chart.categories || [...Array(chart.series.length).keys()] },
     markers: { size: 0, colors: chartColors, strokeColors: chartColors, strokeWidth: 0 },
     grid: {
       padding: {
@@ -90,7 +91,7 @@ export function AnalyticsWidgetSummary({
           >
             {/* Left number */}
             <Box sx={{ flex: 1, textAlign: 'center' }}>
-              <Typography sx={{ color: theme.palette.primary.contrastText, textAlign: 'right', mr: 2 }} variant="h4">
+              <Typography sx={{ color: theme.palette.primary.contrastText, textAlign: 'right', mr: 2 }} variant="h5">
                 {leftNumber}
               </Typography>
             </Box>
@@ -110,7 +111,7 @@ export function AnalyticsWidgetSummary({
 
             {/* Right number */}
             <Box sx={{ flex: 1, textAlign: 'center' }}>
-              <Typography sx={{ color: theme.palette.primary.contrastText, textAlign: 'left', ml: 2 }} variant="h4">
+              <Typography sx={{ color: theme.palette.primary.contrastText, textAlign: 'left', ml: 2 }} variant="h5">
                 {rightNumber}
               </Typography>
             </Box>
@@ -123,7 +124,7 @@ export function AnalyticsWidgetSummary({
       return (
         <Box sx={{ flexGrow: 1, minWidth: 112, textAlign: 'center' }}>
           <Typography sx={{ color: theme.palette.primary.contrastText }} variant="h4">
-            {formatNumber(value, { decimals: 0 })}
+            {formatNumber(value, { decimals: 1})}
           </Typography>
         </Box>
       );
@@ -189,7 +190,7 @@ export function AnalyticsWidgetSummary({
       </Box>
 
       {/* Wider chart at the bottom */}
-      <Box sx={{ mt: 3, width: '100%' }}>
+      <Box sx={{ mt: 0, width: '100%' }}>
         {' '}
         {/* Add margin at the top */}
         <Chart

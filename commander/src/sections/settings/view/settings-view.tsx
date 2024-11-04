@@ -24,18 +24,6 @@ import { useState } from 'react';
 import { sentenceCase } from 'sentence-case';
 import { Iconify } from 'src/components/iconify';
 import { useSettings } from 'src/hooks/use-settings';
-import { Settings } from 'src/types';
-
-const intervalKeyToDisplay = (key: string) => {
-  switch (key) {
-    case 'satisfactoryApiCheck':
-      return 'Satisfactory API Check';
-    case 'rerender':
-      return 'Re-render';
-    default:
-      return sentenceCase(key);
-  }
-};
 
 export const SettingsView = () => {
   const theme = useTheme();

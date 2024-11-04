@@ -73,8 +73,6 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
           newData.trains = parsed.data;
           break;
       }
-
-      setData(newData);
     };
 
     eventSource.onerror = () => {
@@ -91,6 +89,13 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
     // Setup interval that snapshots the current data
     // then saves to history
     setInterval(() => {
+
+      setData(newData);
+      // Only add to history if not loading and online
+      if (newData.isLoading || !newData.isOnline) {
+        return;
+      }
+
       const latestData = { ...newData, timestamp: new Date() };
 
       setDataHistory((prevDataHistory) => {
@@ -102,7 +107,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
 
         return filteredHistory;
       });
-    }, 500);
+    }, 1000);
   };
 
   useEffect(() => {

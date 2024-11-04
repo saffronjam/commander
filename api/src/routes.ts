@@ -1,6 +1,6 @@
 import { Request, RequestHandler, Response } from "express";
 import { Service } from "./service";
-import { SseEvent } from "common/src/apiTypes";
+import { ApiError, SseEvent } from "common/src/apiTypes";
 import { RedisClientType } from "@redis/client";
 import { Client, SatisfactoryEvent } from "./types";
 
@@ -104,16 +104,28 @@ const getInitialEvent = async (service: Service) => {
     service.getTrains(),
   ]);
 
-  return await allPromises.then((values) => {
-    let i = 0;
-    return {
-      circuits: values[i++],
-      factoryStats: values[i++],
-      prodStats: values[i++],
-      sinkStats: values[i++],
-      players: values[i++],
-      generatorStats: values[i++],
-      trains: values[i++],
-    };
-  });
+  return await allPromises
+    .then((values) => {
+      let i = 0;
+      return {
+        circuits: values[i++],
+        factoryStats: values[i++],
+        prodStats: values[i++],
+        sinkStats: values[i++],
+        players: values[i++],
+        generatorStats: values[i++],
+        trains: values[i++],
+      };
+    })
+    .catch((error) => {
+      if (error instanceof ApiError) {
+        if (error.message !== "Satisfactory API is down") {
+          console.error(`[Initial event] ${error.message}`);
+        }
+      } else {
+        console.error(`[Initial event] ${JSON.stringify(error)}`);
+      }
+
+      return {};
+    });
 };

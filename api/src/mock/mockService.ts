@@ -136,6 +136,7 @@ export class MockService {
       totalPoints: 100 + Math.random() * 10,
       coupons: 200 + Math.random() * 10,
       nextCouponProgress: 0.3 + Math.random() * 0.1,
+      pointsPerMinute: 300 + Math.random() * 10,
     } as SinkStats);
   }
 
