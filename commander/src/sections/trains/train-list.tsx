@@ -3,7 +3,7 @@ import { Train, TrainStation, TrainStatus } from 'common/src/types';
 import { Iconify } from 'src/components/iconify';
 import { varAlpha } from 'src/theme/styles';
 import { fNumber } from 'src/utils/format-number';
-import { c } from 'vite/dist/node/types.d-aGj9QkWt';
+import { abbreviations } from './abbreviations';
 
 const TrainCard = ({ train }: { train: Train }) => {
   const theme = useTheme();
@@ -52,136 +52,23 @@ const TrainCard = ({ train }: { train: Train }) => {
         };
     }
   };
+  function parseTrainItems(trainName: string) {
+    // Extract the item codes within the brackets using regex
+    const match = trainName.match(/\[(.*?)\]/);
+    if (!match) return [];
 
-  const parseName = (name: string) => {
-    // Parse groups from train name
-    // - [prefix] Train 1
-    //
-    // 'prefix' start with XXX, which is the group name, followed by a space, followed by some category name
-    // 'category' can be "IM" for "import", "EX" for "export"
+    // Split item codes by "/" and map each to its full item name using abbreviations
+    const items = match[1]
+      .replace(/,/g, '/')
+      .split('/')
+      .map((code) => abbreviations.get(code.trim().toLowerCase()))
+      .filter((item) => item);
 
-    // Example:
-    // - [CPR IM] Train 1  -> CPR=copper -> group: "Copper", category: "Import"
-    // - [CPR EX] Train 2  -> CPR=copper -> group: "Copper", category: "Export"
-    // - [IRN IM] Train 3  -> IRN=iron -> group: "Iron", category: "Import"
-    // - [IRN EX] Train 4  -> IRN=iron -> group: "Iron", category: "Export"
-    // - [CNC IM] Train 5  -> CNC=concrete -> group: "Concrete", category: "Import"
-    // - [CNC EX] Train 6  -> CNC=concrete -> group: "Concrete", category: "Export"
-
-    const parsePrefix = (prefix: string) => {
-      const [groupShort, category] = prefix.split(' ');
-
-      const parseGroup = (groupShort: string) => {
-        if (!groupShort) return undefined;
-
-        groupShort = groupShort.toLowerCase();
-        const groupMap = {
-          cpr: 'Copper Ore',
-          cop: 'Copper Ore',
-          irn: 'Iron Ore',
-          iro: 'Iron Ore',
-          cnc: 'Concrete',
-          con: 'Concrete',
-          lms: 'Limestone',
-          lim: 'Limestone',
-          oil: 'Crude Oil',
-          wtr: 'Water',
-          h2o: 'Water',
-          wat: 'Water',
-          sul: 'Sulfur',
-          sfr: 'Sulfur',
-          cat: 'Caterium Ore',
-          ctm: 'Caterium Ore',
-          qrz: 'Raw Quartz',
-          qtz: 'Raw Quartz',
-          qua: 'Raw Quartz',
-          bxt: 'Bauxite',
-          bau: 'Bauxite',
-          sua: 'Sulfuric Acid',
-          sfa: 'Sulfuric Acid',
-          nit: 'Nitrogen',
-          ntr: 'Nitrogen',
-          col: 'Coal',
-          plt: 'Plastic',
-          pls: 'Plastic',
-          pla: 'Plastic',
-          rbr: 'Rubber',
-          rub: 'Rubber',
-          stl: 'Steel',
-          ste: 'Steel',
-          alu: 'Aluminum',
-          slt: 'Silica',
-
-          mtr: 'Motor',
-          mot: 'Motor',
-          str: 'Stator',
-          sta: 'Stator',
-          rpl: 'Rotor',
-          rot: 'Rotor',
-
-          cbl: 'Cable',
-          cab: 'Cable',
-          wir: 'Wire',
-          scr: 'Screw',
-          sce: 'Screw',
-        };
-        return groupShort in groupMap ? groupMap[groupShort as keyof typeof groupMap] : groupShort;
-      };
-
-      const parseCategory = (category: string) => {
-        if (!category) return undefined;
-
-        category = category.toLowerCase();
-        const categoryMap = {
-          im: 'Import',
-          ex: 'Export',
-          mi: 'Mined',
-        };
-        return category in categoryMap
-          ? categoryMap[category as keyof typeof categoryMap]
-          : category;
-      };
-
-      return {
-        group: parseGroup(groupShort),
-        category: parseCategory(category),
-      };
-    };
-
-    const prefix = name.match(/\[(.*?)\]/);
-    let trainName = name.replace(/\[(.*?)\]/, '').trim();
-
-    const { group, category } = prefix
-      ? parsePrefix(prefix[1])
-      : { group: undefined, category: undefined };
-
-    // If trainName is only numbers (e.g. "1", "22", "333"), prepend "Train" to the name
-    if (/^\d+$/.test(trainName.replace(/\s/g, ''))) {
-      trainName = `Train ${trainName}`;
-    }
-
-    return {
-      group,
-      category,
-      trainName,
-    };
-  };
+    return items as string[];
+  }
 
   const style = statusToStyle(train.status);
-
-  const { group, category, trainName } = parseName(train.name);
-
-  const ChipIcon = ({ group }: { group: string }) => {
-    return (
-      <img
-        src={`assets/images/satisfactory/64x64/${group}.png`}
-        alt={group}
-        style={{
-          height: 64,
-        }}
-      />
-    );
-  };
+  const items = parseTrainItems(train.name);
 
   return (
     <Card
@@ -196,32 +83,23 @@ const TrainCard = ({ train }: { train: Train }) => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Stack direction="row" spacing={3} sx={{ alignItems: 'center' }}>
-              {group && <ChipIcon group={group} />}
               <Stack direction="row" spacing={3}>
                 <Typography variant="h4">{`${train.name}`}</Typography>
                 <Stack direction="row" spacing={1}>
-                  {group && (
-                    <Chip label={group} sx={{ color: theme.palette.primary.contrastText }} />
-                  )}
-                  {category && (
-                    <Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        {category === 'Import' && (
-                          <Iconify icon="bi:arrow-right" sx={{ width: '20px', height: '20px' }} />
-                        )}
-                        <Chip
-                          label={category}
-                          sx={{
-                            backgroundColor: theme.palette.info.darker,
-                            color: theme.palette.primary.contrastText,
-                          }}
+                  {items.map((item, index) => (
+                    <Chip
+                      key={index}
+                      label={item}
+                      sx={{ color: theme.palette.primary.contrastText }}
+                      icon={
+                        <img
+                          src={`assets/images/satisfactory/64x64/${item}.png`}
+                          alt={item}
+                          width={25}
                         />
-                        {category === 'Export' && (
-                          <Iconify icon="bi:arrow-right" sx={{ width: '20px', height: '20px' }} />
-                        )}
-                      </Box>
-                    </Box>
-                  )}
+                      }
+                    />
+                  ))}
                 </Stack>
               </Stack>
             </Stack>
@@ -303,8 +181,8 @@ const TrainCard = ({ train }: { train: Train }) => {
                     sx={{
                       position: 'absolute',
                       top: '84%',
-                      left: '-80px',
-                      width: '160px',
+                      left: '-85px',
+                      width: '170px',
                       height: '2px',
                       backgroundColor: 'grey.500',
                       zIndex: -1,
