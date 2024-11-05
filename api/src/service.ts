@@ -9,15 +9,15 @@ import {
   TrainStation,
 } from "common/src/types";
 import { SatisfactoryEvent } from "./types";
+import { FullState } from "common/apiTypes";
 
 export type SatisfactoryEventCallback = (event: SatisfactoryEvent<any>) => void;
 
 export interface Service {
-  setupSatisfactoryApiCheck(): void;
-  isSatisfactoryApiAvailable(): boolean;
-  
-  setupWebsocket(callback: SatisfactoryEventCallback): void;
+  setupEventListener(callback: SatisfactoryEventCallback): void;
 
+  getFullState(): Promise<FullState>;
+  
   getCircuits(): Promise<Circuit[]>;
   getFactoryStats(): Promise<FactoryStats>;
   getProdStats(): Promise<ProdStats>;
@@ -25,4 +25,5 @@ export interface Service {
   getPlayers(): Promise<Player[]>;
   getGeneratorStats(): Promise<GeneratorStats>;
   getTrains(): Promise<Train[]>;
+  getSatisfactoryApiStatus(): Promise<FullState>;
 }

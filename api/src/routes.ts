@@ -1,6 +1,6 @@
 import { Request, RequestHandler, Response } from "express";
 import { Service } from "./service";
-import { ApiError, SseEvent } from "common/src/apiTypes";
+import { ApiError, FullState, SseEvent } from "common/src/apiTypes";
 import { RedisClientType } from "@redis/client";
 import { Client, SatisfactoryEvent } from "./types";
 
@@ -72,15 +72,14 @@ export const makeRoutes = (
 
         // Setup Redis pub/sub
         context.redis.subscribe("satisfactory-event", redisListener);
-
-        // Send initial event
-        getInitialEvent(service).then((data) => {
-          pushSseEvent({
-            type: "initial",
-            clientId: client.id,
-            data: data,
-          });
-        });
+      },
+    },
+    {
+      method: "get",
+      path: "/api/state",
+      handler: async (_req: Request, res: Response) => {
+        const state = await service.getFullState();
+        res.json(state);
       },
     },
     {
@@ -91,41 +90,4 @@ export const makeRoutes = (
       },
     },
   ];
-};
-
-const getInitialEvent = async (service: Service) => {
-  const allPromises = Promise.all([
-    service.getCircuits(),
-    service.getFactoryStats(),
-    service.getProdStats(),
-    service.getSinkStats(),
-    service.getPlayers(),
-    service.getGeneratorStats(),
-    service.getTrains(),
-  ]);
-
-  return await allPromises
-    .then((values) => {
-      let i = 0;
-      return {
-        circuits: values[i++],
-        factoryStats: values[i++],
-        prodStats: values[i++],
-        sinkStats: values[i++],
-        players: values[i++],
-        generatorStats: values[i++],
-        trains: values[i++],
-      };
-    })
-    .catch((error) => {
-      if (error instanceof ApiError) {
-        if (error.message !== "Satisfactory API is down") {
-          console.error(`[Initial event] ${error.message}`);
-        }
-      } else {
-        console.error(`[Initial event] ${JSON.stringify(error)}`);
-      }
-
-      return {};
-    });
 };

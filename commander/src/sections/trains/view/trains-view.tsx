@@ -12,41 +12,49 @@ import {
 } from '@mui/material';
 import { Gauge } from '../gauge';
 import { TrainList } from '../train-list';
-import { useContext, useContextSelector } from 'use-context-selector';
+import { useContextSelector } from 'use-context-selector';
 import { ApiContext } from 'src/contexts/api/useApi';
 import { varAlpha } from 'src/theme/styles';
 import { fNumber, fShortenNumber, MetricUnits, WattUnits } from 'src/utils/format-number';
 
 export function TrainsView() {
   const api = useContextSelector(ApiContext, (v) => {
-    return { trains: v.trains, trainStations: v.trainStations };
+    return {
+      trains: v.trains,
+      trainStations: v.trainStations,
+      isLoading: v.isLoading,
+      isOnline: v.isOnline,
+    };
   });
   const theme = useTheme();
 
-  const totalPowerConsumption = api.trains.reduce((acc, train) => acc + train.powerConsumption, 0);
-  const maxPowerConsumption = 110 * api.trains.length;
-  const avgSpeed = api.trains.reduce((acc, train) => acc + train.speed, 0) / api.trains.length;
-  const maxSpeed = 120;
+  const totalPowerConsumption = () =>
+    api.trains.reduce((acc, train) => acc + train.powerConsumption, 0);
+  const maxPowerConsumption = () => 110 * api.trains.length;
+  const avgSpeed = () => {
+    if (api.trains.length === 0) return 0;
+    return api.trains.reduce((acc, train) => acc + train.speed, 0) / api.trains.length;
+  };
+  const maxSpeed = () => 120;
 
-  const totalCarried = api.trains.reduce((acc, train) => {
-    return (
-      acc +
-      train.vechicles.reduce((acc, vehicle) => {
-        return (
-          acc +
-          vehicle.inventory.reduce((acc, item) => {
-            return acc + item.count;
-          }, 0)
-        );
-      }, 0)
-    );
-  }, 0);
+  const totalCarried = () =>
+    api.trains.reduce((acc, train) => {
+      return (
+        acc +
+        train.vechicles.reduce((acc, vehicle) => {
+          return (
+            acc +
+            vehicle.inventory.reduce((acc, item) => {
+              return acc + item.count;
+            }, 0)
+          );
+        }, 0)
+      );
+    }, 0);
 
-
-  console.log('render TrainsView');
   return (
     <>
-      {/* <Backdrop
+      <Backdrop
         open={api.isLoading === true || !api.isOnline}
         sx={{
           color: theme.palette.primary.main,
@@ -55,9 +63,9 @@ export function TrainsView() {
         }}
       >
         <CircularProgress color="inherit" />
-      </Backdrop> */}
+      </Backdrop>
 
-      {true && (
+      {!api.isLoading && api.isOnline && (
         <DashboardContent maxWidth="xl">
           <Container sx={{ paddingTop: '50px' }}>
             <Grid container spacing={2}>
@@ -72,7 +80,7 @@ export function TrainsView() {
                 <Card>
                   <CardContent>
                     <Typography variant="h3">
-                      {fShortenNumber(totalCarried, MetricUnits)}
+                      {fShortenNumber(totalCarried(), MetricUnits)}
                     </Typography>
                     <Typography variant="inherit">Total Carried</Typography>
                   </CardContent>
@@ -84,19 +92,22 @@ export function TrainsView() {
                   <CardContent>
                     <Typography variant="h6">Power Consumption</Typography>
 
-                    <Gauge value={(totalPowerConsumption / maxPowerConsumption) * 100} />
+                    <Gauge value={(totalPowerConsumption() / maxPowerConsumption()) * 100} />
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2">Current</Typography>
                         <Typography variant="body1" sx={{ pl: 0.5, fontWeight: 'bold' }}>
-                          {fShortenNumber(totalPowerConsumption, WattUnits, { decimals: 1, ensureConstantDecimals: true })}
+                          {fShortenNumber(totalPowerConsumption(), WattUnits, {
+                            decimals: 1,
+                            ensureConstantDecimals: true,
+                          })}
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2">Max</Typography>
                         <Typography variant="body1" sx={{ pl: 0.5, fontWeight: 'bold' }}>
-                          {fShortenNumber(maxPowerConsumption, WattUnits, { decimals: 2 })}
+                          {fShortenNumber(maxPowerConsumption(), WattUnits, { decimals: 2 })}
                         </Typography>
                       </Box>
                     </Box>
@@ -109,19 +120,19 @@ export function TrainsView() {
                   <CardContent>
                     <Typography variant="h6">Train Speed (Average)</Typography>
 
-                    <Gauge value={(avgSpeed / maxSpeed) * 100} />
+                    <Gauge value={(avgSpeed() / maxSpeed()) * 100} />
 
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2">Current</Typography>
                         <Typography variant="body1" sx={{ pl: 0.5, fontWeight: 'bold' }}>
-                          {fNumber(avgSpeed, { decimals: 0 })} km/h
+                          {fNumber(avgSpeed(), { decimals: 0 })} km/h
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Typography variant="body2">Max</Typography>
                         <Typography variant="body1" sx={{ pl: 0.5, fontWeight: 'bold' }}>
-                          {fNumber(maxSpeed, { decimals: 0 })} km/h
+                          {fNumber(maxSpeed(), { decimals: 0 })} km/h
                         </Typography>
                       </Box>
                     </Box>

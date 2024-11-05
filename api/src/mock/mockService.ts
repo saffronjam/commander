@@ -13,20 +13,17 @@ import {
   TrainStatus,
 } from "common/src/types";
 import { SatisfactoryEventCallback } from "../service";
-import { SatisfactoryEventType } from "common/src/apiTypes";
+import {
+  FullState,
+  SatisfactoryEventType,
+} from "common/src/apiTypes";
 
 const now = new Date().getTime();
 
 export class MockService {
   constructor() {}
 
-  setupSatisfactoryApiCheck(): void {}
-
-  isSatisfactoryApiAvailable(): boolean {
-    return true;
-  }
-
-  setupWebsocket(callback: SatisfactoryEventCallback) {
+  setupEventListener(callback: SatisfactoryEventCallback) {
     const endpoints = new Map<SatisfactoryEventType, () => Promise<any>>([
       [SatisfactoryEventType.circuits, this.getCircuits.bind(this)],
       [SatisfactoryEventType.factoryStats, this.getFactoryStats.bind(this)],
@@ -49,6 +46,12 @@ export class MockService {
         700 + Math.random() * 300
       );
     }
+  }
+
+  async getSatisfactoryApiStatus(): Promise<FullState> {
+    return this.promisifyWithRandomDelay({
+      isOnline: true,
+    } as FullState);
   }
 
   async getCircuits(): Promise<Circuit[]> {
@@ -116,7 +119,10 @@ export class MockService {
       itemsConsumedPerMinute: 400 + Math.random() * 10,
       items: ["Iron Ore", "Copper Ore", "Iron Plate"].map((name, index) => ({
         name,
-        count: index < 2 ? 15423 + (new Date().getTime() - now) / 10 : 3643 + (new Date().getTime() - now) / 100,
+        count:
+          index < 2
+            ? 15423 + (new Date().getTime() - now) / 10
+            : 3643 + (new Date().getTime() - now) / 100,
 
         minable: index < 2,
 

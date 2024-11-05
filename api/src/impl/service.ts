@@ -13,13 +13,15 @@ import {
   ProdStats,
   SinkStats,
   Train,
+  TrainSetup,
   TrainStation,
   TrainStatus,
   TrainTimetableEntry,
 } from "common/types";
-import { ApiError } from "common/src/apiTypes";
+import { ApiError, FullState, SatisfactoryApiCheck } from "common/src/apiTypes";
 import { SatisfactoryEventType } from "common/src/apiTypes";
 import { SatisfactoryEventCallback } from "../service";
+import { sign } from "crypto";
 
 const satisfactoryStatusToTrainStatus = (
   trainData: any,
@@ -52,27 +54,66 @@ const satisfactoryStatusToTrainStatus = (
 };
 
 export class Service {
-  private hasCheckedIfSatisfactoryApiIsUpOnce: boolean;
-
-  constructor() {
-    this.hasCheckedIfSatisfactoryApiIsUpOnce = false;
-  }
-
-  setupWebsocket(callback: SatisfactoryEventCallback) {
-    const endpoints = new Map<SatisfactoryEventType, () => Promise<any>>([
-      [SatisfactoryEventType.circuits, this.getCircuits.bind(this)],
-      [SatisfactoryEventType.factoryStats, this.getFactoryStats.bind(this)],
-      [SatisfactoryEventType.prodStats, this.getProdStats.bind(this)],
-      [SatisfactoryEventType.sinkStats, this.getSinkStats.bind(this)],
-      [SatisfactoryEventType.players, this.getPlayers.bind(this)],
-      [SatisfactoryEventType.generatorStats, this.getGeneratorStats.bind(this)],
-      [SatisfactoryEventType.trains, this.getTrains.bind(this)],
-    ]);
+  setupEventListener(callback: SatisfactoryEventCallback) {
+    const endpoints = [
+      {
+        type: SatisfactoryEventType.satisfactoryApiCheck,
+        endpoint: this.getSatisfactoryApiStatus.bind(this),
+        interval: 5000,
+      },
+      {
+        type: SatisfactoryEventType.circuits,
+        endpoint: this.getCircuits.bind(this),
+        interval: 2000,
+      },
+      {
+        type: SatisfactoryEventType.factoryStats,
+        endpoint: this.getFactoryStats.bind(this),
+        interval: 2000,
+      },
+      {
+        type: SatisfactoryEventType.prodStats,
+        endpoint: this.getProdStats.bind(this),
+        interval: 2000,
+      },
+      {
+        type: SatisfactoryEventType.sinkStats,
+        endpoint: this.getSinkStats.bind(this),
+        interval: 2000,
+      },
+      {
+        type: SatisfactoryEventType.players,
+        endpoint: this.getPlayers.bind(this),
+        interval: 2000,
+      },
+      {
+        type: SatisfactoryEventType.generatorStats,
+        endpoint: this.getGeneratorStats.bind(this),
+        interval: 2000,
+      },
+      {
+        type: SatisfactoryEventType.trains,
+        endpoint: () => {
+          return Promise.all([this.getTrains(), this.getTrainStations()]).then(
+            ([trains, trainStations]) => {
+              return {
+                trains: trains,
+                trainStations: trainStations,
+              } as TrainSetup;
+            }
+          );
+        },
+        interval: 2000,
+      },
+    ];
 
     // Setup callbacks for each endpoint and return data in the callback randomly between every 200-500ms, one interval per endpoint
-    for (const [type, endpoint] of endpoints) {
+    for (const { type, endpoint, interval } of endpoints) {
       setInterval(async () => {
         try {
+          if (type === SatisfactoryEventType.satisfactoryApiCheck) {
+          }
+
           const data = await endpoint();
           callback({
             type,
@@ -83,12 +124,50 @@ export class Service {
             if (error.message !== "Satisfactory API is down") {
               console.error(`[${type}] ${error.message}`);
             }
-          } else {
-            console.error(`[${type}] ${JSON.stringify(error)}`);
           }
         }
-      }, 2000);
+      }, interval);
     }
+  }
+
+  async getFullState(): Promise<FullState> {
+    const allPromises = Promise.all([
+      this.getSatisfactoryApiStatus(),
+      this.getCircuits(),
+      this.getFactoryStats(),
+      this.getProdStats(),
+      this.getSinkStats(),
+      this.getPlayers(),
+      this.getGeneratorStats(),
+      this.getTrains(),
+      this.getTrainStations(),
+    ]);
+
+    return await allPromises
+      .then((values) => {
+        let i = 0;
+        return {
+          isOnline: (values[i++] as SatisfactoryApiCheck).isOnline,
+          circuits: values[i++] as Circuit[],
+          factoryStats: values[i++] as FactoryStats,
+          prodStats: values[i++] as ProdStats,
+          sinkStats: values[i++] as SinkStats,
+          players: values[i++] as Player[],
+          generatorStats: values[i++] as GeneratorStats,
+          trains: values[i++] as Train[],
+          trainStations: values[i++] as TrainStation[],
+        };
+      })
+      .catch((error) => {
+        if (error instanceof ApiError) {
+          if (error.message !== "Satisfactory API is down") {
+            console.error(`[Initial event] ${error.message}`);
+          }
+        }
+        return {
+          isOnline: false,
+        } as FullState;
+      });
   }
 
   async getCircuits(): Promise<Circuit[]> {
@@ -382,7 +461,9 @@ export class Service {
           } as TrainTimetableEntry;
         }),
         status: satisfactoryStatusToTrainStatus(train, relevantTrainStations),
-        powerConsumption: train.PowerConsumed,
+        powerConsumption: train.PowerConsumed
+          ? train.PowerConsumed * 1_000_000
+          : 0,
         vechicles: train.Vehicles.map((vehicle: any) => {
           return {
             type: vehicle.Type,
@@ -415,42 +496,23 @@ export class Service {
     });
   }
 
-  async checkIfSatisfactoryApiIsUp() {
-    return await fetch(SATISFACTORY_API_URL)
+  async getSatisfactoryApiStatus() {
+    return await fetch(SATISFACTORY_API_URL, {
+      signal: AbortSignal.timeout(1000),
+    })
       .then(() => {
-        if (
-          !satistactoryApiIsUp() ||
-          !this.hasCheckedIfSatisfactoryApiIsUpOnce
-        ) {
-          const green = "\x1b[32m";
-          console.log("Satisfactory API is %sup\x1b[0m", green);
-        }
-
         setSatisfactoryApiUp(true);
+        return {
+          isOnline: true,
+        } as SatisfactoryApiCheck;
       })
       .catch(() => {
-        if (
-          satistactoryApiIsUp() ||
-          !this.hasCheckedIfSatisfactoryApiIsUpOnce
-        ) {
-          const red = "\x1b[31m";
-          console.log("Satisfactory API is %sdown\x1b[0m", red);
-        }
-
         setSatisfactoryApiUp(false);
+        return {
+          isOnline: false,
+        } as SatisfactoryApiCheck;
       })
-      .finally(() => {
-        this.hasCheckedIfSatisfactoryApiIsUpOnce = true;
-      });
-  }
-
-  isSatisfactoryApiAvailable() {
-    return satistactoryApiIsUp();
-  }
-
-  async setupSatisfactoryApiCheck() {
-    this.checkIfSatisfactoryApiIsUp();
-    return setInterval(this.checkIfSatisfactoryApiIsUp, 10000);
+      .finally(() => {});
   }
 
   async makeSatisfactoryCall(path: string) {
@@ -458,7 +520,9 @@ export class Service {
       throw new ApiError("Satisfactory API is down", 503);
     }
 
-    return await fetch(`${SATISFACTORY_API_URL}${path}`)
+    return await fetch(`${SATISFACTORY_API_URL}${path}`, {
+      signal: AbortSignal.timeout(1000),
+    })
       .then((res) => res.json())
       .catch((error) => {
         throw new Error(`[${path}] Failed to fetch: ${error}`);

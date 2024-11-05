@@ -137,3 +137,8 @@ export type Train = {
   vechicles: TrainVehicle[];
   timetable: TrainTimetableEntry[];
 };
+
+export type TrainSetup = {
+  trains: Train[];
+  trainStations: TrainStation[];
+};

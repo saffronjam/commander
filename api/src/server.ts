@@ -55,10 +55,9 @@ export const createServer = async () => {
   }).connect();
 
   const service = await genService();
-  service.setupSatisfactoryApiCheck();
 
   // Right now, assume we can always set up the websocket (we don't need to check for other instances)
-  service.setupWebsocket((event) => {
+  service.setupEventListener((event) => {
     publisher.publish("satisfactory-event", JSON.stringify(event));
   });
 
