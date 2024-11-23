@@ -57,7 +57,6 @@ export const ConnectionCheckerProvider: React.FC<any> = () => {
     }
   };
 
-  // console.log('render ConnectionCheckerProvider');
   return (
     <Snackbar
       anchorOrigin={{ vertical: 'top', horizontal: 'right' }}

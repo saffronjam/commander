@@ -11,6 +11,12 @@ export const navData = [
     group: 'main',
   },
   {
+    title: 'Map',
+    path: '/map',
+    icon: <Iconify icon="mdi:map" width={24} height={24} />,
+    group: 'main',
+  },
+  {
     title: 'Production',
     path: '/production',
     icon: <Iconify icon="mdi:factory" width={24} height={24} />,

@@ -7,6 +7,7 @@ import LinearProgress, { linearProgressClasses } from '@mui/material/LinearProgr
 import { varAlpha } from 'src/theme/styles';
 import { DashboardLayout } from 'src/layouts/dashboard';
 
+import MapPage from 'src/pages/map';
 import PlayersPage from 'src/pages/players';
 import PoductionPage from 'src/pages/production';
 import PowerPage from 'src/pages/power';
@@ -46,6 +47,7 @@ export function Router() {
       ),
       children: [
         { element: <HomePage />, index: true },
+        { path: 'map', element: <MapPage /> },
         { path: 'production', element: <PoductionPage /> },
         { path: 'power', element: <PowerPage /> },
         { path: 'trains', element: <TrainsPage /> },

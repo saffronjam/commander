@@ -35,6 +35,19 @@ export type Circuit = {
   fuseTriggered: boolean;
 };
 
+export enum MachineStatus {
+  operating = "operating",
+  idle = "idle",
+  paused = "paused",
+}
+
+export type Machine = {
+  name: string;
+  location: Location;
+  status: MachineStatus;
+  powerConsumption: number;
+};
+
 export type FactoryStats = {
   totalMachines: number;
   efficiency: {
@@ -42,6 +55,7 @@ export type FactoryStats = {
     machinesIdle: number;
     machinesPaused: number;
   };
+  machines: Machine[];
 };
 
 export type GeneratorStats = {

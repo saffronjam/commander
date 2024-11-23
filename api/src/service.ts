@@ -9,7 +9,7 @@ import {
   TrainStation,
 } from "common/src/types";
 import { SatisfactoryEvent } from "./types";
-import { FullState } from "common/apiTypes";
+import { FullState, SatisfactoryApiCheck } from "common/apiTypes";
 
 export type SatisfactoryEventCallback = (event: SatisfactoryEvent<any>) => void;
 
@@ -25,5 +25,5 @@ export interface Service {
   getPlayers(): Promise<Player[]>;
   getGeneratorStats(): Promise<GeneratorStats>;
   getTrains(): Promise<Train[]>;
-  getSatisfactoryApiStatus(): Promise<FullState>;
+  getSatisfactoryApiStatus(): Promise<SatisfactoryApiCheck>;
 }

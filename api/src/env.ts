@@ -1,4 +1,4 @@
-export const SATISFACTORY_API_URL = "http://10.1.1.187:8080";
+export const SATISFACTORY_API_URL = process.env.SATISFACTORY_API_URL || "http://localhost:8080";
 export const USE_MOCK = process.env.USE_MOCK || false;
 
 let satisfactoryApiUp = false;

@@ -21,7 +21,6 @@ import {
 import { ApiError, FullState, SatisfactoryApiCheck } from "common/src/apiTypes";
 import { SatisfactoryEventType } from "common/src/apiTypes";
 import { SatisfactoryEventCallback } from "../service";
-import { sign } from "crypto";
 
 const satisfactoryStatusToTrainStatus = (
   trainData: any,
@@ -111,9 +110,6 @@ export class Service {
     for (const { type, endpoint, interval } of endpoints) {
       setInterval(async () => {
         try {
-          if (type === SatisfactoryEventType.satisfactoryApiCheck) {
-          }
-
           const data = await endpoint();
           callback({
             type,
@@ -408,30 +404,6 @@ export class Service {
     );
 
     return res;
-
-    // throw new Error("Not implemented");
-
-    return {
-      sources: {
-        biomass: { count: 5, totalProduction: 0 },
-        coal: {
-          count: 53,
-          totalProduction: 1412 + (Math.random() * 2 - 1) * 100,
-        },
-        fuel: {
-          count: 14,
-          totalProduction: 3424 + (Math.random() * 2 - 1) * 100,
-        },
-        geothermal: {
-          count: 4,
-          totalProduction: 512 + (Math.random() * 2 - 1) * 100,
-        },
-        nuclear: {
-          count: 1,
-          totalProduction: 1024 + (Math.random() * 2 - 1) * 100,
-        },
-      },
-    };
   }
 
   async getTrains(): Promise<Train[]> {
@@ -454,16 +426,14 @@ export class Service {
           z: train.location.z,
           rotation: train.location.rotation,
         },
-        speed: train.ForwardSpeed,
+        speed: train.ForwardSpeed / 27.9,
         timetable: train.TimeTable.map((stop: any) => {
           return {
             station: stop.StationName,
           } as TrainTimetableEntry;
         }),
         status: satisfactoryStatusToTrainStatus(train, relevantTrainStations),
-        powerConsumption: train.PowerConsumed
-          ? train.PowerConsumed * 1_000_000
-          : 0,
+        powerConsumption: train.PowerInfo.PowerConsumed,
         vechicles: train.Vehicles.map((vehicle: any) => {
           return {
             type: vehicle.Type,
@@ -496,7 +466,7 @@ export class Service {
     });
   }
 
-  async getSatisfactoryApiStatus() {
+  async getSatisfactoryApiStatus(): Promise<SatisfactoryApiCheck> {
     return await fetch(SATISFACTORY_API_URL, {
       signal: AbortSignal.timeout(1000),
     })

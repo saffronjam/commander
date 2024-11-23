@@ -11,9 +11,12 @@ import {
   TrainVehicle,
   TrainStation,
   TrainStatus,
+  TrainSetup,
+  MachineStatus,
 } from "common/src/types";
 import { SatisfactoryEventCallback } from "../service";
 import {
+  ApiError,
   FullState,
   SatisfactoryEventType,
 } from "common/src/apiTypes";
@@ -24,33 +27,95 @@ export class MockService {
   constructor() {}
 
   setupEventListener(callback: SatisfactoryEventCallback) {
-    const endpoints = new Map<SatisfactoryEventType, () => Promise<any>>([
-      [SatisfactoryEventType.circuits, this.getCircuits.bind(this)],
-      [SatisfactoryEventType.factoryStats, this.getFactoryStats.bind(this)],
-      [SatisfactoryEventType.prodStats, this.getProdStats.bind(this)],
-      [SatisfactoryEventType.sinkStats, this.getSinkStats.bind(this)],
-      [SatisfactoryEventType.players, this.getPlayers.bind(this)],
-      [SatisfactoryEventType.generatorStats, this.getGeneratorStats.bind(this)],
-      [SatisfactoryEventType.trains, this.getTrains.bind(this)],
-    ]);
+    const endpoints = [
+      {
+        type: SatisfactoryEventType.satisfactoryApiCheck,
+        endpoint: this.getSatisfactoryApiStatus.bind(this),
+        interval: 5000 + 200 * Math.random(),
+      },
+      {
+        type: SatisfactoryEventType.circuits,
+        endpoint: this.getCircuits.bind(this),
+        interval: 2000 + 200 * Math.random(),
+      },
+      {
+        type: SatisfactoryEventType.factoryStats,
+        endpoint: this.getFactoryStats.bind(this),
+        interval: 2000 + 200 * Math.random(),
+      },
+      {
+        type: SatisfactoryEventType.prodStats,
+        endpoint: this.getProdStats.bind(this),
+        interval: 2000 + 200 * Math.random(),
+      },
+      {
+        type: SatisfactoryEventType.sinkStats,
+        endpoint: this.getSinkStats.bind(this),
+        interval: 2000 + 200 * Math.random(),
+      },
+      {
+        type: SatisfactoryEventType.players,
+        endpoint: this.getPlayers.bind(this),
+        interval: 2000 + 200 * Math.random(),
+      },
+      {
+        type: SatisfactoryEventType.generatorStats,
+        endpoint: this.getGeneratorStats.bind(this),
+        interval: 2000 + 200 * Math.random(),
+      },
+      {
+        type: SatisfactoryEventType.trains,
+        endpoint: () => {
+          return Promise.all([this.getTrains(), this.getTrainStations()]).then(
+            ([trains, trainStations]) => {
+              return {
+                trains: trains,
+                trainStations: trainStations,
+              } as TrainSetup;
+            }
+          );
+        },
+        interval: 2000,
+      },
+    ];
 
     // Setup callbacks for each endpoint and return data in the callback randomly between every 200-500ms, one interval per endpoint
-    for (const [type, endpoint] of endpoints) {
-      setInterval(
-        async () => {
+    for (const { type, endpoint, interval } of endpoints) {
+      setInterval(async () => {
+        try {
+          const data = await endpoint();
           callback({
             type,
-            data: await endpoint(),
+            data,
           });
-        },
-        700 + Math.random() * 300
-      );
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.message !== "Satisfactory API is down") {
+              console.error(`[${type}] ${error.message}`);
+            }
+          }
+        }
+      }, interval);
     }
   }
 
   async getSatisfactoryApiStatus(): Promise<FullState> {
     return this.promisifyWithRandomDelay({
       isOnline: true,
+    } as FullState);
+  }
+
+  async getFullState(): Promise<FullState> {
+    return this.promisifyWithRandomDelay({
+      isOnline: true,
+      circuits: await this.getCircuits(),
+      factoryStats: await this.getFactoryStats(),
+      prodStats: await this.getProdStats(),
+      sinkStats: await this.getSinkStats(),
+      players: await this.getPlayers(),
+      generatorStats: await this.getGeneratorStats(),
+      trains: await this.getTrains(),
+      trainStations: await this.getTrainStations(),
     } as FullState);
   }
 
@@ -108,6 +173,53 @@ export class MockService {
         machinesIdle: 20 + Math.random() * 2,
         machinesPaused: 10 + Math.random() * 2,
       },
+      machines: [
+        {
+          name: "Assembler",
+          location: {
+            x: 0,
+            y: 0,
+            z: 0,
+            rotation: 0,
+          },
+          status: MachineStatus.idle,
+          powerConsumption: 10 + Math.random() * 10,
+          powerProduction: 200 + Math.random() * 10,
+        },
+        {
+          name: "Assembler",
+          location: {
+            x: 5,
+            y: 0,
+            z: 5,
+            rotation: 0,
+          },
+          status: MachineStatus.idle,
+          powerConsumption: 10 + Math.random() * 10,
+        },
+        {
+          name: "Constructor",
+          location: {
+            x: 100,
+            y: 2,
+            z: 120,
+            rotation: 0,
+          },
+          status: MachineStatus.operating,
+          powerConsumption: 50 + Math.random() * 10,
+        },
+        {
+          name: "Manufacturer",
+          location: {
+            x: 200,
+            y: 4,
+            z: 240,
+            rotation: 0,
+          },
+          status: MachineStatus.paused,
+          powerConsumption: 200 + Math.random() * 10,
+        }
+      ],
     } as FactoryStats);
   }
 
@@ -207,7 +319,7 @@ export class MockService {
   async getTrains(): Promise<Train[]> {
     return this.promisifyWithRandomDelay([
       {
-        name: "[IRN Ex] Train 1",
+        name: "[IRN] 1",
         location: {
           x: 0,
           y: 0,

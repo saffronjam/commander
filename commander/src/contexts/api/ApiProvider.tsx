@@ -60,6 +60,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
 
     newData.isLoading = true;
     fetchState();
+    setData(newData);
 
     eventSource.onmessage = (event) => {
       const parsed = JSON.parse(event.data) as SseEvent<any>;
@@ -102,6 +103,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
       newData.isOnline = false;
       newData.isLoading = false;
       websocketRef.current = false;
+      setData(newData);
     };
 
     if (historyCheckOn.current) {

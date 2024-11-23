@@ -579,7 +579,7 @@ export function ProductionView() {
                     }}
                   />
                 }
-                label="Show Trend"
+                label="Show Trends"
                 // No hover color
                 sx={{ color: 'white', marginRight: '1rem' }}
                 onChange={(event: any) =>
