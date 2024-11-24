@@ -1,5 +1,5 @@
 import { Box, Card, CardContent, Chip, Stack, Typography, useTheme } from '@mui/material';
-import { Train, TrainStation, TrainStatus } from 'common/src/types';
+import { Train, TrainStation, TrainStatus } from 'common/types';
 import { Iconify } from 'src/components/iconify';
 import { varAlpha } from 'src/theme/styles';
 import { fNumber } from 'src/utils/format-number';

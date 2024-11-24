@@ -35,17 +35,54 @@ export type Circuit = {
   fuseTriggered: boolean;
 };
 
+export enum MachineType {
+  // Factory
+  assembler = "assembler",
+  constructor = "constructor",
+  foundry = "foundry",
+  manufacturer = "manufacturer",
+  refinery = "refinery",
+  smelter = "smelter",
+  blender = "blender",
+  packager = "packager",
+  particleAccelerator = "particleAccelerator",
+
+  // Extractors
+  miner = "miner",
+  oilExtractor = "oilExtractor",
+  waterExtractor = "waterExtractor",
+
+  // Generators
+  biomassBurner = "biomassBurner",
+  coalGenerator = "coalGenerator",
+  fuelGenerator = "fuelGenerator",
+  geothermalGenerator = "geothermalGenerator",
+  nuclearPowerPlant = "nuclearPowerPlant",
+}
+
+export enum MachineCategory {
+  factory = "factory",
+  extractor = "extractor",
+  generator = "generator",
+}
+
 export enum MachineStatus {
   operating = "operating",
   idle = "idle",
   paused = "paused",
+  unconfigured = "unconfigured",
+  unknown = "unknown",
 }
 
 export type Machine = {
-  name: string;
   location: Location;
+
+  type: MachineType;
   status: MachineStatus;
-  powerConsumption: number;
+  category: MachineCategory;
+
+  input: MachineProductionStats[];
+  output: MachineProductionStats[];
 };
 
 export type FactoryStats = {
@@ -65,6 +102,7 @@ export type GeneratorStats = {
       totalProduction: number;
     };
   };
+  machines: Machine[];
 };
 
 export type ProdStats = {
@@ -98,6 +136,14 @@ export type SinkStats = {
 export type ItemStats = {
   name: string;
   count: number;
+};
+
+export type MachineProductionStats = {
+  name: string;
+  stored: number;
+  current: number;
+  max: number;
+  efficiency: number;
 };
 
 export type Location = {

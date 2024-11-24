@@ -13,6 +13,9 @@ import {
   TrainStatus,
   TrainSetup,
   MachineStatus,
+  Machine,
+  MachineType,
+  MachineCategory,
 } from "common/src/types";
 import { SatisfactoryEventCallback } from "../service";
 import {
@@ -175,51 +178,207 @@ export class MockService {
       },
       machines: [
         {
-          name: "Assembler",
+          type: MachineType.smelter,
           location: {
-            x: 0,
-            y: 0,
-            z: 0,
-            rotation: 0,
-          },
-          status: MachineStatus.idle,
-          powerConsumption: 10 + Math.random() * 10,
-          powerProduction: 200 + Math.random() * 10,
-        },
-        {
-          name: "Assembler",
-          location: {
-            x: 5,
-            y: 0,
-            z: 5,
-            rotation: 0,
-          },
-          status: MachineStatus.idle,
-          powerConsumption: 10 + Math.random() * 10,
-        },
-        {
-          name: "Constructor",
-          location: {
-            x: 100,
-            y: 2,
-            z: 120,
+            x: 8000,
+            y: 50,
+            z: 1000,
             rotation: 0,
           },
           status: MachineStatus.operating,
-          powerConsumption: 50 + Math.random() * 10,
+          category: MachineCategory.factory,
+          input: [
+            {
+              current: 3 + Math.random() * 1,
+              max: 4,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Copper Ore",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Copper Ingot",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
         },
         {
-          name: "Manufacturer",
+          type: MachineType.constructor,
           location: {
-            x: 200,
-            y: 4,
-            z: 240,
+            x: 10000,
+            y: 50,
+            z: 1000,
+            rotation: 0,
+          },
+          status: MachineStatus.idle,
+          category: MachineCategory.factory,
+          input: [
+            {
+              current: 3 + Math.random() * 1,
+              max: 4,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Ingot",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Plate",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+        {
+          type: MachineType.assembler,
+          location: {
+            x: 18000,
+            y: 50,
+            z: 1000,
+            rotation: 0,
+          },
+          status: MachineStatus.operating,
+          category: MachineCategory.factory,
+          input: [
+            {
+              current: 8 + Math.random() * 4,
+              max: 12,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Plate",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Rod",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Reinforced Iron Plate",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+        {
+          type: MachineType.constructor,
+          location: {
+            x: 20000,
+            y: 50,
+            z: 1000,
             rotation: 0,
           },
           status: MachineStatus.paused,
-          powerConsumption: 200 + Math.random() * 10,
-        }
-      ],
+          category: MachineCategory.factory,
+          input: [
+            {
+              current: 0,
+              max: 4,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 10 + Math.random() * 10,
+              max: 200,
+              name: "Steel Ingot",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 10 + Math.random() * 1,
+              max: 20,
+              name: "Steel Pipe",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+        {
+          type: MachineType.manufacturer,
+          category: MachineCategory.factory,
+          location: {
+            x: 40000,
+            y: 50,
+            z: 1000,
+            rotation: 0,
+          },
+          status: MachineStatus.operating,
+          input: [
+            {
+              current: 15 + Math.random() * 4,
+              max: 20,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 50 + Math.random() * 10,
+              max: 100,
+              name: "Plastic",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 30 + Math.random() * 10,
+              max: 50,
+              name: "Circuit Board",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Cable",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 3 + Math.random() * 1,
+              max: 5,
+              name: "Computer",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+      ] as Machine[],
     } as FactoryStats);
   }
 
@@ -312,7 +471,123 @@ export class MockService {
           count: 500 + Math.random() * 10,
           totalProduction: 600 + Math.random() * 10,
         },
-      } as any,
+      } as GeneratorStats["sources"],
+      machines: [
+        {
+          type: MachineType.biomassBurner,
+          category: MachineCategory.generator,
+          location: {
+            x: 10000,
+            y: 10000,
+            z: 500,
+            rotation: 0,
+          },
+          input: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200 + Math.random() * 10,
+              name: "Solid Biofuel",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 10 + Math.random() * 4,
+              max: 20 + Math.random() * 3,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+        {
+          type: MachineType.coalGenerator,
+          category: MachineCategory.generator,
+          location: {
+            x: 15000,
+            y: 10000,
+            z: 500,
+            rotation: 0,
+          },
+          efficiency: 0.5 + Math.random() * 0.1,
+          input: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200 + Math.random() * 10,
+              name: "Coal",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 75,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+        {
+          type: MachineType.fuelGenerator,
+          category: MachineCategory.generator,
+          location: {
+            x: 30000,
+            y: 10000,
+            z: 500,
+            rotation: 0,
+          },
+          efficiency: 0.5 + Math.random() * 0.1,
+          input: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Fuel",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+        {
+          type: MachineType.nuclearPowerPlant,
+          category: MachineCategory.generator,
+          location: {
+            x: 35000,
+            y: 10000,
+            z: 500,
+            rotation: 0,
+          },
+          input: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Uranium Fuel Rod",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 1200 + Math.random() * 100,
+              max: 2000,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+      ] as Machine[],
     } as GeneratorStats);
   }
 

@@ -32,8 +32,12 @@ export default defineConfig({
         find: /^src(.+)/,
         replacement: path.join(process.cwd(), 'src/$1'),
       },
+      {
+        find: 'common',
+        replacement: path.resolve(__dirname, '../common/src'), // Match TypeScript paths
+      },
     ],
   },
-  server: { port: PORT, host: true },
+  server: { port: PORT, host: true, fs: { cachedChecks: false } },
   preview: { port: PORT, host: true },
 });

@@ -8,6 +8,9 @@ import {
   FactoryStats,
   GeneratorStats,
   ItemStats,
+  Machine,
+  MachineProductionStats,
+  MachineStatus,
   Player,
   PowerType,
   ProdStats,
@@ -220,6 +223,19 @@ export class Service {
   }
 
   async getFactoryStats(): Promise<FactoryStats> {
+    const machineStatus = (machine: any) => {
+      if (machine.IsProducing) {
+        return MachineStatus.operating;
+      }
+      if (machine.IsPaused) {
+        return MachineStatus.paused;
+      }
+      if (!machine.IsConfigured) {
+        return MachineStatus.unconfigured;
+      }
+      return MachineStatus.idle;
+    };
+
     return await this.makeSatisfactoryCall("/getFactory").then((data) => {
       let totalMachines = data.length;
       let noOperating = 0;
@@ -251,6 +267,39 @@ export class Service {
           machinesPaused: noPaused,
           machinesUnconfigured: noUnconfigured,
         },
+        machines: data.map((machine: any) => {
+          return {
+            type: machine.Name,
+            category: machine.category,
+            location: {
+              x: machine.location.x,
+              y: machine.location.y,
+              z: machine.location.z,
+              rotation: machine.location.rotation,
+            },
+            powerConsumption: machine.PowerInfo.PowerConsumed,
+            status: machineStatus(machine),
+
+            output: machine.production.map((prod: any) => {
+              return {
+                name: prod.Name,
+                stored: prod.Amount,
+                current: prod.CurrentProd,
+                max: prod.MaxProd,
+                efficiency: prod.ProdPercent / 100,
+              } as MachineProductionStats;
+            }),
+            input: machine.ingredients.map((ing: any) => {
+              return {
+                name: ing.Name,
+                stored: ing.Amount,
+                current: ing.CurrentConsumed,
+                max: ing.MaxConsumed,
+                efficiency: ing.ConsPercent / 100,
+              } as MachineProductionStats;
+            }),
+          } as Machine;
+        }),
       } as FactoryStats;
     });
   }

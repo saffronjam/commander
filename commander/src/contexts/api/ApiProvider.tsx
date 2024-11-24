@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FactoryStats, GeneratorStats, ProdStats, SinkStats } from 'common/types';
-import { FullState, SatisfactoryEventType, SseEvent } from 'common/src/apiTypes';
-import { ApiContext, ApiContextType, ApiData } from './useApi';
+import { FullState, SatisfactoryEventType, SseEvent } from 'common/apiTypes';
+import { ApiContext, ApiData } from './useApi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
