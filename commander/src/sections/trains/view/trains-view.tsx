@@ -9,6 +9,7 @@ import {
   Backdrop,
   CircularProgress,
   Container,
+  Divider,
 } from '@mui/material';
 import { Gauge } from '../gauge';
 import { TrainList } from '../train-list';
@@ -140,6 +141,7 @@ export function TrainsView() {
                 </Card>
               </Grid>
             </Grid>
+            <Divider sx={{ mb: '50px', mt: '35px' }} />
             <Typography variant="h4" sx={{ marginTop: '30px', marginBottom: '30px' }}>
               All Trains
             </Typography>

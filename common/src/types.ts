@@ -75,15 +75,13 @@ export enum MachineStatus {
 }
 
 export type Machine = {
-  location: Location;
-
   type: MachineType;
   status: MachineStatus;
   category: MachineCategory;
 
   input: MachineProductionStats[];
   output: MachineProductionStats[];
-};
+} & Location;
 
 export type FactoryStats = {
   totalMachines: number;
@@ -162,8 +160,7 @@ export type Player = {
 
 export type TrainStation = {
   name: string;
-  location: Location;
-};
+} & Location;
 
 export enum TrainType {
   freight = "freight",
@@ -190,13 +187,13 @@ export type TrainTimetableEntry = {
 
 export type Train = {
   name: string;
-  location: Location;
   speed: number;
   status: TrainStatus;
   powerConsumption: number;
   vechicles: TrainVehicle[];
   timetable: TrainTimetableEntry[];
-};
+  timetableIndex: number;
+} & Location;
 
 export type TrainSetup = {
   trains: Train[];

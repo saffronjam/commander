@@ -4,96 +4,10 @@ import { Machine, MachineCategory } from 'common/types';
 import { useEffect, useState } from 'react';
 import { ConvertToMapCoords2 } from './bounds';
 import L from 'leaflet';
-
-type MachineGroup = {
-  machines: Machine[];
-  center: { x: number; y: number };
-
-  powerConsumption: number;
-  powerProduction: number;
-
-  itemProduction: {
-    [key: string]: number;
-  };
-  itemConsumption: {
-    [key: string]: number;
-  };
-};
-
-const computeMachineGroups = (machines: Machine[], groupDistance: number) => {
-  const groups = groupMachines(machines, groupDistance);
-  console.log(`found ${groups.length} groups`);
-
-  return groups.map((machines) => {
-    const center = {
-      x: machines.reduce((acc, m) => acc + m.location.x, 0) / machines.length,
-      y: machines.reduce((acc, m) => acc + m.location.y, 0) / machines.length,
-    };
-    const powerConsumption = machines.reduce((acc, m) => {
-      if (m.category === MachineCategory.generator) return acc;
-      return acc + (m.input.find((i) => i.name === 'Power')?.current || 0);
-    }, 0);
-    const powerProduction = machines.reduce((acc, m) => {
-      if (m.category !== MachineCategory.generator) return acc;
-      return acc + (m.output.find((i) => i.name === 'Power')?.current || 0);
-    }, 0);
-
-    const itemProduction: { [key: string]: number } = {};
-    const itemConsumption: { [key: string]: number } = {};
-
-    machines.forEach((m) => {
-      m.output.forEach((p) => {
-        if (p.name === 'Power') return;
-
-        if (itemProduction[p.name] === undefined) {
-          itemProduction[p.name] = 0;
-        }
-        itemProduction[p.name] += p.current;
-      });
-
-      m.input.forEach((i) => {
-        if (i.name === 'Power') return;
-
-        if (itemConsumption[i.name] === undefined) {
-          itemConsumption[i.name] = 0;
-        }
-        itemConsumption[i.name] += i.current;
-      });
-    });
-
-    return {
-      machines,
-      center,
-      powerConsumption,
-      powerProduction,
-      itemProduction,
-      itemConsumption,
-    } as MachineGroup;
-  });
-};
-
-const zoomToGroupDistance = (zoom: number) => {
-  zoom = Math.floor(zoom);
-  switch (zoom) {
-    case 3:
-      return 12000;
-    case 4:
-      return 8000;
-    case 5:
-      return 4000;
-    case 6:
-      return 100;
-    case 7:
-      return 0;
-    case 8:
-      return 0;
-    default:
-      return 0;
-  }
-};
+import { MachineGroup } from 'src/types';
 
 type IconProps = {
-  size: string;
+  size: number;
   color: string;
   backgroundColor: string;
   padding: string;
@@ -106,18 +20,16 @@ const iconifyGenerator = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2
       <path fill="currentColor" d="M19.836 10.486a.9.9 0 0 1-.21.47l-9.75 10.71a.94.94 0 0 1-.49.33q-.125.015-.25 0a1 1 0 0 1-.41-.09a.92.92 0 0 1-.45-.46a.9.9 0 0 1-.07-.58l.86-6.86h-3.63a1.7 1.7 0 0 1-.6-.15a1.29 1.29 0 0 1-.68-.99a1.3 1.3 0 0 1 .09-.62l3.78-9.45c.1-.239.266-.444.48-.59a1.3 1.3 0 0 1 .72-.21h7.24c.209.004.414.055.6.15c.188.105.349.253.47.43c.112.179.18.38.2.59a1.2 1.2 0 0 1-.1.61l-2.39 5.57h3.65a1 1 0 0 1 .51.16a1 1 0 0 1 .43 1z"/>
      </svg>`;
 
-const FactoryIcon = (props: IconProps) => {
-  return Icon(iconifyFactory, props);
-};
-
-const GeneratorIcon = (props: IconProps) => {
-  return Icon(iconifyGenerator, props);
-};
-
 const MultiIcon = (svgs: string[], { size, color, backgroundColor, padding }: IconProps) => {
+  const width = (() => {
+    if (svgs.length === 1) return size;
+    if (svgs.length === 2) return size * 1.2;
+    return 0;
+  })();
+
   const iconHtml = `
-    <div color="${color}" style="background-color: ${backgroundColor}; border-radius: 50%; padding: ${padding}; width: ${size}; height: ${size}; display: flex; justify-content: center; align-items: center;">
-      ${svgs.map((svg) => `<div>${svg}</div>`).join('')}
+    <div color="${color}" style="background-color: ${backgroundColor}; border-radius: 50%; padding: ${padding}; width: ${width}px; height: ${size}; display: flex; justify-content: center; align-items: center;">
+      ${svgs.join('')}
     </div>`;
   return L.divIcon({
     className: 'custom-icon',
@@ -126,22 +38,7 @@ const MultiIcon = (svgs: string[], { size, color, backgroundColor, padding }: Ic
   });
 };
 
-const Icon = (html: string, { size, color, backgroundColor, padding }: IconProps) => {
-  const iconHtml = `
-    <div color="${color}" style="background-color: ${backgroundColor}; border-radius: 50%; padding: ${padding}; width: ${size}; height: ${size}; display: flex; justify-content: center; align-items: center;">
-      ${html}
-    </div>`;
-  return L.divIcon({
-    className: 'custom-icon',
-    html: iconHtml,
-    iconAnchor: [12, 24],
-  });
-};
-
-const iconFromCategories = (
-  categories: MachineCategory[],
-  { size, color, backgroundColor, padding }: IconProps
-) => {
+const iconFromCategories = (categories: MachineCategory[], props: IconProps) => {
   const svgs: string[] = [];
 
   if (categories.includes(MachineCategory.extractor)) {
@@ -154,31 +51,25 @@ const iconFromCategories = (
     svgs.push(iconifyGenerator);
   }
 
-  return MultiIcon(svgs, {
-    size,
-    color,
-    backgroundColor,
-    padding,
-  });
+  return MultiIcon(svgs, props);
 };
 
 type OverlayProps = {
-  machines: Machine[];
+  machineGroups: MachineGroup[];
+  onSelectMachineGroup: (machines: MachineGroup) => void;
+  onZoomEnd: (zoom: number) => void;
 };
 
-export function Overlay({ machines }: OverlayProps) {
-  const [machineGroups, setMachineGroups] = useState<MachineGroup[]>([]);
-
+export function Overlay({
+  machineGroups,
+  onSelectMachineGroup,
+  onZoomEnd,
+}: OverlayProps) {
   const map = useMapEvents({
     zoomend: () => {
-      console.log('zoomend', map.getZoom());
-      setMachineGroups(computeMachineGroups(machines, zoomToGroupDistance(map.getZoom())));
+      onZoomEnd(map.getZoom());
     },
   });
-
-  useEffect(() => {
-    setMachineGroups(computeMachineGroups(machines, zoomToGroupDistance(map.getZoom())));
-  }, [machines]);
 
   const getCategories = (group: MachineGroup) => {
     const categories: MachineCategory[] = [];
@@ -193,14 +84,12 @@ export function Overlay({ machines }: OverlayProps) {
     <>
       {machineGroups.map((group, index) => {
         const position = ConvertToMapCoords2(group.center.x, group.center.y);
-
         const categories = getCategories(group);
-
         const icon = iconFromCategories(categories, {
-          size: '48px',
+          size: 35,
           color: 'white',
           backgroundColor: 'black',
-          padding: '10px',
+          padding: '7px',
         });
         return (
           <Marker
@@ -208,7 +97,7 @@ export function Overlay({ machines }: OverlayProps) {
             position={position}
             eventHandlers={{
               click: () => {
-                console.log('clicked on group', group);
+                onSelectMachineGroup(group);
               },
             }}
             icon={icon}
@@ -216,10 +105,11 @@ export function Overlay({ machines }: OverlayProps) {
         );
       })}
 
-      {/* <CircleMarker  center={[0, 0]} radius={10} pathOptions={{ color: 'red' }}/>
-      <CircleMarker  center={[-16, 16]} radius={10} pathOptions={{ color: 'red' }}/>
-      <CircleMarker  center={[-144, 144]} radius={10} pathOptions={{ color: 'red' }}/>
-      <CircleMarker  center={[-160, 160]} radius={10} pathOptions={{ color: 'red' }}/> */}
+      {/* Corner markers */}
+      {/* <CircleMarker center={[0, 0]} radius={10} pathOptions={{ color: 'red' }}/> */}
+      {/*<CircleMarker center={[16, 16]} radius={10} pathOptions={{ color: 'red' }}/> */}
+      {/*<CircleMarker center={[144, 144]} radius={10} pathOptions={{ color: 'red' }}/> */}
+      {/*<CircleMarker center={[160, 160]} radius={10} pathOptions={{ color: 'red' }}/> */}
     </>
   );
 }

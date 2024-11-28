@@ -179,12 +179,10 @@ export class MockService {
       machines: [
         {
           type: MachineType.smelter,
-          location: {
-            x: 8000,
-            y: 50,
-            z: 1000,
-            rotation: 0,
-          },
+          x: 8000,
+          y: 50,
+          z: 1000,
+          rotation: 0,
           status: MachineStatus.operating,
           category: MachineCategory.factory,
           input: [
@@ -205,8 +203,8 @@ export class MockService {
           ],
           output: [
             {
-              current: 100 + Math.random() * 10,
-              max: 200,
+              current: 1000 + Math.random() * 10,
+              max: 2000,
               name: "Copper Ingot",
               stored: 100 + Math.random() * 10,
               efficiency: 0.5 + Math.random() * 0.1,
@@ -215,12 +213,10 @@ export class MockService {
         },
         {
           type: MachineType.constructor,
-          location: {
-            x: 10000,
-            y: 50,
-            z: 1000,
-            rotation: 0,
-          },
+          x: 10000,
+          y: 50,
+          z: 1000,
+          rotation: 0,
           status: MachineStatus.idle,
           category: MachineCategory.factory,
           input: [
@@ -249,14 +245,117 @@ export class MockService {
             },
           ],
         },
+        
+        {
+          type: MachineType.constructor,
+          x: 10000,
+          y: 50,
+          z: 1000,
+          rotation: 0,
+          status: MachineStatus.idle,
+          category: MachineCategory.factory,
+          input: [
+            {
+              current: 3 + Math.random() * 1,
+              max: 4,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Ingot",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Plate",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+        
+        {
+          type: MachineType.constructor,
+          x: 10000,
+          y: 50,
+          z: 1000,
+          rotation: 0,
+          status: MachineStatus.idle,
+          category: MachineCategory.factory,
+          input: [
+            {
+              current: 3500 + Math.random() * 1,
+              max: 4000,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Ingot",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Plate",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
+        
+        {
+          type: MachineType.constructor,
+          x: 10000,
+          y: 50,
+          z: 1000,
+          rotation: 0,
+          status: MachineStatus.idle,
+          category: MachineCategory.factory,
+          input: [
+            {
+              current: 3 + Math.random() * 1,
+              max: 4,
+              name: "Power",
+              stored: 0,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+            {
+              current: 2000 + Math.random() * 10,
+              max: 3000,
+              name: "Iron Ingot",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+          output: [
+            {
+              current: 100 + Math.random() * 10,
+              max: 200,
+              name: "Iron Plate",
+              stored: 100 + Math.random() * 10,
+              efficiency: 0.5 + Math.random() * 0.1,
+            },
+          ],
+        },
         {
           type: MachineType.assembler,
-          location: {
-            x: 18000,
-            y: 50,
-            z: 1000,
-            rotation: 0,
-          },
+          x: 18000,
+          y: 50,
+          z: 1000,
+          rotation: 0,
           status: MachineStatus.operating,
           category: MachineCategory.factory,
           input: [
@@ -294,12 +393,10 @@ export class MockService {
         },
         {
           type: MachineType.constructor,
-          location: {
-            x: 20000,
-            y: 50,
-            z: 1000,
-            rotation: 0,
-          },
+          x: 20000,
+          y: 50,
+          z: 1000,
+          rotation: 0,
           status: MachineStatus.paused,
           category: MachineCategory.factory,
           input: [
@@ -331,12 +428,10 @@ export class MockService {
         {
           type: MachineType.manufacturer,
           category: MachineCategory.factory,
-          location: {
-            x: 40000,
-            y: 50,
-            z: 1000,
-            rotation: 0,
-          },
+          x: 40000,
+          y: 50,
+          z: 1000,
+          rotation: 0,
           status: MachineStatus.operating,
           input: [
             {
@@ -476,12 +571,10 @@ export class MockService {
         {
           type: MachineType.biomassBurner,
           category: MachineCategory.generator,
-          location: {
-            x: 10000,
-            y: 10000,
-            z: 500,
-            rotation: 0,
-          },
+          x: 10000,
+          y: 10000,
+          z: 500,
+          rotation: 0,
           input: [
             {
               current: 100 + Math.random() * 10,
@@ -504,12 +597,10 @@ export class MockService {
         {
           type: MachineType.coalGenerator,
           category: MachineCategory.generator,
-          location: {
-            x: 15000,
-            y: 10000,
-            z: 500,
-            rotation: 0,
-          },
+          x: 15000,
+          y: 10000,
+          z: 500,
+          rotation: 0,
           efficiency: 0.5 + Math.random() * 0.1,
           input: [
             {
@@ -533,12 +624,10 @@ export class MockService {
         {
           type: MachineType.fuelGenerator,
           category: MachineCategory.generator,
-          location: {
-            x: 30000,
-            y: 10000,
-            z: 500,
-            rotation: 0,
-          },
+          x: 30000,
+          y: 10000,
+          z: 500,
+          rotation: 0,
           efficiency: 0.5 + Math.random() * 0.1,
           input: [
             {
@@ -562,12 +651,10 @@ export class MockService {
         {
           type: MachineType.nuclearPowerPlant,
           category: MachineCategory.generator,
-          location: {
-            x: 35000,
-            y: 10000,
-            z: 500,
-            rotation: 0,
-          },
+          x: 35000,
+          y: 10000,
+          z: 500,
+          rotation: 0,
           input: [
             {
               current: 100 + Math.random() * 10,
@@ -594,26 +681,26 @@ export class MockService {
   async getTrains(): Promise<Train[]> {
     return this.promisifyWithRandomDelay([
       {
-        name: "[IRN] 1",
-        location: {
-          x: 0,
-          y: 0,
-          z: 0,
-          rotation: 0,
-        },
         speed: 50 + Math.random() * 40,
+        name: "[IRN] 1",
         status: (() => {
-          if (Math.random() > 1) {
+          if (Math.random() > 0.9) {
             return TrainStatus.derailed;
           }
 
-          if (Math.random() > 0) {
+          if (Math.random() > 0.8) {
             return TrainStatus.docking;
           }
 
           return TrainStatus.selfDriving;
         })(),
         powerConsumption: 100 + Math.random() * 50,
+
+        x: 0,
+        y: 0,
+        z: 0,
+        rotation: 0,
+
         timetable: [
           {
             station: "Gothenburg",
@@ -646,6 +733,8 @@ export class MockService {
             station: "Madrid",
           },
         ],
+        timetableIndex: (new Date().getTime() - now) % 10,
+
         vechicles: [
           {
             type: TrainType.locomotive,
@@ -684,12 +773,6 @@ export class MockService {
       } as Train,
       {
         name: "Train 2",
-        location: {
-          x: 100,
-          y: 2,
-          z: 120,
-          rotation: 0,
-        },
         speed: 100 + Math.random() * 10,
         status: (() => {
           if (Math.random() > 0.9) {
@@ -703,6 +786,12 @@ export class MockService {
           return TrainStatus.selfDriving;
         })(),
         powerConsumption: 50 + Math.random() * 20,
+
+        x: 100,
+        y: 2,
+        z: 120,
+        rotation: 0,
+
         timetable: [
           {
             station: "Gotenburg",
@@ -711,6 +800,8 @@ export class MockService {
             station: "Madrid",
           },
         ],
+        timetableIndex: (new Date().getTime() - now) % 2,
+
         vechicles: [
           {
             type: TrainType.locomotive,
@@ -746,30 +837,24 @@ export class MockService {
     return this.promisifyWithRandomDelay([
       {
         name: "Gothenburg",
-        location: {
-          x: 0,
-          y: 0,
-          z: 0,
-          rotation: 0,
-        },
+        x: 0,
+        y: 0,
+        z: 0,
+        rotation: 0,
       },
       {
         name: "Madrid",
-        location: {
-          x: 100,
-          y: 2,
-          z: 120,
-          rotation: 0,
-        },
+        x: 100,
+        y: 2,
+        z: 120,
+        rotation: 0,
       },
       {
         name: "New York",
-        location: {
-          x: 200,
-          y: 4,
-          z: 240,
-          rotation: 0,
-        },
+        x: 200,
+        y: 4,
+        z: 240,
+        rotation: 0,
       },
     ] as TrainStation[]);
   }

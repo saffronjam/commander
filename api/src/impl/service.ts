@@ -9,6 +9,7 @@ import {
   GeneratorStats,
   ItemStats,
   Machine,
+  MachineCategory,
   MachineProductionStats,
   MachineStatus,
   Player,
@@ -270,34 +271,41 @@ export class Service {
         machines: data.map((machine: any) => {
           return {
             type: machine.Name,
-            category: machine.category,
-            location: {
-              x: machine.location.x,
-              y: machine.location.y,
-              z: machine.location.z,
-              rotation: machine.location.rotation,
-            },
-            powerConsumption: machine.PowerInfo.PowerConsumed,
+            category: MachineCategory.factory,
             status: machineStatus(machine),
 
-            output: machine.production.map((prod: any) => {
-              return {
-                name: prod.Name,
-                stored: prod.Amount,
-                current: prod.CurrentProd,
-                max: prod.MaxProd,
-                efficiency: prod.ProdPercent / 100,
-              } as MachineProductionStats;
-            }),
-            input: machine.ingredients.map((ing: any) => {
-              return {
-                name: ing.Name,
-                stored: ing.Amount,
-                current: ing.CurrentConsumed,
-                max: ing.MaxConsumed,
-                efficiency: ing.ConsPercent / 100,
-              } as MachineProductionStats;
-            }),
+            x: machine.location.x,
+            y: machine.location.y,
+            z: machine.location.z,
+            rotation: machine.location.rotation,
+
+            input: [
+              {
+                name: "Power",
+                current: machine.PowerInfo.PowerConsumed,
+                max: machine.PowerInfo.MaxPowerConsumed,
+              },
+              ...machine.ingredients.map((ing: any) => {
+                return {
+                  name: ing.Name,
+                  stored: ing.Amount,
+                  current: ing.CurrentConsumed,
+                  max: ing.MaxConsumed,
+                  efficiency: ing.ConsPercent / 100,
+                } as MachineProductionStats;
+              }),
+            ],
+            output: [
+              ...machine.production.map((prod: any) => {
+                return {
+                  name: prod.Name,
+                  stored: prod.Amount,
+                  current: prod.CurrentProd,
+                  max: prod.MaxProd,
+                  efficiency: prod.ProdPercent / 100,
+                } as MachineProductionStats;
+              }),
+            ],
           } as Machine;
         }),
       } as FactoryStats;
@@ -401,14 +409,16 @@ export class Service {
             }).sort((a: any, b: any) => b.count - a.count),
           } as Player;
         });
-      // Filter out players with no name
     });
   }
 
   async getGeneratorStats(): Promise<GeneratorStats> {
     const res = await this.makeSatisfactoryCall("/getGenerators").then(
       (data) => {
-        const powerByType = (generator: any, generatorType: PowerType) => {
+        const powerByType = (
+          generator: any,
+          generatorType: PowerType
+        ): number => {
           switch (generatorType) {
             case PowerType.biomass:
               return generator.RegulatedDemandProd;
@@ -424,30 +434,51 @@ export class Service {
         };
 
         let sources = {} as any;
+        const machines: Machine[] = [];
 
         for (const generator of data) {
           const generatorType = this.blueprintGeneratorNameToType(
             generator.Name
           );
           if (generatorType) {
+            const power = powerByType(generator, generatorType);
+
             if (sources[generatorType]) {
               sources[generatorType].count += 1;
-
-              sources[generatorType].totalProduction += powerByType(
-                generator,
-                generatorType
-              );
+              sources[generatorType].totalProduction += power;
             } else {
               sources[generatorType] = {
                 count: 1,
-                totalProduction: powerByType(generator, generatorType),
+                totalProduction: power,
               };
             }
+
+            machines.push({
+              x: generator.location.x,
+              y: generator.location.y,
+              z: generator.location.z,
+              rotation: generator.location.rotation,
+              status: MachineStatus.operating, // TODO: Implement status
+              type: generator.Name,
+              category: MachineCategory.generator,
+              input: [],
+              output: [
+                {
+                  name: "Power",
+                  current: power,
+                  max: generator.PowerProductionPotential,
+                  efficiency:
+                    generator.PowerProduction /
+                    generator.PowerProductionPotential,
+                } as MachineProductionStats,
+              ],
+            });
           }
         }
 
         return {
           sources: sources,
+          machines: [],
         } as GeneratorStats;
       }
     );
@@ -469,18 +500,19 @@ export class Service {
     return trains.map((train: any) => {
       return {
         name: train.Name,
-        location: {
-          x: train.location.x,
-          y: train.location.y,
-          z: train.location.z,
-          rotation: train.location.rotation,
-        },
         speed: train.ForwardSpeed / 27.9,
+
+        x: train.location.x,
+        y: train.location.y,
+        z: train.location.z,
+        rotation: train.location.rotation,
+
         timetable: train.TimeTable.map((stop: any) => {
           return {
             station: stop.StationName,
           } as TrainTimetableEntry;
         }),
+        timetableIndex: train.TimeTableIndex,
         status: satisfactoryStatusToTrainStatus(train, relevantTrainStations),
         powerConsumption: train.PowerInfo.PowerConsumed,
         vechicles: train.Vehicles.map((vehicle: any) => {
@@ -504,12 +536,10 @@ export class Service {
       return data.map((station: any) => {
         return {
           name: station.Name,
-          location: {
-            x: station.location.x,
-            y: station.location.y,
-            z: station.location.z,
-            rotation: station.location.rotation,
-          },
+          x: station.location.x,
+          y: station.location.y,
+          z: station.location.z,
+          rotation: station.location.rotation,
         } as TrainStation;
       });
     });

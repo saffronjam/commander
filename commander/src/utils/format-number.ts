@@ -106,12 +106,18 @@ export function fPercent(inputValue: InputNumberValue, options?: Options) {
 
 // ----------------------------------------------------------------------
 
-export function fShortenNumber(inputValue: number, units: string[], options?: Options) {
+export function fShortenNumber(
+  inputValue: number,
+  units: string[],
+  options?: Options & { onlyDecimalsWhenDivisible?: boolean }
+) {
   let unitIndex = 0;
   // Scale the number down and increase the unit index until the value is less than 1000
+  let didDivide = false;
   while (inputValue >= 1000 && unitIndex < units.length - 1) {
     inputValue /= 1000;
     unitIndex += 1;
+    didDivide = true;
   }
 
   const locale = DEFAULT_LOCALE;
@@ -124,10 +130,14 @@ export function fShortenNumber(inputValue: number, units: string[], options?: Op
       return Math.round(n).toString();
     }
 
+    const maxFractionDigits = options?.decimals || 2;
+    const minimumFractionDigits = options?.ensureConstantDecimals ? options?.decimals || 2 : 0;
+    const noDecimalsOverride = options?.onlyDecimalsWhenDivisible && !didDivide;
+
     return new Intl.NumberFormat(locale.code, {
       notation: units.length ? undefined : 'compact',
-      maximumFractionDigits: options?.decimals || 2,
-      minimumFractionDigits: options?.ensureConstantDecimals ? options?.decimals || 2 : 0,
+      maximumFractionDigits: noDecimalsOverride ? 0 : maxFractionDigits,
+      minimumFractionDigits: noDecimalsOverride ? 0 : minimumFractionDigits,
       ...options,
     }).format(number);
   };

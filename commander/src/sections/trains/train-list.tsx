@@ -158,49 +158,69 @@ const TrainCard = ({ train }: { train: Train }) => {
               minWidth: '100%', // Ensures scrollable space is used
             }}
           >
-            {train.timetable.map((stop, index) => (
-              <Box
-                key={index}
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  minWidth: '200px', // Space between nodes
-                  mb: 2,
-                  position: 'relative',
-                }}
-              >
-                {/* Station name directly above each circle */}
-                <Typography variant="body2" sx={{ marginBottom: 1 }}>
-                  {stop.station}
-                </Typography>
+            {train.timetable.map((stop, index) => {
+              const isCurrentStop = index === train.timetableIndex;
 
-                {/* Horizontal connecting line, positioned absolutely */}
-                {index > 0 && (
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: '84%',
-                      left: '-85px',
-                      width: '170px',
-                      height: '2px',
-                      backgroundColor: 'grey.500',
-                      zIndex: -1,
-                    }}
-                  />
-                )}
+              const lineProps = {
+                position: 'absolute',
+                top: '84%',
+                left: '-85px',
+                width: '170px',
+                height: '2px',
+                backgroundColor: 'grey.700',
+                backgroundSize: '50px 100%',
+                backgroundRepeat: 'repeat',
+                zIndex: -1,
+              } as any;
 
-                {/* Circular node */}
+              if (isCurrentStop && train.status !== TrainStatus.docking) {
+                lineProps.animation = 'flow 1.5s linear infinite';
+                lineProps['@keyframes flow'] = {
+                  from: { backgroundPosition: '0 0' },
+                  to: { backgroundPosition: '50px 0' },
+                };
+                lineProps.backgroundColor = 'transparent';
+                lineProps.backgroundImage = `linear-gradient(to right, transparent 20%, ${theme.palette.primary.main} 20%)`;
+                lineProps.transition = 'background-color 0.6s ease';
+              }
+
+              const circleProps = {
+                width: '10px',
+                height: '10px',
+                backgroundColor: 'grey.700',
+                borderRadius: '50%',
+              } as any;
+
+              if (isCurrentStop && train.status === TrainStatus.docking) {
+                circleProps.backgroundColor = theme.palette.primary.main;
+                circleProps.transition = 'background-color 0.6s ease';
+              }
+
+              return (
                 <Box
+                  key={index}
                   sx={{
-                    width: '10px',
-                    height: '10px',
-                    backgroundColor: 'grey.700',
-                    borderRadius: '50%', // Creates a circular "O" node
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    minWidth: '200px', // Space between nodes
+                    mb: 2,
+                    position: 'relative',
                   }}
-                />
-              </Box>
-            ))}
+                >
+                  {/* Station name directly above each circle */}
+                  <Typography variant="body2" sx={{ marginBottom: 1 }}>
+                    {stop.station}
+                  </Typography>
+
+                  {/* Horizontal connecting line with animation */}
+                  {index > 0 && <Box sx={lineProps} />}
+
+                  {/* Circular node with conditional highlight */}
+                  <Box sx={circleProps} />
+                </Box>
+              );
+            })}
           </Box>
         </Box>
 
