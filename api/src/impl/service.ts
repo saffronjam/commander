@@ -5,6 +5,9 @@ import {
 } from "../env";
 import {
   Circuit,
+  Drone,
+  DroneStation,
+  DroneStatus,
   FactoryStats,
   GeneratorStats,
   ItemStats,
@@ -56,6 +59,23 @@ const satisfactoryStatusToTrainStatus = (
   }
 };
 
+const satisfactoryStatusToDroneStatus = (
+  droneData: any,
+  relevantDroneStations: DroneStation[]
+) => {
+  for (const station of relevantDroneStations) {
+    if (
+      Math.abs(droneData.location.z - station.z) < 1000 &&
+      Math.abs(droneData.location.x - station.x) < 10 &&
+      Math.abs(droneData.location.y - station.y) < 10
+    ) {
+      return DroneStatus.docking;
+    }
+  }
+
+  return DroneStatus.flying;
+};
+
 export class Service {
   setupEventListener(callback: SatisfactoryEventCallback) {
     const endpoints = [
@@ -96,15 +116,29 @@ export class Service {
       },
       {
         type: SatisfactoryEventType.trains,
-        endpoint: () => {
-          return Promise.all([this.getTrains(), this.getTrainStations()]).then(
-            ([trains, trainStations]) => {
-              return {
-                trains: trains,
-                trainStations: trainStations,
-              } as TrainSetup;
-            }
-          );
+        endpoint: async () => {
+          const [trains, trainStations] = await Promise.all([
+            this.getTrains(),
+            this.getTrainStations(),
+          ]);
+          return {
+            trains: trains,
+            trainStations: trainStations,
+          } as TrainSetup;
+        },
+        interval: 2000,
+      },
+      {
+        type: SatisfactoryEventType.drones,
+        endpoint: async () => {
+          const [drones, droneStations] = await Promise.all([
+            this.getDrones(),
+            this.getDroneStations(),
+          ]);
+          return {
+            drones: drones,
+            droneStations: droneStations,
+          } as any;
         },
         interval: 2000,
       },
@@ -141,6 +175,8 @@ export class Service {
       this.getGeneratorStats(),
       this.getTrains(),
       this.getTrainStations(),
+      this.getDrones(),
+      this.getDroneStations(),
     ]);
 
     return await allPromises
@@ -156,6 +192,8 @@ export class Service {
           generatorStats: values[i++] as GeneratorStats,
           trains: values[i++] as Train[],
           trainStations: values[i++] as TrainStation[],
+          drones: values[i++] as Drone[],
+          droneStations: values[i++] as DroneStation[],
         };
       })
       .catch((error) => {
@@ -164,6 +202,7 @@ export class Service {
             console.error(`[Initial event] ${error.message}`);
           }
         }
+
         return {
           isOnline: false,
         } as FullState;
@@ -237,38 +276,68 @@ export class Service {
       return MachineStatus.idle;
     };
 
-    return await this.makeSatisfactoryCall("/getFactory").then((data) => {
-      let totalMachines = data.length;
-      let noOperating = 0;
-      let noIdle = 0;
-      let noPaused = 0;
-      let noUnconfigured = 0;
+    let totalMachines = 0;
+    let noOperating = 0;
+    let noIdle = 0;
+    let noPaused = 0;
+    let noUnconfigured = 0;
 
-      for (const machine of data) {
-        if (machine.IsProducing) {
-          noOperating += 1;
-        } else {
-          noIdle += 1;
-        }
+    const extractors = await this.makeSatisfactoryCall("/getExtractor").then(
+      (data) => {
+        return data.map((machine: any) => {
+          return {
+            type: machine.Name,
+            category: MachineCategory.extractor,
+            status: machineStatus(machine),
 
-        if (machine.IsPaused) {
-          noPaused += 1;
-        }
+            x: machine.location.x,
+            y: machine.location.y,
+            z: machine.location.z,
+            rotation: machine.location.rotation,
 
-        if (!machine.IsConfigured) {
-          noUnconfigured += 1;
-        }
+            input: [
+              {
+                name: "Power",
+                current: machine.PowerInfo.PowerConsumed,
+                max: machine.PowerInfo.MaxPowerConsumed,
+              },
+            ],
+            output: [
+              ...machine.production.map((prod: any) => {
+                return {
+                  name: prod.Name,
+                  stored: prod.Amount,
+                  current: prod.CurrentProd,
+                  max: prod.MaxProd,
+                  efficiency: prod.ProdPercent / 100,
+                } as MachineProductionStats;
+              }),
+            ],
+          } as Machine;
+        }) as Machine[];
       }
+    );
 
-      return {
-        totalMachines: totalMachines,
-        efficiency: {
-          machinesOperating: noOperating,
-          machinesIdle: noIdle,
-          machinesPaused: noPaused,
-          machinesUnconfigured: noUnconfigured,
-        },
-        machines: data.map((machine: any) => {
+    const factoryMachines = await this.makeSatisfactoryCall("/getFactory").then(
+      (data) => {
+        for (const machine of data) {
+          totalMachines++;
+          if (machine.IsProducing) {
+            noOperating += 1;
+          } else {
+            noIdle += 1;
+          }
+
+          if (machine.IsPaused) {
+            noPaused += 1;
+          }
+
+          if (!machine.IsConfigured) {
+            noUnconfigured += 1;
+          }
+        }
+
+        return data.map((machine: any) => {
           return {
             type: machine.Name,
             category: MachineCategory.factory,
@@ -307,9 +376,20 @@ export class Service {
               }),
             ],
           } as Machine;
-        }),
-      } as FactoryStats;
-    });
+        }) as Machine[];
+      }
+    );
+
+    return {
+      totalMachines: totalMachines,
+      efficiency: {
+        machinesOperating: noOperating,
+        machinesIdle: noIdle,
+        machinesPaused: noPaused,
+        machinesUnconfigured: noUnconfigured,
+      },
+      machines: [...extractors, ...factoryMachines],
+    } as FactoryStats;
   }
 
   async getProdStats(): Promise<ProdStats> {
@@ -478,7 +558,7 @@ export class Service {
 
         return {
           sources: sources,
-          machines: [],
+          machines: machines,
         } as GeneratorStats;
       }
     );
@@ -497,38 +577,40 @@ export class Service {
       timeTableStationsSet.has(station.Name)
     );
 
-    return trains.map((train: any) => {
-      return {
-        name: train.Name,
-        speed: train.ForwardSpeed / 27.9,
+    return trains
+      .filter((train: any) => train.Name !== "Train")
+      .map((train: any) => {
+        return {
+          name: train.Name,
+          speed: train.ForwardSpeed,
 
-        x: train.location.x,
-        y: train.location.y,
-        z: train.location.z,
-        rotation: train.location.rotation,
+          x: train.location.x,
+          y: train.location.y,
+          z: train.location.z,
+          rotation: train.location.rotation,
 
-        timetable: train.TimeTable.map((stop: any) => {
-          return {
-            station: stop.StationName,
-          } as TrainTimetableEntry;
-        }),
-        timetableIndex: train.TimeTableIndex,
-        status: satisfactoryStatusToTrainStatus(train, relevantTrainStations),
-        powerConsumption: train.PowerInfo.PowerConsumed,
-        vechicles: train.Vehicles.map((vehicle: any) => {
-          return {
-            type: vehicle.Type,
-            capacity: vehicle.Capacity,
-            inventory: vehicle.Inventory.map((item: any) => {
-              return {
-                name: item.Name,
-                count: item.Amount,
-              } as ItemStats;
-            }),
-          };
-        }),
-      } as Train;
-    });
+          timetable: train.TimeTable.map((stop: any) => {
+            return {
+              station: stop.StationName,
+            } as TrainTimetableEntry;
+          }),
+          timetableIndex: train.TimeTableIndex,
+          status: satisfactoryStatusToTrainStatus(train, relevantTrainStations),
+          powerConsumption: train.PowerInfo.PowerConsumed,
+          vechicles: train.Vehicles.map((vehicle: any) => {
+            return {
+              type: vehicle.Type,
+              capacity: vehicle.Capacity,
+              inventory: vehicle.Inventory.map((item: any) => {
+                return {
+                  name: item.Name,
+                  count: item.Amount,
+                } as ItemStats;
+              }),
+            };
+          }),
+        } as Train;
+      });
   }
 
   async getTrainStations(): Promise<TrainStation[]> {
@@ -541,6 +623,52 @@ export class Service {
           z: station.location.z,
           rotation: station.location.rotation,
         } as TrainStation;
+      });
+    });
+  }
+
+  async getDrones(): Promise<Drone[]> {
+    const droneStations = await this.getDroneStations();
+    const drones = await this.makeSatisfactoryCall("/getDrone");
+
+    return drones.map((drone: any) => {
+      return {
+        name: drone.Name,
+        x: drone.location.x,
+        y: drone.location.y,
+        z: drone.location.z,
+        rotation: drone.location.rotation,
+
+        speed: drone.FlyingSpeed,
+        status: satisfactoryStatusToDroneStatus(drone, droneStations),
+
+        home: droneStations.find(
+          (station) => station.name === drone.HomeStation
+        ),
+        paired: droneStations.find(
+          (station) => station.name === drone.TargetStation
+        ),
+        destination: droneStations.find(
+          (station) => station.name === drone.DestinationStation
+        ),
+      } as Drone;
+    });
+  }
+
+  async getDroneStations(): Promise<DroneStation[]> {
+    return await this.makeSatisfactoryCall("/getDroneStation").then((data) => {
+      return data.map((station: any) => {
+        return {
+          name: station.Name,
+          x: station.location.x,
+          y: station.location.y,
+          z: station.location.z,
+          rotation: station.location.rotation,
+          fuelName:
+            station.ActiveFuel.FuelName !== "N/A"
+              ? station.ActiveFuel.FuelName
+              : undefined,
+        } as DroneStation;
       });
     });
   }
@@ -574,7 +702,7 @@ export class Service {
     })
       .then((res) => res.json())
       .catch((error) => {
-        throw new Error(`[${path}] Failed to fetch: ${error}`);
+        throw new ApiError(`[${path}] Failed to fetch: ${error}`);
       });
   }
 

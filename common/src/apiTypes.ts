@@ -1,5 +1,7 @@
 import {
   Circuit,
+  Drone,
+  DroneStation,
   FactoryStats,
   GeneratorStats,
   Player,
@@ -39,6 +41,8 @@ export type FullState = {
   generatorStats: GeneratorStats;
   trains: Train[];
   trainStations: TrainStation[];
+  drones: Drone[];
+  droneStations: DroneStation[];
 };
 
 export enum SatisfactoryEventType {
@@ -50,4 +54,5 @@ export enum SatisfactoryEventType {
   players = "players",
   generatorStats = "generatorStats",
   trains = "trains",
+  drones = "drones",
 }

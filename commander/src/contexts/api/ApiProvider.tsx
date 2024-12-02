@@ -21,6 +21,8 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
     generatorStats: {} as GeneratorStats,
     trains: [],
     trainStations: [],
+    drones: [],
+    droneStations: [],
   });
   const [dataHistory, setDataHistory] = useState<(ApiData & { timestamp: Date })[]>([]);
 
@@ -50,6 +52,8 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
           newData.generatorStats = fullState.generatorStats;
           newData.trains = fullState.trains;
           newData.trainStations = fullState.trainStations;
+          newData.drones = fullState.drones;
+          newData.droneStations = fullState.droneStations;
           newData.isLoading = false;
         })
         .catch((error) => {
@@ -95,6 +99,10 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
         case SatisfactoryEventType.trains:
           newData.trains = parsed.data.trains;
           newData.trainStations = parsed.data.trainStations;
+          break;
+        case SatisfactoryEventType.drones:
+          newData.drones = parsed.data.drones;
+          newData.droneStations = parsed.data.droneStations;
           break;
       }
     };

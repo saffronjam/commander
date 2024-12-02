@@ -19,7 +19,7 @@ export const navData = [
   {
     title: 'Production',
     path: '/production',
-    icon: <Iconify icon="mdi:factory" width={24} height={24} />,
+    icon: <Iconify icon="material-symbols:factory" width={24} height={24} />,
     group: 'main',
   },
   {

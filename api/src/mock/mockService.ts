@@ -16,6 +16,9 @@ import {
   Machine,
   MachineType,
   MachineCategory,
+  Drone,
+  DroneStation,
+  DroneSetup,
 } from "common/src/types";
 import { SatisfactoryEventCallback } from "../service";
 import {
@@ -68,15 +71,29 @@ export class MockService {
       },
       {
         type: SatisfactoryEventType.trains,
-        endpoint: () => {
-          return Promise.all([this.getTrains(), this.getTrainStations()]).then(
-            ([trains, trainStations]) => {
-              return {
-                trains: trains,
-                trainStations: trainStations,
-              } as TrainSetup;
-            }
-          );
+        endpoint: async () => {
+          const [trains, trainStations] = await Promise.all([
+            this.getTrains(),
+            this.getTrainStations(),
+          ]);
+          return {
+            trains: trains,
+            trainStations: trainStations,
+          } as TrainSetup;
+        },
+        interval: 2000,
+      },
+      {
+        type: SatisfactoryEventType.drones,
+        endpoint: async () => {
+          const [drones, droneStations] = await Promise.all([
+            this.getDrones(),
+            this.getDroneStations(),
+          ]);
+          return {
+            drones: drones,
+            droneStations: droneStations,
+          } as DroneSetup;
         },
         interval: 2000,
       },
@@ -119,6 +136,8 @@ export class MockService {
       generatorStats: await this.getGeneratorStats(),
       trains: await this.getTrains(),
       trainStations: await this.getTrainStations(),
+      drones: await this.getDrones(),
+      droneStations: await this.getDroneStations(),
     } as FullState);
   }
 
@@ -245,7 +264,7 @@ export class MockService {
             },
           ],
         },
-        
+
         {
           type: MachineType.constructor,
           x: 10000,
@@ -280,7 +299,7 @@ export class MockService {
             },
           ],
         },
-        
+
         {
           type: MachineType.constructor,
           x: 10000,
@@ -315,7 +334,7 @@ export class MockService {
             },
           ],
         },
-        
+
         {
           type: MachineType.constructor,
           x: 10000,
@@ -857,6 +876,57 @@ export class MockService {
         rotation: 0,
       },
     ] as TrainStation[]);
+  }
+
+  async getDrones() {
+    const droneStations = await this.getDroneStations();
+    return this.promisifyWithRandomDelay([
+      {
+        name: "Drone 1",
+        x: 0,
+        y: 0,
+        z: 0,
+        rotation: 0,
+        speed: 60 + Math.random() * 40,
+
+        home: droneStations[0],
+        paired: droneStations[1],
+        destination: droneStations[1],
+      } as Drone,
+      {
+        name: "Drone 2",
+        x: 100,
+        y: 2,
+        z: 120,
+        rotation: 0,
+        speed: 60 + Math.random() * 40,
+
+        home: droneStations[1],
+        paired: droneStations[0],
+        destination: droneStations[0],
+      },
+    ]);
+  }
+
+  async getDroneStations() {
+    return this.promisifyWithRandomDelay([
+      {
+        name: "Drone Station 1",
+        x: 0,
+        y: 0,
+        z: 0,
+        rotation: 0,
+        fuelName: "Packaged Fuel",
+      } as DroneStation,
+      {
+        name: "Drone Station 2",
+        x: 100,
+        y: 2,
+        z: 120,
+        rotation: 0,
+        fuelName: "Packaged Turbofuel",
+      },
+    ]);
   }
 
   private async promisifyWithRandomDelay<T>(value: T): Promise<T> {

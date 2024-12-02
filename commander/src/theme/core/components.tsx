@@ -137,6 +137,16 @@ const MuiCheckbox: Components<Theme>['MuiCheckbox'] = {
       </SvgIcon>
     ),
   },
+  styleOverrides: {
+    root: ({ theme }) => ({
+      '&.Mui-checked': {
+        color: theme.palette.grey[700],
+      },
+      '&.MuiCheckbox-indeterminate': {
+        color: theme.palette.grey[700],
+      },
+    }),
+  },
 };
 
 const MuiRadio: Components<Theme>['MuiRadio'] = {
@@ -192,11 +202,29 @@ const MuiDialogContentText: Components<Theme>['MuiDialogContentText'] = {
 
 const MuiTextField: Components<Theme>['MuiTextField'] = {
   styleOverrides: {
-    root: {
+    root: ({ theme }) => ({
       '& .MuiOutlinedInput-root': {
         borderRadius: 20,
+        '&:not(.Mui-disabled) fieldset': {
+          borderColor: theme.vars.palette.grey['800'],
+        },
+        '&:hover:not(.Mui-disabled) fieldset': {
+          borderColor: theme.vars.palette.grey['800'],
+        },
+        '&.Mui-focused fieldset': {
+          borderColor: theme.vars.palette.grey['800'],
+        },
+        '& input': {
+          color: theme.vars.palette.text.primary,
+        },
       },
-    },
+      '& .MuiInputLabel-root': {
+        color: theme.vars.palette.text.primary,
+        '&.Mui-focused': {
+          color: varAlpha(theme.vars.palette.text.primaryChannel, 0.6), // Maintain primary color when focused
+        },
+      },
+    }),
   },
 };
 

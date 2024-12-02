@@ -199,3 +199,28 @@ export type TrainSetup = {
   trains: Train[];
   trainStations: TrainStation[];
 };
+
+export type DroneStation = {
+  name: string;
+  fuelName?: string;
+} & Location;
+
+export enum DroneStatus {
+  idle = "idle",
+  flying = "flying",
+  docking = "docking",
+}
+
+export type Drone = {
+  name: string;
+  speed: number;
+  status: DroneStatus;
+  home: DroneStation;
+  paired?: DroneStation;
+  destination?: DroneStation;
+} & Location;
+
+export type DroneSetup = {
+  drones: Drone[];
+  droneStations: DroneStation[];
+};

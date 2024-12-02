@@ -3,7 +3,7 @@ import { Train, TrainStation, TrainStatus } from 'common/types';
 import { Iconify } from 'src/components/iconify';
 import { varAlpha } from 'src/theme/styles';
 import { fNumber } from 'src/utils/format-number';
-import { abbreviations } from './abbreviations';
+import { abbreviations } from '../../utils/abbreviations';
 
 const TrainCard = ({ train }: { train: Train }) => {
   const theme = useTheme();
@@ -39,6 +39,14 @@ const TrainCard = ({ train }: { train: Train }) => {
           icon: <Iconify icon="mdi:alert" />,
           label: 'Derailed',
           backgroundColor: theme.palette.error.darkChannel,
+          color: theme.palette.primary.contrastTextChannel,
+          pulse: false,
+        };
+      case TrainStatus.parked:
+        return {
+          icon: <Iconify icon="mdi:train-car" />,
+          label: 'Parked',
+          backgroundColor: theme.palette.info.darkChannel,
           color: theme.palette.primary.contrastTextChannel,
           pulse: false,
         };
@@ -160,8 +168,11 @@ const TrainCard = ({ train }: { train: Train }) => {
           >
             {train.timetable.map((stop, index) => {
               const isCurrentStop = index === train.timetableIndex;
+              const isPreviousStop = index === train.timetableIndex - 1 || (train.timetableIndex === 0 && index === train.timetable.length - 1);
+              const isLastStop = index === train.timetable.length - 1;
+              const isWrapping = train.timetableIndex === 0 && train.status !== TrainStatus.docking;
 
-              const lineProps = {
+              const baseLineProps = {
                 position: 'absolute',
                 top: '84%',
                 left: '-85px',
@@ -173,28 +184,32 @@ const TrainCard = ({ train }: { train: Train }) => {
                 zIndex: -1,
               } as any;
 
-              if (isCurrentStop && train.status !== TrainStatus.docking) {
-                lineProps.animation = 'flow 1.5s linear infinite';
-                lineProps['@keyframes flow'] = {
+              const activatedLineProps = {
+                animation: 'flow 1.5s linear infinite',
+                '@keyframes flow': {
                   from: { backgroundPosition: '0 0' },
                   to: { backgroundPosition: '50px 0' },
-                };
-                lineProps.backgroundColor = 'transparent';
-                lineProps.backgroundImage = `linear-gradient(to right, transparent 20%, ${theme.palette.primary.main} 20%)`;
-                lineProps.transition = 'background-color 0.6s ease';
-              }
+                },
+                backgroundColor: 'transparent',
+                backgroundImage: `linear-gradient(to right, transparent 20%, ${theme.palette.primary.main} 20%)`,
+                transition: 'background-color 0.6s ease',
+              };
 
-              const circleProps = {
+              const baseCircleProps = {
                 width: '10px',
                 height: '10px',
                 backgroundColor: 'grey.700',
                 borderRadius: '50%',
               } as any;
 
-              if (isCurrentStop && train.status === TrainStatus.docking) {
-                circleProps.backgroundColor = theme.palette.primary.main;
-                circleProps.transition = 'background-color 0.6s ease';
-              }
+              const activatedCircleProps = {
+                backgroundColor: theme.palette.primary.main,
+                transition: 'background-color 0.6s ease',
+              };
+
+
+              const lineProps = (isCurrentStop) && train.status !== TrainStatus.docking ? { ...baseLineProps, ...activatedLineProps } : baseLineProps;
+              const circleProps = (isPreviousStop) && train.status === TrainStatus.docking ? { ...baseCircleProps, ...activatedCircleProps } : baseCircleProps;
 
               return (
                 <Box
@@ -215,7 +230,8 @@ const TrainCard = ({ train }: { train: Train }) => {
 
                   {/* Horizontal connecting line with animation */}
                   {index > 0 && <Box sx={lineProps} />}
-
+                  {isWrapping && <Box sx={{...lineProps, width: '60px', left: '30px'}} />}
+                  {isWrapping && isLastStop && <Box sx={{...baseLineProps,...activatedLineProps, width: '60px', left: '110px'}} />}
                   {/* Circular node with conditional highlight */}
                   <Box sx={circleProps} />
                 </Box>

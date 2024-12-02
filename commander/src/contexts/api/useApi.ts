@@ -1,5 +1,7 @@
 import {
   Circuit,
+  Drone,
+  DroneStation,
   FactoryStats,
   GeneratorStats,
   ItemStats,
@@ -23,6 +25,8 @@ export type ApiData = {
   generatorStats: GeneratorStats;
   trains: Train[];
   trainStations: TrainStation[];
+  drones: Drone[];
+  droneStations: DroneStation[];
 };
 
 export type ApiContextType = ApiData & {
@@ -41,6 +45,8 @@ export const DefaultApiContext: ApiContextType = {
   generatorStats: {} as GeneratorStats,
   trains: [],
   trainStations: [],
+  drones: [],
+  droneStations: [],
 
   history: [
     {
@@ -54,6 +60,8 @@ export const DefaultApiContext: ApiContextType = {
       generatorStats: {} as GeneratorStats,
       trains: [],
       trainStations: [],
+      drones: [],
+      droneStations: [],
     },
   ] as any,
 };

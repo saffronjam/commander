@@ -16,6 +16,7 @@ import {
   Backdrop,
   CircularProgress,
   Stack,
+  TextField,
 } from '@mui/material';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { ApiContext, ApiContextType } from 'src/contexts/api/useApi';
@@ -30,6 +31,7 @@ import {
   MetricUnits,
   PerMinuteMetricUnits,
 } from 'src/utils/format-number';
+import { background } from 'src/theme/core';
 
 type Column = {
   id:
@@ -232,6 +234,7 @@ export function ProductionView() {
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
   const [sortColumn, setSortColumn] = React.useState<Column['id'] | null>(null);
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
+  const [searchQuery, setSearchQuery] = React.useState('');
 
   const { settings, saveSettings } = useSettings();
 
@@ -294,6 +297,12 @@ export function ProductionView() {
     }
     return rows;
   }, [api, sortColumn, sortDirection, settings.productionView.includeItems]);
+
+  const filteredRows = sortedRows.filter((row) => {
+    return Object.values(row).some((value) =>
+      value.toString().toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
     <>
@@ -376,7 +385,7 @@ export function ProductionView() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sortedRows
+                {filteredRows
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((row, index) => {
                     return (
@@ -520,7 +529,14 @@ export function ProductionView() {
               borderBottomRightRadius: 20,
             }}
           >
-            <Box display="flex" alignItems="center" sx={{ marginLeft: '1rem' }}>
+            <Box display="flex" alignItems="center" sx={{ marginLeft: 4, height: 75 }}>
+              <TextField
+                label="Search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                sx={{ color: 'white', marginRight: 4 }}
+              />
+
               <FormControlLabel
                 control={
                   <Checkbox
@@ -533,7 +549,7 @@ export function ProductionView() {
                   />
                 }
                 label="Minable"
-                sx={{ color: 'white', marginRight: '1rem' }}
+                sx={{ color: 'white', marginRight: 4 }}
                 onChange={(event: any) =>
                   saveSettings({
                     ...settings,
@@ -557,7 +573,7 @@ export function ProductionView() {
                 }
                 label="Items"
                 // No hover color
-                sx={{ color: 'white', marginRight: '1rem' }}
+                sx={{ color: 'white', marginRight: 4 }}
                 onChange={(event: any) =>
                   saveSettings({
                     ...settings,
@@ -581,7 +597,7 @@ export function ProductionView() {
                 }
                 label="Show Trends"
                 // No hover color
-                sx={{ color: 'white', marginRight: '1rem' }}
+                sx={{ color: 'white', marginRight: 4 }}
                 onChange={(event: any) =>
                   saveSettings({
                     ...settings,
@@ -597,7 +613,7 @@ export function ProductionView() {
             <TablePagination
               rowsPerPageOptions={[10, 25, 100]}
               component="div"
-              count={sortedRows.length}
+              count={filteredRows.length}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={handleChangePage}
