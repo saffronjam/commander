@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FactoryStats, GeneratorStats, ProdStats, SinkStats } from 'common/types';
-import { FullState, SatisfactoryEventType, SseEvent } from 'common/apiTypes';
 import { ApiContext, ApiData } from './useApi';
+import * as API from 'src/apiTypes';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081/v1';
 
 interface ApiProviderProps {
   children: React.ReactNode;
@@ -14,11 +13,11 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
     isLoading: true,
     isOnline: false,
     circuits: [],
-    factoryStats: {} as FactoryStats,
-    prodStats: {} as ProdStats,
-    sinkStats: {} as SinkStats,
+    factoryStats: {} as API.FactoryStats,
+    prodStats: {} as API.ProdStats,
+    sinkStats: {} as API.SinkStats,
     players: [],
-    generatorStats: {} as GeneratorStats,
+    generatorStats: {} as API.GeneratorStats,
     trains: [],
     trainStations: [],
     drones: [],
@@ -29,21 +28,21 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
   const websocketRef = useRef<boolean>(false);
   const historyCheckOn = useRef<boolean>(false);
 
-  // Use SSE to update data, /api/events
+  // Use SSE to update data
   const startSse = () => {
     const newData = { ...data };
-    const eventSource = new EventSource(`${API_URL}/api/events`);
+    const eventSource = new EventSource(`${API_URL}/eventsSse`);
 
     const fetchState = async () => {
-      return fetch(`${API_URL}/api/state`)
+      return fetch(`${API_URL}/state`)
         .then((response) => {
           if (!response.ok) {
             throw new Error('Failed to get full state');
           }
-          return response.json() as Promise<FullState>;
+          return response.json() as Promise<API.State>;
         })
         .then((fullState) => {
-          newData.isOnline = fullState.isOnline;
+          newData.isOnline = fullState.satisfactoryApiStatus.running;
           newData.circuits = fullState.circuits;
           newData.factoryStats = fullState.factoryStats;
           newData.prodStats = fullState.prodStats;
@@ -63,49 +62,49 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
     };
 
     newData.isLoading = true;
-    fetchState();
+    void fetchState();
     setData(newData);
 
-    eventSource.onmessage = (event) => {
-      const parsed = JSON.parse(event.data) as SseEvent<any>;
-      switch (parsed.type as SatisfactoryEventType) {
-        case SatisfactoryEventType.satisfactoryApiCheck:
+    eventSource.addEventListener(API.SatisfactoryEventKey, (event) => {
+      const parsed = JSON.parse(event.data) as API.SseSatisfactoryEvent;
+      switch (parsed.type as API.SatisfactoryEventType) {
+        case API.SatisfactoryEventApiStatus:
           // If was offline, and now is online, set loading to false and request full state
-          if (!newData.isOnline && parsed.data.isOnline) {
-            fetchState();
+          if (!newData.isOnline && parsed.data.running) {
+            void fetchState();
             newData.isLoading = false;
           } else {
-            newData.isOnline = parsed.data.isOnline;
+            newData.isOnline = parsed.data.running;
           }
           break;
-        case SatisfactoryEventType.circuits:
+        case API.SatisfactoryEventCircuits:
           newData.circuits = parsed.data;
           break;
-        case SatisfactoryEventType.factoryStats:
+        case API.SatisfactoryEventFactoryStats:
           newData.factoryStats = parsed.data;
           break;
-        case SatisfactoryEventType.prodStats:
+        case API.SatisfactoryEventProdStats:
           newData.prodStats = parsed.data;
           break;
-        case SatisfactoryEventType.sinkStats:
+        case API.SatisfactoryEventSinkStats:
           newData.sinkStats = parsed.data;
           break;
-        case SatisfactoryEventType.players:
+        case API.SatisfactoryEventPlayers:
           newData.players = parsed.data;
           break;
-        case SatisfactoryEventType.generatorStats:
+        case API.SatisfactoryEventGeneratorStats:
           newData.generatorStats = parsed.data;
           break;
-        case SatisfactoryEventType.trains:
+        case API.SatisfactoryEventTrainSetup:
           newData.trains = parsed.data.trains;
           newData.trainStations = parsed.data.trainStations;
           break;
-        case SatisfactoryEventType.drones:
+        case API.SatisfactoryEventDroneSetup:
           newData.drones = parsed.data.drones;
           newData.droneStations = parsed.data.droneStations;
           break;
       }
-    };
+    });
 
     eventSource.onerror = () => {
       newData.isOnline = false;
@@ -135,9 +134,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({ children }) => {
 
         // Keep one minute of history, check timestamps
         const oneMinuteAgo = new Date(latestData.timestamp.getTime() - 60000);
-        const filteredHistory = newHistory.filter((entry) => entry.timestamp > oneMinuteAgo);
-
-        return filteredHistory;
+        return newHistory.filter((entry) => entry.timestamp > oneMinuteAgo);
       });
     }, 1000);
   };

@@ -1,5 +1,10 @@
 import { Marker, useMapEvents } from 'react-leaflet';
-import { MachineCategory } from 'common/types';
+import {
+  MachineCategory,
+  MachineCategoryExtractor,
+  MachineCategoryFactory,
+  MachineCategoryGenerator,
+} from 'src/apiTypes';
 import { ConvertToMapCoords2 } from './bounds';
 import L from 'leaflet';
 import { MachineGroup } from 'src/types';
@@ -16,7 +21,7 @@ const iconifyFactory = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
       </svg>`;
 const iconifyMiner = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
         <path fill="currentColor" d="M3.1.7a.5.5 0 0 1 .4-.2h9a.5.5 0 0 1 .4.2l2.976 3.974c.149.185.156.45.01.644L8.4 15.3a.5.5 0 0 1-.8 0L.1 5.3a.5.5 0 0 1 0-.6zm11.386 3.785l-1.806-2.41l-.776 2.413zm-3.633.004l.961-2.989H4.186l.963 2.995zM5.47 5.495L8 13.366l2.532-7.876zm-1.371-.999l-.78-2.422l-1.818 2.425zM1.499 5.5l5.113 6.817l-2.192-6.82zm7.889 6.817l5.123-6.83l-2.928.002z"/>
-      </svg>`
+      </svg>`;
 const iconifyGenerator = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
       <path fill="currentColor" d="M19.836 10.486a.9.9 0 0 1-.21.47l-9.75 10.71a.94.94 0 0 1-.49.33q-.125.015-.25 0a1 1 0 0 1-.41-.09a.92.92 0 0 1-.45-.46a.9.9 0 0 1-.07-.58l.86-6.86h-3.63a1.7 1.7 0 0 1-.6-.15a1.29 1.29 0 0 1-.68-.99a1.3 1.3 0 0 1 .09-.62l3.78-9.45c.1-.239.266-.444.48-.59a1.3 1.3 0 0 1 .72-.21h7.24c.209.004.414.055.6.15c.188.105.349.253.47.43c.112.179.18.38.2.59a1.2 1.2 0 0 1-.1.61l-2.39 5.57h3.65a1 1 0 0 1 .51.16a1 1 0 0 1 .43 1z"/>
      </svg>`;
@@ -43,13 +48,13 @@ const MultiIcon = (svgs: string[], { size, color, backgroundColor, padding }: Ic
 const iconFromCategories = (categories: MachineCategory[], props: IconProps) => {
   const svgs: string[] = [];
 
-  if (categories.includes(MachineCategory.extractor)) {
+  if (categories.includes(MachineCategoryExtractor)) {
     svgs.push(iconifyMiner);
   }
-  if (categories.includes(MachineCategory.factory)) {
+  if (categories.includes(MachineCategoryFactory)) {
     svgs.push(iconifyFactory);
   }
-  if (categories.includes(MachineCategory.generator)) {
+  if (categories.includes(MachineCategoryGenerator)) {
     svgs.push(iconifyGenerator);
   }
 

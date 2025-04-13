@@ -1,0 +1,21 @@
+info:
+  contact: {}
+paths:
+  /v1/circuits:
+    get:
+      consumes:
+      - application/json
+      description: List all circuits
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of circuits
+          schema:
+            items:
+              type: string
+            type: array
+      summary: List Circuits
+      tags:
+      - Circuits
+swagger: "2.0"

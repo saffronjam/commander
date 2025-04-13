@@ -1,4 +1,4 @@
-import { Machine, MachineCategory } from 'common/types';
+import { Machine, MachineCategoryGenerator } from 'src/apiTypes';
 import { MachineGroup } from 'src/types';
 
 class UnionFind {
@@ -73,11 +73,11 @@ export const computeMachineGroups = (machines: Machine[], groupDistance: number)
       y: machines.reduce((acc, m) => acc + m.y, 0) / machines.length,
     };
     const powerConsumption = machines.reduce((acc, m) => {
-      if (m.category === MachineCategory.generator) return acc;
+      if (m.category === MachineCategoryGenerator) return acc;
       return acc + (m.input.find((i) => i.name === 'Power')?.current || 0);
     }, 0);
     const powerProduction = machines.reduce((acc, m) => {
-      if (m.category !== MachineCategory.generator) return acc;
+      if (m.category !== MachineCategoryGenerator) return acc;
       return acc + (m.output.find((i) => i.name === 'Power')?.current || 0);
     }, 0);
 

@@ -1,10 +1,4 @@
 {
-  "extends": "../tsconfig.json",
-  "references": [
-    {
-      "path": "../common"
-    },
-  ],
   "compilerOptions": {
     "baseUrl": ".",
     "target": "ESNext",
@@ -29,17 +23,12 @@
     "noFallthroughCasesInSwitch": true,
     "useUnknownInCatchVariables": false,
     "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "paths": {
-      "common/*": [
-        "../common/src/*"
-      ]
-    }
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
     "src"
   ],
   "exclude": [
     "node_modules"
-  ],
+  ]
 }

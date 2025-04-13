@@ -1,0 +1,11 @@
+port: 8081
+mode: "dev"
+externalUrl: "http://localhost:8081"
+filepath: "config.docker.yml"
+
+satisfactoryApi:
+  url: http://10.1.1.81:8080
+
+redis:
+  url: redis:6379
+  password: ""

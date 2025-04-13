@@ -1,4 +1,4 @@
-import { Machine } from 'common/types';
+import { Machine } from 'src/apiTypes';
 
 export type Settings = {
   apiUrl: string;

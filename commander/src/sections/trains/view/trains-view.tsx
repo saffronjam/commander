@@ -1,15 +1,15 @@
 import { DashboardContent } from 'src/layouts/dashboard';
 import {
-  useTheme,
-  Grid2 as Grid,
+  Backdrop,
+  Box,
   Card,
   CardContent,
-  Typography,
-  Box,
-  Backdrop,
   CircularProgress,
   Container,
   Divider,
+  Grid2 as Grid,
+  Typography,
+  useTheme,
 } from '@mui/material';
 import { Gauge } from '../gauge';
 import { TrainList } from '../train-list';
@@ -42,7 +42,7 @@ export function TrainsView() {
     api.trains.reduce((acc, train) => {
       return (
         acc +
-        train.vechicles.reduce((acc, vehicle) => {
+        train.vehicles.reduce((acc, vehicle) => {
           return (
             acc +
             vehicle.inventory.reduce((acc, item) => {

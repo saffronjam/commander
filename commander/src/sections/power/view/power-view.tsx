@@ -12,7 +12,7 @@ import {
 import { DashboardContent } from 'src/layouts/dashboard';
 import { ApiContext } from 'src/contexts/api/useApi';
 import { CircuitCard } from '../circuit-card';
-import { Circuit } from 'common/types';
+import { Circuit } from 'src/apiTypes';
 import { fShortenNumber, WattHoursUnits, WattUnits } from 'src/utils/format-number';
 import { useContextSelector } from 'use-context-selector';
 

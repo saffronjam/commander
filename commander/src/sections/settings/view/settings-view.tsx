@@ -1,27 +1,21 @@
 import {
+  Button,
+  Card,
+  CardContent,
+  Container,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
-  IconButton,
-  Tooltip,
-} from '@mui/material';
-import { useTheme } from '@mui/material';
-import {
-  Card,
-  CardContent,
-  Container,
-  Typography,
   Grid2 as Grid,
-  Select,
-  MenuItem,
-  Button,
+  IconButton,
   TextField,
-  Box,
+  Tooltip,
+  Typography,
+  useTheme,
 } from '@mui/material';
 import { useState } from 'react';
-import { sentenceCase } from 'sentence-case';
 import { Iconify } from 'src/components/iconify';
 import { useSettings } from 'src/hooks/use-settings';
 

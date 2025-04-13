@@ -8,7 +8,7 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import { Circuit } from 'common/types';
+import { Circuit } from 'src/apiTypes';
 import { Iconify } from 'src/components/iconify';
 import { varAlpha } from 'src/theme/styles';
 import { fPercent, fShortenNumber, WattHoursUnits, WattUnits } from 'src/utils/format-number';

@@ -1,5 +1,4 @@
 import {
-  Box,
   Card,
   CardContent,
   CardHeader,
@@ -7,7 +6,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { useContext, useEffect, useState } from 'react';
 import { Grid2 as Grid } from '@mui/material';
 
 import { DashboardContent } from 'src/layouts/dashboard';

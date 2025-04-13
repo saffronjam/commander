@@ -1,22 +1,22 @@
 import * as React from 'react';
 import {
-  TableContainer,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TablePagination,
-  useTheme,
+  Backdrop,
   Box,
-  FormControlLabel,
   Checkbox,
+  CircularProgress,
+  FormControlLabel,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TablePagination,
+  TableRow,
+  TextField,
   Tooltip,
   Typography,
-  Backdrop,
-  CircularProgress,
-  Stack,
-  TextField,
+  useTheme,
 } from '@mui/material';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { ApiContext, ApiContextType } from 'src/contexts/api/useApi';
@@ -24,14 +24,7 @@ import { varAlpha } from 'src/theme/styles';
 import { useSettings } from 'src/hooks/use-settings';
 import { Iconify } from 'src/components/iconify';
 import { useContextSelector } from 'use-context-selector';
-import {
-  fNumber,
-  fPercent,
-  fShortenNumber,
-  MetricUnits,
-  PerMinuteMetricUnits,
-} from 'src/utils/format-number';
-import { background } from 'src/theme/core';
+import { fShortenNumber, MetricUnits, PerMinuteMetricUnits } from 'src/utils/format-number';
 
 type Column = {
   id:

@@ -1,5 +1,13 @@
 import { Box, Card, CardContent, Chip, Stack, Typography, useTheme } from '@mui/material';
-import { Train, TrainStation, TrainStatus } from 'common/types';
+import {
+  Train,
+  TrainStation,
+  TrainStatusDerailed,
+  TrainStatusDocking,
+  TrainStatusManual,
+  TrainStatusParked,
+  TrainStatusSelfDriving,
+} from 'src/apiTypes';
 import { Iconify } from 'src/components/iconify';
 import { varAlpha } from 'src/theme/styles';
 import { fNumber } from 'src/utils/format-number';
@@ -10,7 +18,7 @@ const TrainCard = ({ train }: { train: Train }) => {
 
   const statusToStyle = (status: string) => {
     switch (status) {
-      case TrainStatus.selfDriving:
+      case TrainStatusSelfDriving:
         return {
           icon: <Iconify icon="mdi:train" />,
           label: 'Self Driving',
@@ -18,7 +26,7 @@ const TrainCard = ({ train }: { train: Train }) => {
           color: theme.palette.primary.contrastTextChannel,
           pulse: false,
         };
-      case TrainStatus.manualDriving:
+      case TrainStatusManual:
         return {
           icon: <Iconify icon="ri:steering-2-fill" />,
           label: 'Manual Driving',
@@ -26,7 +34,7 @@ const TrainCard = ({ train }: { train: Train }) => {
           color: theme.palette.warning.contrastTextChannel,
           pulse: false,
         };
-      case TrainStatus.docking:
+      case TrainStatusDocking:
         return {
           icon: <Iconify icon="game-icons:cargo-crate" />,
           label: 'Docking',
@@ -34,7 +42,7 @@ const TrainCard = ({ train }: { train: Train }) => {
           color: theme.palette.primary.contrastTextChannel,
           pulse: true,
         };
-      case TrainStatus.derailed:
+      case TrainStatusDerailed:
         return {
           icon: <Iconify icon="mdi:alert" />,
           label: 'Derailed',
@@ -42,7 +50,7 @@ const TrainCard = ({ train }: { train: Train }) => {
           color: theme.palette.primary.contrastTextChannel,
           pulse: false,
         };
-      case TrainStatus.parked:
+      case TrainStatusParked:
         return {
           icon: <Iconify icon="mdi:train-car" />,
           label: 'Parked',
@@ -60,6 +68,7 @@ const TrainCard = ({ train }: { train: Train }) => {
         };
     }
   };
+
   function parseTrainItems(trainName: string) {
     // Extract the item codes within the brackets using regex
     const match = trainName.match(/\[(.*?)\]/);
@@ -168,9 +177,11 @@ const TrainCard = ({ train }: { train: Train }) => {
           >
             {train.timetable.map((stop, index) => {
               const isCurrentStop = index === train.timetableIndex;
-              const isPreviousStop = index === train.timetableIndex - 1 || (train.timetableIndex === 0 && index === train.timetable.length - 1);
+              const isPreviousStop =
+                index === train.timetableIndex - 1 ||
+                (train.timetableIndex === 0 && index === train.timetable.length - 1);
               const isLastStop = index === train.timetable.length - 1;
-              const isWrapping = train.timetableIndex === 0 && train.status !== TrainStatus.docking;
+              const isWrapping = train.timetableIndex === 0 && train.status !== TrainStatusDocking;
 
               const baseLineProps = {
                 position: 'absolute',
@@ -207,9 +218,14 @@ const TrainCard = ({ train }: { train: Train }) => {
                 transition: 'background-color 0.6s ease',
               };
 
-
-              const lineProps = (isCurrentStop) && train.status !== TrainStatus.docking ? { ...baseLineProps, ...activatedLineProps } : baseLineProps;
-              const circleProps = (isPreviousStop) && train.status === TrainStatus.docking ? { ...baseCircleProps, ...activatedCircleProps } : baseCircleProps;
+              const lineProps =
+                isCurrentStop && train.status !== TrainStatusDocking
+                  ? { ...baseLineProps, ...activatedLineProps }
+                  : baseLineProps;
+              const circleProps =
+                isPreviousStop && train.status === TrainStatusDocking
+                  ? { ...baseCircleProps, ...activatedCircleProps }
+                  : baseCircleProps;
 
               return (
                 <Box
@@ -230,8 +246,12 @@ const TrainCard = ({ train }: { train: Train }) => {
 
                   {/* Horizontal connecting line with animation */}
                   {index > 0 && <Box sx={lineProps} />}
-                  {isWrapping && <Box sx={{...lineProps, width: '60px', left: '30px'}} />}
-                  {isWrapping && isLastStop && <Box sx={{...baseLineProps,...activatedLineProps, width: '60px', left: '110px'}} />}
+                  {isWrapping && <Box sx={{ ...lineProps, width: '60px', left: '30px' }} />}
+                  {isWrapping && isLastStop && (
+                    <Box
+                      sx={{ ...baseLineProps, ...activatedLineProps, width: '60px', left: '110px' }}
+                    />
+                  )}
                   {/* Circular node with conditional highlight */}
                   <Box sx={circleProps} />
                 </Box>

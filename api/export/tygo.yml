@@ -1,0 +1,5 @@
+packages:
+  - path: api/models/models
+    output_path: ../../commander/src/apiTypes.ts
+    type_mappings:
+      time.Time: "string"

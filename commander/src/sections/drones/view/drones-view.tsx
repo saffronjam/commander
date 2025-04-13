@@ -9,7 +9,6 @@ import {
   Backdrop,
   CircularProgress,
   Container,
-  Divider,
 } from '@mui/material';
 import { useContextSelector } from 'use-context-selector';
 import { ApiContext } from 'src/contexts/api/useApi';
