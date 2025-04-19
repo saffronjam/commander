@@ -111,12 +111,12 @@ kubectl
 
 tsconfig.tsbuildinfo
 *.d.ts
+!vite-env.d.ts
 *.ts.map
 
 .vscode
 
 PACKAGE_INFO
-
 
 # Custom
 scripts/scrape_map/output/
