@@ -2,6 +2,8 @@ services:
   commander:
     build:
       context: ./commander
+      args:
+        VITE_API_URL: http://localhost:8081
     container_name: commander
     ports:
       - "3000:3000"

@@ -1,5 +1,8 @@
 FROM node:23-slim AS build
 
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
 WORKDIR /app
 
 COPY package*.json ./
@@ -7,7 +10,7 @@ RUN npm install -f
 
 COPY . .
 
-RUN npm run build
+RUN VITE_API_URL=$VITE_API_URL npm run build
 
 FROM nginx:alpine AS production
 
