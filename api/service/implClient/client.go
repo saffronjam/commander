@@ -724,7 +724,7 @@ func (client *Client) ListTrains(ctx context.Context) ([]models.Train, error) {
 			for j, item := range v.Inventory {
 				inventory[j] = models.ItemStats{
 					Name:  item.Name,
-					Count: float64(item.Amount),
+					Count: item.Amount,
 				}
 			}
 			vehicles[i] = models.TrainVehicle{

@@ -13,8 +13,8 @@ type PowerInfo struct {
 }
 
 type RawItemAmount struct {
-	Name   string `json:"Name"`
-	Amount int    `json:"Amount"`
+	Name   string  `json:"Name"`
+	Amount float64 `json:"Amount"`
 }
 
 type RawProduction struct {
