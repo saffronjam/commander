@@ -1,46 +1,19 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect } from 'react';
+import { useSubscription } from 'urql';
 import * as API from 'src/apiTypes';
-import { config } from 'src/config';
-import { dispatchAuthExpired } from 'src/contexts/auth/AuthContext';
-import { ApiContext, ApiData } from './useApi';
-
-const API_URL = config.apiUrl;
-
-const DEFAULT_DATA: ApiData = {
-  isLoading: true,
-  isOnline: false,
-  satisfactoryApiStatus: undefined,
-  circuits: [],
-  factoryStats: {} as API.FactoryStats,
-  prodStats: {} as API.ProdStats,
-  sinkStats: {} as API.SinkStats,
-  players: [],
-  generatorStats: {} as API.GeneratorStats,
-  machines: [],
-  trains: [],
-  trainStations: [],
-  drones: [],
-  droneStations: [],
-  trucks: [],
-  truckStations: [],
-  belts: [],
-  pipes: [],
-  pipeJunctions: [],
-  trainRails: [],
-  splitterMergers: [],
-  hypertubes: [],
-  hypertubeEntrances: [],
-  cables: [],
-  storages: [],
-  tractors: [],
-  explorers: [],
-  vehiclePaths: [],
-  spaceElevator: undefined,
-  hub: undefined,
-  radarTowers: [],
-  resourceNodes: [],
-  schematics: [],
-};
+import { ApiContext, ApiData, DefaultApiContext } from './useApi';
+import {
+  CircuitsChangedSub,
+  FactoryStatsChangedSub,
+  PlayersChangedSub,
+  ProdStatsChangedSub,
+  SatisfactoryApiStatusChangedSub,
+  SessionUpdatedSub,
+  SinkStatsChangedSub,
+} from './live';
+import * as V from './live_vehicles';
+import * as I from './live_infra';
+import * as W from './live_world';
 
 interface ApiProviderProps {
   children: React.ReactNode;
@@ -49,266 +22,153 @@ interface ApiProviderProps {
   onSessionUpdate?: (session: API.SessionDTO) => void;
 }
 
+/**
+ * ApiProvider streams all live game state via GraphQL subscriptions (graphql-ws),
+ * exposing the ApiContext shape the app consumes. Each per-domain subscription
+ * forwards the latest snapshot first, then live deltas; results are mapped from
+ * the GraphQL types to the app's domain types (enum case + Fuel + generatorStats
+ * reconciled in the per-domain mappers).
+ */
 export const ApiProvider: React.FC<ApiProviderProps> = ({
   children,
   sessionId,
   sessionStage,
   onSessionUpdate,
 }) => {
-  const [data, setData] = useState<ApiData>(DEFAULT_DATA);
+  const pause = !sessionId;
+  const variables = { sessionId: sessionId ?? '' };
+  const opts = { variables, pause };
 
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const dataRef = useRef<ApiData>(DEFAULT_DATA);
-  const onSessionUpdateRef = useRef(onSessionUpdate);
+  const [apiStatus] = useSubscription({ query: SatisfactoryApiStatusChangedSub, ...opts });
+  const [circuits] = useSubscription({ query: CircuitsChangedSub, ...opts });
+  const [factory] = useSubscription({ query: FactoryStatsChangedSub, ...opts });
+  const [prod] = useSubscription({ query: ProdStatsChangedSub, ...opts });
+  const [sink] = useSubscription({ query: SinkStatsChangedSub, ...opts });
+  const [players] = useSubscription({ query: PlayersChangedSub, ...opts });
+  const [sessionUpd] = useSubscription({ query: SessionUpdatedSub, ...opts });
 
-  // Keep the ref up to date with the latest callback
-  useEffect(() => {
-    onSessionUpdateRef.current = onSessionUpdate;
-  }, [onSessionUpdate]);
+  const [drones] = useSubscription({ query: V.DronesChangedSub, ...opts });
+  const [droneStations] = useSubscription({ query: V.DroneStationsChangedSub, ...opts });
+  const [trains] = useSubscription({ query: V.TrainsChangedSub, ...opts });
+  const [trainStations] = useSubscription({ query: V.TrainStationsChangedSub, ...opts });
+  const [trucks] = useSubscription({ query: V.TrucksChangedSub, ...opts });
+  const [truckStations] = useSubscription({ query: V.TruckStationsChangedSub, ...opts });
+  const [tractors] = useSubscription({ query: V.TractorsChangedSub, ...opts });
+  const [explorers] = useSubscription({ query: V.ExplorersChangedSub, ...opts });
+  const [vehiclePaths] = useSubscription({ query: V.VehiclePathsChangedSub, ...opts });
 
-  const cleanup = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
+  const [machines] = useSubscription({ query: I.MachinesChangedSub, ...opts });
+  const [storages] = useSubscription({ query: I.StoragesChangedSub, ...opts });
+  const [belts] = useSubscription({ query: I.BeltsChangedSub, ...opts });
+  const [splitterMergers] = useSubscription({ query: I.SplitterMergersChangedSub, ...opts });
+  const [pipes] = useSubscription({ query: I.PipesChangedSub, ...opts });
+  const [pipeJunctions] = useSubscription({ query: I.PipeJunctionsChangedSub, ...opts });
+  const [cables] = useSubscription({ query: I.CablesChangedSub, ...opts });
+  const [trainRails] = useSubscription({ query: I.TrainRailsChangedSub, ...opts });
+  const [hypertubes] = useSubscription({ query: I.HypertubesChangedSub, ...opts });
+  const [hypertubeEntrances] = useSubscription({ query: I.HypertubeEntrancesChangedSub, ...opts });
 
-  // Ref to store fetchState function so it can be called from SSE handler
-  const fetchStateRef = useRef<(() => Promise<void>) | null>(null);
-
-  const startSse = useCallback(
-    (currentSessionId: string, isReady: boolean) => {
-      // Reset data for new session
-      const newData = { ...DEFAULT_DATA };
-      dataRef.current = newData;
-      setData(newData);
-
-      const eventSource = new EventSource(`${API_URL}/sessions/${currentSessionId}/events`, {
-        withCredentials: true,
-      });
-      eventSourceRef.current = eventSource;
-
-      const fetchState = async () => {
-        return fetch(`${API_URL}/sessions/${currentSessionId}/state`, { credentials: 'include' })
-          .then((response) => {
-            if (!response.ok) {
-              if (response.status === 401) {
-                dispatchAuthExpired();
-              }
-              throw new Error('Failed to get full state');
-            }
-            return response.json() as Promise<API.State>;
-          })
-          .then((fullState) => {
-            dataRef.current.satisfactoryApiStatus = fullState.satisfactoryApiStatus;
-            dataRef.current.isOnline = fullState.satisfactoryApiStatus.running;
-            dataRef.current.circuits = fullState.circuits;
-            dataRef.current.factoryStats = fullState.factoryStats;
-            dataRef.current.prodStats = fullState.prodStats;
-            dataRef.current.sinkStats = fullState.sinkStats;
-            dataRef.current.players = fullState.players;
-            dataRef.current.generatorStats = fullState.generatorStats;
-            dataRef.current.machines = fullState.machines ?? [];
-            dataRef.current.trains = fullState.trains;
-            dataRef.current.trainStations = fullState.trainStations;
-            dataRef.current.drones = fullState.drones;
-            dataRef.current.droneStations = fullState.droneStations;
-            dataRef.current.belts = fullState.belts ?? [];
-            dataRef.current.pipes = fullState.pipes ?? [];
-            dataRef.current.pipeJunctions = fullState.pipeJunctions ?? [];
-            dataRef.current.trainRails = fullState.trainRails ?? [];
-            dataRef.current.splitterMergers = fullState.splitterMergers ?? [];
-            dataRef.current.hypertubes = fullState.hypertubes ?? [];
-            dataRef.current.hypertubeEntrances = fullState.hypertubeEntrances ?? [];
-            dataRef.current.cables = fullState.cables ?? [];
-            dataRef.current.storages = fullState.storages ?? [];
-            dataRef.current.tractors = fullState.tractors ?? [];
-            dataRef.current.explorers = fullState.explorers ?? [];
-            dataRef.current.vehiclePaths = fullState.vehiclePaths ?? [];
-            dataRef.current.spaceElevator = fullState.spaceElevator;
-            dataRef.current.hub = fullState.hub;
-            dataRef.current.radarTowers = fullState.radarTowers ?? [];
-            dataRef.current.resourceNodes = fullState.resourceNodes ?? [];
-            dataRef.current.schematics = fullState.schematics ?? [];
-            dataRef.current.isLoading = false;
-            setData({ ...dataRef.current });
-          })
-          .catch((error) => {
-            console.error('Failed to get full state: ', error);
-            dataRef.current.isOnline = false;
-            dataRef.current.isLoading = false;
-            setData({ ...dataRef.current });
-          });
-      };
-
-      // Store fetchState in ref so it can be called when session becomes ready
-      fetchStateRef.current = fetchState;
-
-      dataRef.current.isLoading = true;
-      // Only fetch state if session is ready (not in init stage)
-      if (isReady) {
-        void fetchState();
-      }
-
-      eventSource.addEventListener(API.SatisfactoryEventKey, (event) => {
-        const parsed = JSON.parse(event.data) as API.SseSatisfactoryEvent;
-        switch (parsed.type as API.SatisfactoryEventType) {
-          case API.SatisfactoryEventApiStatus:
-            // If was offline, and now is online, set loading to false and request full state
-            // Only fetch if we have fetchStateRef (session should be ready by now via SSE)
-            if (!dataRef.current.isOnline && parsed.data.running && fetchStateRef.current) {
-              void fetchStateRef.current();
-              dataRef.current.isLoading = false;
-            }
-            dataRef.current.satisfactoryApiStatus = parsed.data;
-            dataRef.current.isOnline = parsed.data.running;
-            // Immediately update state when going offline for quick UI feedback
-            if (!parsed.data.running) {
-              setData({ ...dataRef.current });
-            }
-            break;
-          case API.SatisfactoryEventCircuits:
-            dataRef.current.circuits = parsed.data;
-            break;
-          case API.SatisfactoryEventFactoryStats:
-            dataRef.current.factoryStats = parsed.data;
-            break;
-          case API.SatisfactoryEventProdStats:
-            dataRef.current.prodStats = parsed.data;
-            break;
-          case API.SatisfactoryEventSinkStats:
-            dataRef.current.sinkStats = parsed.data;
-            break;
-          case API.SatisfactoryEventPlayers:
-            dataRef.current.players = parsed.data;
-            break;
-          case API.SatisfactoryEventGeneratorStats:
-            dataRef.current.generatorStats = parsed.data;
-            break;
-          case API.SatisfactoryEventMachines:
-            dataRef.current.machines = parsed.data;
-            break;
-          case API.SatisfactoryEventVehicles:
-            dataRef.current.trains = parsed.data.trains;
-            dataRef.current.drones = parsed.data.drones;
-            dataRef.current.trucks = parsed.data.trucks;
-            dataRef.current.tractors = parsed.data.tractors ?? [];
-            dataRef.current.explorers = parsed.data.explorers ?? [];
-            break;
-          case API.SatisfactoryEventVehicleStations:
-            dataRef.current.trainStations = parsed.data.trainStations;
-            dataRef.current.droneStations = parsed.data.droneStations;
-            dataRef.current.truckStations = parsed.data.truckStations;
-            break;
-          case API.SatisfactoryEventBelts:
-            dataRef.current.belts = parsed.data.belts;
-            dataRef.current.splitterMergers = parsed.data.splitterMergers;
-            break;
-          case API.SatisfactoryEventPipes:
-            dataRef.current.pipes = parsed.data.pipes;
-            dataRef.current.pipeJunctions = parsed.data.pipeJunctions;
-            break;
-          case API.SatisfactoryEventHypertubes:
-            dataRef.current.hypertubes = parsed.data.hypertubes;
-            dataRef.current.hypertubeEntrances = parsed.data.hypertubeEntrances;
-            break;
-          case API.SatisfactoryEventTrainRails:
-            dataRef.current.trainRails = parsed.data;
-            break;
-          case API.SatisfactoryEventCables:
-            dataRef.current.cables = parsed.data;
-            break;
-          case API.SatisfactoryEventStorages:
-            dataRef.current.storages = parsed.data;
-            break;
-          case API.SatisfactoryEventTractors:
-            dataRef.current.tractors = parsed.data;
-            break;
-          case API.SatisfactoryEventExplorers:
-            dataRef.current.explorers = parsed.data;
-            break;
-          case API.SatisfactoryEventVehiclePaths:
-            dataRef.current.vehiclePaths = parsed.data;
-            break;
-          case API.SatisfactoryEventSpaceElevator:
-            dataRef.current.spaceElevator = parsed.data;
-            break;
-          case API.SatisfactoryEventHub:
-            dataRef.current.hub = parsed.data;
-            break;
-          case API.SatisfactoryEventRadarTowers:
-            dataRef.current.radarTowers = parsed.data;
-            break;
-          case API.SatisfactoryEventResourceNodes:
-            dataRef.current.resourceNodes = parsed.data;
-            break;
-          case API.SatisfactoryEventSchematics:
-            dataRef.current.schematics = parsed.data;
-            break;
-          case API.SatisfactoryEventSessionUpdate:
-            if (onSessionUpdateRef.current) {
-              onSessionUpdateRef.current(parsed.data as API.SessionDTO);
-            }
-            break;
-        }
-      });
-
-      eventSource.onerror = () => {
-        dataRef.current.isOnline = false;
-        dataRef.current.isLoading = false;
-        setData({ ...dataRef.current });
-      };
-
-      // Setup interval that snapshots the current data
-      intervalRef.current = setInterval(() => {
-        setData({ ...dataRef.current });
-      }, 2000);
-    },
-    [cleanup]
-  );
-
-  // Track previous stage to detect transitions
-  const prevStageRef = useRef<API.SessionStage | null>(null);
+  const [spaceElevator] = useSubscription({ query: W.SpaceElevatorChangedSub, ...opts });
+  const [hub] = useSubscription({ query: W.HubChangedSub, ...opts });
+  const [radarTowers] = useSubscription({ query: W.RadarTowersChangedSub, ...opts });
+  const [resourceNodes] = useSubscription({ query: W.ResourceNodesChangedSub, ...opts });
+  const [schematics] = useSubscription({ query: W.SchematicsChangedSub, ...opts });
+  const [generatorStats] = useSubscription({ query: W.GeneratorStatsChangedSub, ...opts });
 
   useEffect(() => {
-    if (!API_URL) {
-      console.error('API_URL is not defined');
-      return;
+    const s = (sessionUpd.data as { sessionUpdated?: Record<string, unknown> } | undefined)
+      ?.sessionUpdated;
+    if (s && onSessionUpdate) {
+      onSessionUpdate({
+        ...s,
+        stage: s.stage === 'READY' ? 'ready' : 'init',
+      } as unknown as API.SessionDTO);
     }
+  }, [sessionUpd.data, onSessionUpdate]);
 
-    // Cleanup previous connection
-    cleanup();
+  const d = (r: { data?: unknown }) => r.data as Record<string, unknown> | undefined;
 
-    // Don't connect if no session selected
-    if (!sessionId) {
-      setData({ ...DEFAULT_DATA, isLoading: false });
-      return;
-    }
+  const data: ApiData = {
+    ...DefaultApiContext,
+    isLoading: pause ? false : !circuits.data && sessionStage !== 'ready',
+    isOnline:
+      ((d(apiStatus)?.satisfactoryApiStatusChanged as { running?: boolean })?.running) ?? false,
+    satisfactoryApiStatus: d(apiStatus)
+      ?.satisfactoryApiStatusChanged as unknown as API.SatisfactoryApiStatus,
+    circuits: (d(circuits)?.circuitsChanged ?? []) as unknown as API.Circuit[],
+    factoryStats:
+      (d(factory)?.factoryStatsChanged as unknown as API.FactoryStats) ??
+      DefaultApiContext.factoryStats,
+    prodStats:
+      (d(prod)?.prodStatsChanged as unknown as API.ProdStats) ?? DefaultApiContext.prodStats,
+    sinkStats:
+      (d(sink)?.sinkStatsChanged as unknown as API.SinkStats) ?? DefaultApiContext.sinkStats,
+    players: (d(players)?.playersChanged ?? []) as unknown as API.Player[],
 
-    const isReady = sessionStage === API.SessionStageReady;
-    startSse(sessionId, isReady);
-    prevStageRef.current = sessionStage;
+    drones: d(drones)?.dronesChanged ? V.mapDrones_vehicles(d(drones)!.dronesChanged as never) : [],
+    droneStations: d(droneStations)?.droneStationsChanged
+      ? V.mapDroneStations_vehicles(d(droneStations)!.droneStationsChanged as never)
+      : [],
+    trains: d(trains)?.trainsChanged ? V.mapTrains_vehicles(d(trains)!.trainsChanged as never) : [],
+    trainStations: d(trainStations)?.trainStationsChanged
+      ? V.mapTrainStations_vehicles(d(trainStations)!.trainStationsChanged as never)
+      : [],
+    trucks: d(trucks)?.trucksChanged ? V.mapTrucks_vehicles(d(trucks)!.trucksChanged as never) : [],
+    truckStations: d(truckStations)?.truckStationsChanged
+      ? V.mapTruckStations_vehicles(d(truckStations)!.truckStationsChanged as never)
+      : [],
+    tractors: d(tractors)?.tractorsChanged
+      ? V.mapTractors_vehicles(d(tractors)!.tractorsChanged as never)
+      : [],
+    explorers: d(explorers)?.explorersChanged
+      ? V.mapExplorers_vehicles(d(explorers)!.explorersChanged as never)
+      : [],
+    vehiclePaths: d(vehiclePaths)?.vehiclePathsChanged
+      ? V.mapVehiclePaths_vehicles(d(vehiclePaths)!.vehiclePathsChanged as never)
+      : [],
 
-    return cleanup;
-  }, [sessionId, cleanup, startSse]);
+    machines: d(machines)?.machinesChanged
+      ? I.mapMachines_infra(d(machines)!.machinesChanged as never)
+      : [],
+    storages: d(storages)?.storagesChanged
+      ? I.mapStorages_infra(d(storages)!.storagesChanged as never)
+      : [],
+    belts: d(belts)?.beltsChanged ? I.mapBelts_infra(d(belts)!.beltsChanged as never) : [],
+    splitterMergers: d(splitterMergers)?.splitterMergersChanged
+      ? I.mapSplitterMergers_infra(d(splitterMergers)!.splitterMergersChanged as never)
+      : [],
+    pipes: d(pipes)?.pipesChanged ? I.mapPipes_infra(d(pipes)!.pipesChanged as never) : [],
+    pipeJunctions: d(pipeJunctions)?.pipeJunctionsChanged
+      ? I.mapPipeJunctions_infra(d(pipeJunctions)!.pipeJunctionsChanged as never)
+      : [],
+    cables: d(cables)?.cablesChanged ? I.mapCables_infra(d(cables)!.cablesChanged as never) : [],
+    trainRails: d(trainRails)?.trainRailsChanged
+      ? I.mapTrainRails_infra(d(trainRails)!.trainRailsChanged as never)
+      : [],
+    hypertubes: d(hypertubes)?.hypertubesChanged
+      ? I.mapHypertubes_infra(d(hypertubes)!.hypertubesChanged as never)
+      : [],
+    hypertubeEntrances: d(hypertubeEntrances)?.hypertubeEntrancesChanged
+      ? I.mapHypertubeEntrances_infra(d(hypertubeEntrances)!.hypertubeEntrancesChanged as never)
+      : [],
 
-  // Handle session stage transitions (init -> ready)
-  useEffect(() => {
-    // If stage changed from init to ready, fetch state
-    if (
-      prevStageRef.current === API.SessionStageInit &&
-      sessionStage === API.SessionStageReady &&
-      fetchStateRef.current
-    ) {
-      void fetchStateRef.current();
-    }
-    prevStageRef.current = sessionStage;
-  }, [sessionStage]);
+    spaceElevator: d(spaceElevator)?.spaceElevatorChanged
+      ? W.mapSpaceElevator_world(d(spaceElevator)!.spaceElevatorChanged as never)
+      : undefined,
+    hub: d(hub)?.hubChanged ? W.mapHub_world(d(hub)!.hubChanged as never) : undefined,
+    radarTowers: d(radarTowers)?.radarTowersChanged
+      ? W.mapRadarTowers_world(d(radarTowers)!.radarTowersChanged as never)
+      : [],
+    resourceNodes: d(resourceNodes)?.resourceNodesChanged
+      ? W.mapResourceNodes_world(d(resourceNodes)!.resourceNodesChanged as never)
+      : [],
+    schematics: d(schematics)?.schematicsChanged
+      ? W.mapSchematics_world(d(schematics)!.schematicsChanged as never)
+      : [],
+    generatorStats: d(generatorStats)?.generatorStatsChanged
+      ? W.mapGeneratorStats_world(d(generatorStats)!.generatorStatsChanged as never)
+      : DefaultApiContext.generatorStats,
+  };
 
   return <ApiContext.Provider value={data}>{children}</ApiContext.Provider>;
 };
