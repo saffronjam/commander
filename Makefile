@@ -8,9 +8,12 @@ BUN := $(shell command -v bun 2>/dev/null || echo "$(HOME)/.bun/bin/bun")
 CONTAINER_CMD ?= docker
 
 # Container image names
-ASSET_SERVER_IMAGE ?= ghcr.io/saffronjam/satisfactory-dashboard-asset-server
+APP_IMAGE ?= ghcr.io/saffronjam/satisfactory-dashboard
+SEED_IMAGE ?= ghcr.io/saffronjam/satisfactory-dashboard-seed
+ASSETS_IMAGE ?= ghcr.io/saffronjam/satisfactory-dashboard-assets
+ASSETS_TAG ?= latest
 
-.PHONY: help run frontend backend backend-live backend-api backend-poller backend-api-2 backend-poller-2 backend-2 kill lint format build clean generate install tidy deps deps-down unpack-assets pack-assets prepare-for-commit asset-server asset-server-push test test-verbose
+.PHONY: help run frontend backend backend-live kill lint format build clean generate install tidy unpack-assets pack-assets prepare-for-commit assets-publish test test-verbose
 
 # Default target - show help
 help:
@@ -23,13 +26,6 @@ help:
 	@echo "  make backend-live     - Run backend server with hot reload"
 	@echo "  make kill             - Kill all development processes"
 	@echo ""
-	@echo "Multi-Instance Backend (for testing distributed coordination):"
-	@echo "  make backend-api      - Run backend API only (instance 1)"
-	@echo "  make backend-poller   - Run backend poller only (instance 1)"
-	@echo "  make backend-api-2    - Run backend API only (instance 2, port 8082)"
-	@echo "  make backend-poller-2 - Run backend poller only (instance 2)"
-	@echo "  make backend-2        - Run full backend (instance 2, port 8082)"
-	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint             - Run all linters (backend + frontend)"
 	@echo "  make format           - Format all code (Go + TypeScript)"
@@ -40,10 +36,6 @@ help:
 	@echo "  make frontend-build   - Build frontend for production"
 	@echo "  make backend-build    - Build backend binary"
 	@echo "  make clean            - Clean build artifacts"
-	@echo ""
-	@echo "Dependencies:"
-	@echo "  make deps             - Start Redis (required for local dev)"
-	@echo "  make deps-down        - Stop Redis"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make unpack-assets    - Extract LFS assets (run after clone)"
@@ -58,9 +50,10 @@ help:
 	@echo "  make generate         - Generate TypeScript types from Go structs"
 	@echo "  make tidy             - Run go mod tidy"
 	@echo ""
-	@echo "Asset Server (production):"
-	@echo "  make asset-server     - Build asset server Docker image"
-	@echo "  make asset-server-push- Build and push asset server image"
+	@echo "Deployment (production):"
+	@echo "  make docker-build     - Build the app + seeder images"
+	@echo "  make assets-publish   - Push the map/icon tiles OCI artifact via ORAS"
+	@echo "                          (maintainer-only; ASSETS_TAG=tiles-YYYYMMDD)"
 	@echo ""
 
 # ============================================================================
@@ -84,32 +77,12 @@ frontend:
 
 backend:
 	@echo "Starting backend server..."
-	cd api && SD_NODE_NAME=dev-backend go run main.go -api -publisher
+	cd api && go run main.go
 
 backend-live:
 	@echo "Starting backend server with hot reload..."
 	@echo "Watching for changes in api/ directory"
-	cd api && SD_NODE_NAME=dev-backend $(shell go env GOPATH)/bin/air
-
-backend-2:
-	@echo "Starting full backend (instance 2, port 8082)..."
-	cd api && SD_API_PORT=8082 SD_NODE_NAME=dev-backend-2 go run main.go -api -publisher
-
-backend-api:
-	@echo "Starting backend API (instance 1)..."
-	cd api && SD_NODE_NAME=dev-api-1 go run main.go -api
-
-backend-poller:
-	@echo "Starting backend poller (instance 1)..."
-	cd api && SD_NODE_NAME=dev-poller-1 go run main.go -publisher
-
-backend-api-2:
-	@echo "Starting backend API (instance 2, port 8082)..."
-	cd api && SD_API_PORT=8082 SD_NODE_NAME=dev-api-2 go run main.go -api
-
-backend-poller-2:
-	@echo "Starting backend poller (instance 2)..."
-	cd api && SD_NODE_NAME=dev-poller-2 go run main.go -publisher
+	cd api && $(shell go env GOPATH)/bin/air
 
 kill:
 	@echo "Killing all development servers..."
@@ -156,7 +129,7 @@ prepare-for-commit: generate format lint
 # Build
 # ============================================================================
 
-build: backend-build frontend-build
+build: frontend-build backend-build
 	@echo "All builds complete"
 
 backend-build:
@@ -165,9 +138,10 @@ backend-build:
 	@echo "Backend binary: api/bin/api"
 
 frontend-build:
-	@echo "Building frontend for production..."
+	@echo "Building frontend for production (embedded in the Go binary)..."
 	cd dashboard && $(BUN) run build
-	@echo "Frontend build: dashboard/dist/"
+	@touch api/web/dist/.gitkeep
+	@echo "Frontend build: api/web/dist/"
 
 # ============================================================================
 # Cleanup
@@ -177,6 +151,7 @@ clean:
 	@echo "Cleaning build artifacts..."
 	cd api && rm -rf bin/
 	cd api && go clean
+	cd api && find web/dist -mindepth 1 ! -name .gitkeep -delete
 	cd dashboard && rm -rf dist build
 	@echo "Cleanup complete"
 
@@ -237,25 +212,15 @@ pack-assets:
 	@echo "Assets packed successfully"
 
 # ============================================================================
-# Dependencies
-# ============================================================================
-
-deps:
-	@echo "Starting Redis..."
-	$(CONTAINER_CMD) compose up -d redis
-	@echo "Redis available at localhost:6379"
-
-deps-down:
-	@echo "Stopping Redis..."
-	$(CONTAINER_CMD) compose down redis
-
-# ============================================================================
 # Docker (full stack)
 # ============================================================================
 
 docker-build:
-	@echo "Building Docker images..."
-	$(CONTAINER_CMD) compose build
+	@echo "Building app + seeder images..."
+	$(CONTAINER_CMD) build -t $(APP_IMAGE):latest \
+		--label org.opencontainers.image.source=https://github.com/saffronjam/satisfactory-dashboard .
+	$(CONTAINER_CMD) build -f deploy/Dockerfile.seed -t $(SEED_IMAGE):latest \
+		--label org.opencontainers.image.source=https://github.com/saffronjam/satisfactory-dashboard .
 
 docker-up:
 	@echo "Starting all Docker containers..."
@@ -270,15 +235,18 @@ docker-logs:
 	$(CONTAINER_CMD) compose logs -f
 
 # ============================================================================
-# Asset Server (production deployment)
+# Assets (ORAS artifact publish — maintainer-only, rare)
 # ============================================================================
 
-asset-server:
-	@echo "Building asset server image..."
-	$(CONTAINER_CMD) build -f asset-server/Dockerfile -t $(ASSET_SERVER_IMAGE):latest \
-		--label org.opencontainers.image.source=https://github.com/saffronjam/satisfactory-dashboard \
-		.
-
-asset-server-push: asset-server
-	@echo "Pushing asset server image..."
-	$(CONTAINER_CMD) push $(ASSET_SERVER_IMAGE):latest
+# Publish the map/icon tiles as a versioned OCI artifact via ORAS. Requires the
+# `oras` CLI and a registry login. Pull LFS first so the tarballs are real.
+# Usage: make assets-publish ASSETS_TAG=tiles-YYYYMMDD
+assets-publish:
+	@echo "Publishing assets artifact $(ASSETS_IMAGE):$(ASSETS_TAG)..."
+	git lfs pull
+	cd $(ASSETS_DIR) && oras push $(ASSETS_IMAGE):$(ASSETS_TAG) \
+		--artifact-type application/vnd.satisfactory-dashboard.assets \
+		map-realistic.tar.gz:application/gzip \
+		map-game.tar.gz:application/gzip \
+		scraped-images.tar.gz:application/gzip
+	@echo "Published $(ASSETS_IMAGE):$(ASSETS_TAG)"
