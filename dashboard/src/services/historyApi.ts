@@ -1,9 +1,8 @@
-import { HistoryChunk } from 'src/apiTypes';
-import { config } from 'src/config';
-import { dispatchAuthExpired } from 'src/contexts/auth/AuthContext';
-import { HistoryDataRange } from 'src/types';
-
-const API_URL = config.apiUrl;
+import type { DataPoint, HistoryChunk } from 'src/apiTypes';
+import { mapGeneratorStats_world } from 'src/contexts/api/live_world';
+import { graphql } from 'src/gql';
+import { client } from 'src/gql/client';
+import type { HistoryDataRange } from 'src/types';
 
 /** Valid data types that support history storage */
 export type HistoryDataType =
@@ -20,35 +19,8 @@ export interface FetchHistoryParams {
   saveName?: string;
   since?: number;
   limit?: number;
-  /** The configured history data range in seconds. -1 for all time. */
   historyDataRange?: HistoryDataRange;
-  /** The current game time (latest known gameTimeId). Used with historyDataRange to calculate 'since'. */
   currentGameTime?: number;
-}
-
-/**
- * Calculate the 'since' parameter based on historyDataRange and currentGameTime.
- * Returns undefined if 'since' was explicitly provided, historyDataRange is -1 (all time),
- * or if currentGameTime is not available.
- */
-function calculateSince(params: FetchHistoryParams): number | undefined {
-  const { since, historyDataRange, currentGameTime } = params;
-
-  // If 'since' was explicitly provided, use it directly
-  if (since !== undefined) {
-    return since;
-  }
-
-  // If no range limit (-1 means all time) or no current game time, don't limit
-  if (historyDataRange === undefined || historyDataRange === -1 || currentGameTime === undefined) {
-    return undefined;
-  }
-
-  // Calculate since = currentGameTime - historyDataRange
-  const calculatedSince = currentGameTime - historyDataRange;
-
-  // Don't return negative values
-  return calculatedSince > 0 ? calculatedSince : undefined;
 }
 
 /** Response for listing available save names with history */
@@ -57,60 +29,187 @@ export interface ListHistorySavesResponse {
   currentSave: string;
 }
 
-/**
- * Handle API response and dispatch auth expired event on 401.
- */
-async function handleResponse<T>(response: Response, errorMessage: string): Promise<T> {
-  if (!response.ok) {
-    if (response.status === 401) {
-      dispatchAuthExpired();
-    }
-    const error = await response.json().catch(() => ({ message: errorMessage }));
-    throw new Error(error.errors?.[0]?.msg || error.message || errorMessage);
+function calculateSince(params: FetchHistoryParams): number | undefined {
+  const { since, historyDataRange, currentGameTime } = params;
+  if (since !== undefined) {
+    return since;
   }
-  return response.json();
+  if (historyDataRange === undefined || historyDataRange === -1 || currentGameTime === undefined) {
+    return undefined;
+  }
+  const calculatedSince = currentGameTime - historyDataRange;
+  return calculatedSince > 0 ? calculatedSince : undefined;
 }
 
+const CircuitsHistoryQuery = graphql(`
+  query CircuitsHistory($sessionId: ID!, $saveName: String!, $since: Int, $maxPoints: Int) {
+    circuitsHistory(sessionId: $sessionId, saveName: $saveName, since: $since, maxPoints: $maxPoints) {
+      gameTimeId
+      circuits {
+        id
+        fuseTriggered
+        consumption { total max }
+        production { total }
+        capacity { total }
+        battery { percentage capacity differential untilFull untilEmpty }
+      }
+    }
+  }
+`);
+
+const FactoryStatsHistoryQuery = graphql(`
+  query FactoryStatsHistory($sessionId: ID!, $saveName: String!, $since: Int, $maxPoints: Int) {
+    factoryStatsHistory(sessionId: $sessionId, saveName: $saveName, since: $since, maxPoints: $maxPoints) {
+      gameTimeId
+      factoryStats {
+        totalMachines
+        efficiency {
+          machinesOperating
+          machinesIdle
+          machinesPaused
+          machinesUnconfigured
+          machinesUnknown
+        }
+      }
+    }
+  }
+`);
+
+const ProdStatsHistoryQuery = graphql(`
+  query ProdStatsHistory($sessionId: ID!, $saveName: String!, $since: Int, $maxPoints: Int) {
+    prodStatsHistory(sessionId: $sessionId, saveName: $saveName, since: $since, maxPoints: $maxPoints) {
+      gameTimeId
+      prodStats {
+        minableProducedPerMinute
+        minableConsumedPerMinute
+        itemsProducedPerMinute
+        itemsConsumedPerMinute
+        items {
+          name
+          count
+          producedPerMinute
+          maxProducePerMinute
+          produceEfficiency
+          consumedPerMinute
+          maxConsumePerMinute
+          consumeEfficiency
+          cloudCount
+          minable
+        }
+      }
+    }
+  }
+`);
+
+const GeneratorStatsHistoryQuery = graphql(`
+  query GeneratorStatsHistory($sessionId: ID!, $saveName: String!, $since: Int, $maxPoints: Int) {
+    generatorStatsHistory(sessionId: $sessionId, saveName: $saveName, since: $since, maxPoints: $maxPoints) {
+      gameTimeId
+      generatorStats {
+        sources {
+          type
+          source { count totalProduction }
+        }
+      }
+    }
+  }
+`);
+
+const SinkStatsHistoryQuery = graphql(`
+  query SinkStatsHistory($sessionId: ID!, $saveName: String!, $since: Int, $maxPoints: Int) {
+    sinkStatsHistory(sessionId: $sessionId, saveName: $saveName, since: $since, maxPoints: $maxPoints) {
+      gameTimeId
+      sinkStats { totalPoints coupons nextCouponProgress pointsPerMinute }
+    }
+  }
+`);
+
+const HistorySavesQuery = graphql(`
+  query HistorySaves($sessionId: ID!) {
+    historySaves(sessionId: $sessionId)
+  }
+`);
+
+/**
+ * History API service backed by the per-type GraphQL <domain>History queries.
+ * Results are reshaped into the HistoryChunk { points: DataPoint[] } the charts
+ * consume; the opaque DataPoint.data carries the typed payload.
+ */
 export const historyApi = {
-  /**
-   * Fetch historical data points for a session and data type.
-   * Returns a HistoryChunk containing data points ordered by gameTimeId ascending.
-   * Use the latestId from the response as the 'since' parameter for subsequent requests.
-   *
-   * If historyDataRange and currentGameTime are provided, calculates 'since' as:
-   * currentGameTime - historyDataRange (unless historyDataRange is -1 for all time).
-   */
   fetchHistory: async (params: FetchHistoryParams): Promise<HistoryChunk> => {
-    const { sessionId, dataType, saveName, limit } = params;
-
-    // Calculate 'since' based on historyDataRange and currentGameTime if applicable
+    const { sessionId, dataType, limit } = params;
+    const saveName = params.saveName ?? '';
     const since = calculateSince(params);
+    const vars = {
+      sessionId,
+      saveName,
+      since: since ?? null,
+      maxPoints: limit ?? null,
+    };
 
-    const queryParams = new URLSearchParams();
-    if (saveName) {
-      queryParams.set('saveName', saveName);
-    }
-    if (since !== undefined) {
-      queryParams.set('since', since.toString());
-    }
-    if (limit !== undefined) {
-      queryParams.set('limit', limit.toString());
+    let points: DataPoint[] = [];
+
+    switch (dataType) {
+      case 'circuits': {
+        const r = await client.query(CircuitsHistoryQuery, vars).toPromise();
+        if (r.error) throw new Error(r.error.message);
+        points = (r.data?.circuitsHistory ?? []).map((p) => ({
+          gameTimeId: p.gameTimeId,
+          dataType,
+          data: p.circuits,
+        }));
+        break;
+      }
+      case 'factoryStats': {
+        const r = await client.query(FactoryStatsHistoryQuery, vars).toPromise();
+        if (r.error) throw new Error(r.error.message);
+        points = (r.data?.factoryStatsHistory ?? []).map((p) => ({
+          gameTimeId: p.gameTimeId,
+          dataType,
+          data: p.factoryStats,
+        }));
+        break;
+      }
+      case 'prodStats': {
+        const r = await client.query(ProdStatsHistoryQuery, vars).toPromise();
+        if (r.error) throw new Error(r.error.message);
+        points = (r.data?.prodStatsHistory ?? []).map((p) => ({
+          gameTimeId: p.gameTimeId,
+          dataType,
+          data: p.prodStats,
+        }));
+        break;
+      }
+      case 'generatorStats': {
+        const r = await client.query(GeneratorStatsHistoryQuery, vars).toPromise();
+        if (r.error) throw new Error(r.error.message);
+        points = (r.data?.generatorStatsHistory ?? []).map((p) => ({
+          gameTimeId: p.gameTimeId,
+          dataType,
+          data: mapGeneratorStats_world(p.generatorStats as never),
+        }));
+        break;
+      }
+      case 'sinkStats': {
+        const r = await client.query(SinkStatsHistoryQuery, vars).toPromise();
+        if (r.error) throw new Error(r.error.message);
+        points = (r.data?.sinkStatsHistory ?? []).map((p) => ({
+          gameTimeId: p.gameTimeId,
+          dataType,
+          data: p.sinkStats,
+        }));
+        break;
+      }
     }
 
-    const queryString = queryParams.toString();
-    const url = `${API_URL}/sessions/${sessionId}/history/${dataType}${queryString ? `?${queryString}` : ''}`;
-
-    const response = await fetch(url, { credentials: 'include' });
-    return handleResponse<HistoryChunk>(response, 'Failed to fetch history');
+    const latestId = points.length > 0 ? points[points.length - 1].gameTimeId : (since ?? 0);
+    return { dataType, saveName, latestId, points };
   },
 
-  /**
-   * List all save names that have historical data for a session.
-   * Returns the list of save names and the currently active save.
-   */
   listSaves: async (sessionId: string): Promise<ListHistorySavesResponse> => {
-    const url = `${API_URL}/sessions/${sessionId}/history`;
-    const response = await fetch(url, { credentials: 'include' });
-    return handleResponse<ListHistorySavesResponse>(response, 'Failed to list history saves');
+    const r = await client.query(HistorySavesQuery, { sessionId }).toPromise();
+    if (r.error) throw new Error(r.error.message);
+    const saveNames = r.data?.historySaves ?? [];
+    return { saveNames, currentSave: saveNames[saveNames.length - 1] ?? '' };
   },
 };
