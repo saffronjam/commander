@@ -1,0 +1,968 @@
+scalar DateTime
+
+directive @auth on FIELD_DEFINITION
+
+# ============================================================================
+# Shared geometry / common types
+# ============================================================================
+
+type Location {
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+type BoundingBox {
+  min: Location!
+  max: Location!
+}
+
+type ItemStats {
+  name: String!
+  count: Float!
+}
+
+type Fuel {
+  name: String!
+  amount: Float!
+}
+
+# ============================================================================
+# Power / circuits / stats
+# ============================================================================
+
+type CircuitConsumption {
+  total: Float!
+  max: Float!
+}
+
+type CircuitProduction {
+  total: Float!
+}
+
+type CircuitCapacity {
+  total: Float!
+}
+
+type CircuitBattery {
+  percentage: Float!
+  capacity: Float!
+  differential: Float!
+  untilFull: Float!
+  untilEmpty: Float!
+}
+
+type Circuit {
+  id: String!
+  fuseTriggered: Boolean!
+  consumption: CircuitConsumption!
+  production: CircuitProduction!
+  capacity: CircuitCapacity!
+  battery: CircuitBattery!
+}
+
+type PowerInfo {
+  circuitId: Int!
+  circuitGroupId: Int!
+  powerConsumed: Float!
+  maxPowerConsumed: Float!
+}
+
+type PowerSource {
+  count: Int!
+  totalProduction: Float!
+}
+
+type PowerSourceEntry {
+  type: PowerType!
+  source: PowerSource!
+}
+
+type GeneratorStats {
+  sources: [PowerSourceEntry!]!
+}
+
+type MachineEfficiency {
+  machinesOperating: Int!
+  machinesIdle: Int!
+  machinesPaused: Int!
+  machinesUnconfigured: Int!
+  machinesUnknown: Int!
+}
+
+type FactoryStats {
+  totalMachines: Int!
+  efficiency: MachineEfficiency!
+}
+
+type ItemProdStats {
+  name: String!
+  count: Float!
+  producedPerMinute: Float!
+  maxProducePerMinute: Float!
+  produceEfficiency: Float!
+  consumedPerMinute: Float!
+  maxConsumePerMinute: Float!
+  consumeEfficiency: Float!
+  cloudCount: Float!
+  minable: Boolean!
+}
+
+type ProdStats {
+  minableProducedPerMinute: Float!
+  minableConsumedPerMinute: Float!
+  itemsProducedPerMinute: Float!
+  itemsConsumedPerMinute: Float!
+  items: [ItemProdStats!]!
+}
+
+type SinkStats {
+  totalPoints: Float!
+  coupons: Int!
+  nextCouponProgress: Float!
+  pointsPerMinute: Float!
+}
+
+enum PowerType {
+  BIOMASS
+  COAL
+  FUEL
+  GEOTHERMAL
+  NUCLEAR
+  UNKNOWN
+}
+
+# ============================================================================
+# Vehicles
+# ============================================================================
+
+enum DroneStatus {
+  IDLE
+  FLYING
+  DOCKING
+}
+
+type Drone {
+  name: String!
+  speed: Float!
+  status: DroneStatus!
+  home: DroneStation!
+  paired: DroneStation
+  destination: DroneStation
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int!
+}
+
+type DroneStation {
+  name: String!
+  fuel: Fuel
+  boundingBox: BoundingBox!
+  incomingRate: Float!
+  outgoingRate: Float!
+  inputInventory: [ItemStats!]!
+  outputInventory: [ItemStats!]!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int
+}
+
+enum TrainType {
+  FREIGHT
+  LOCOMOTIVE
+}
+
+enum TrainStatus {
+  SELF_DRIVING
+  MANUAL_DRIVING
+  PARKED
+  DOCKING
+  DERAILED
+  UNKNOWN
+}
+
+type TrainVehicle {
+  type: TrainType!
+  capacity: Float!
+  inventory: [ItemStats!]!
+}
+
+type TrainTimetableEntry {
+  station: String!
+}
+
+type Train {
+  id: String!
+  name: String!
+  speed: Float!
+  status: TrainStatus!
+  powerConsumption: Float!
+  vehicles: [TrainVehicle!]!
+  timetable: [TrainTimetableEntry!]!
+  timetableIndex: Int!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int
+}
+
+enum TrainStationPlatformType {
+  FREIGHT
+  FLUID_FREIGHT
+}
+
+enum TrainStationPlatformMode {
+  IMPORT
+  EXPORT
+}
+
+enum TrainStationPlatformStatus {
+  IDLE
+  DOCKING
+}
+
+type TrainStationPlatform {
+  id: String!
+  type: TrainStationPlatformType!
+  mode: TrainStationPlatformMode!
+  status: TrainStationPlatformStatus!
+  boundingBox: BoundingBox!
+  inventory: [ItemStats!]!
+  transferRate: Float!
+  inflowRate: Float!
+  outflowRate: Float!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+type TrainStation {
+  name: String!
+  boundingBox: BoundingBox!
+  platforms: [TrainStationPlatform!]!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int
+}
+
+enum TruckStatus {
+  SELF_DRIVING
+  MANUAL_DRIVING
+  PARKED
+  UNKNOWN
+}
+
+type Truck {
+  id: String!
+  name: String!
+  speed: Float!
+  status: TruckStatus!
+  fuel: Fuel
+  inventory: [ItemStats!]!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int
+}
+
+type TruckStation {
+  name: String!
+  boundingBox: BoundingBox!
+  transferRate: Float!
+  maxTransferRate: Float!
+  inventory: [ItemStats!]!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int
+}
+
+enum TractorStatus {
+  SELF_DRIVING
+  MANUAL_DRIVING
+  PARKED
+  UNKNOWN
+}
+
+type Tractor {
+  id: String!
+  name: String!
+  speed: Float!
+  status: TractorStatus!
+  fuel: Fuel
+  inventory: [ItemStats!]!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int
+}
+
+enum ExplorerStatus {
+  SELF_DRIVING
+  MANUAL_DRIVING
+  PARKED
+  UNKNOWN
+}
+
+type Explorer {
+  id: String!
+  name: String!
+  speed: Float!
+  status: ExplorerStatus!
+  fuel: Fuel
+  inventory: [ItemStats!]!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int
+}
+
+enum VehiclePathType {
+  EXPLORER
+  FACTORY_CART
+  TRUCK
+  TRACTOR
+}
+
+type VehiclePath {
+  name: String!
+  vehicleType: VehiclePathType!
+  pathLength: Float!
+  vertices: [Location!]!
+}
+
+# ============================================================================
+# Infrastructure
+# ============================================================================
+
+enum MachineType {
+  ASSEMBLER
+  CONSTRUCTOR
+  FOUNDRY
+  MANUFACTURER
+  REFINERY
+  SMELTER
+  BLENDER
+  PACKAGER
+  PARTICLE_ACCELERATOR
+  MINER
+  OIL_EXTRACTOR
+  WATER_EXTRACTOR
+  BIOMASS_BURNER
+  COAL_GENERATOR
+  FUEL_GENERATOR
+  GEOTHERMAL_GENERATOR
+  NUCLEAR_POWER_PLANT
+}
+
+enum MachineCategory {
+  FACTORY
+  EXTRACTOR
+  GENERATOR
+}
+
+enum MachineStatus {
+  OPERATING
+  IDLE
+  PAUSED
+  UNCONFIGURED
+  UNKNOWN
+}
+
+enum StorageType {
+  BLUEPRINT_STORAGE_BOX
+  DIMENSIONAL_DEPOT_UPLOADER
+  INDUSTRIAL_STORAGE_CONTAINER
+  PERSONAL_STORAGE_BOX
+  STORAGE_CONTAINER
+}
+
+enum SplitterMergerType {
+  CONVEYOR_MERGER
+  CONVEYOR_SPLITTER
+  PROGRAMMABLE_SPLITTER
+  SMART_SPLITTER
+}
+
+enum TrainRailType {
+  RAILWAY
+}
+
+type MachineProdStats {
+  name: String!
+  stored: Float!
+  current: Float!
+  max: Float!
+  efficiency: Float!
+}
+
+type Machine {
+  type: MachineType!
+  status: MachineStatus!
+  category: MachineCategory!
+  productivity: Float!
+  input: [MachineProdStats!]!
+  output: [MachineProdStats!]!
+  boundingBox: BoundingBox!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  circuitId: Int!
+  circuitGroupId: Int
+}
+
+type Storage {
+  id: String!
+  type: StorageType!
+  inventory: [ItemStats!]!
+  boundingBox: BoundingBox!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+type Belt {
+  id: String!
+  name: String!
+  location0: Location!
+  location1: Location!
+  connected0: Boolean!
+  connected1: Boolean!
+  splineData: [Location!]!
+  length: Float!
+  itemsPerMinute: Float!
+}
+
+type SplitterMerger {
+  id: String!
+  type: SplitterMergerType!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  boundingBox: BoundingBox!
+}
+
+type Pipe {
+  id: String!
+  name: String!
+  location0: Location!
+  location1: Location!
+  connected0: Boolean!
+  connected1: Boolean!
+  splineData: [Location!]!
+  length: Float!
+  itemsPerMinute: Float!
+}
+
+type PipeJunction {
+  id: String!
+  name: String!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+type Cable {
+  id: String!
+  name: String!
+  location0: Location!
+  location1: Location!
+  connected0: Boolean!
+  connected1: Boolean!
+  length: Float!
+}
+
+type TrainRail {
+  id: String!
+  type: TrainRailType!
+  location0: Location!
+  location1: Location!
+  connected0: Boolean!
+  connected1: Boolean!
+  splineData: [Location!]!
+  length: Float!
+}
+
+type Hypertube {
+  id: String!
+  location0: Location!
+  location1: Location!
+  splineData: [Location!]!
+  boundingBox: BoundingBox!
+}
+
+type HypertubeEntrance {
+  id: String!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+  boundingBox: BoundingBox!
+  powerInfo: PowerInfo!
+}
+
+# ============================================================================
+# World / progression
+# ============================================================================
+
+type SpaceElevatorPhaseObjective {
+  name: String!
+  amount: Float!
+  totalCost: Float!
+}
+
+type SpaceElevator {
+  id: String!
+  name: String!
+  boundingBox: BoundingBox!
+  currentPhase: [SpaceElevatorPhaseObjective!]!
+  fullyUpgraded: Boolean!
+  upgradeReady: Boolean!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+type HubMilestoneCost {
+  name: String!
+  amount: Float!
+  remainingCost: Float!
+  totalCost: Float!
+}
+
+type HubMilestone {
+  name: String!
+  techTier: Int!
+  type: String!
+  cost: [HubMilestoneCost!]!
+}
+
+type Hub {
+  id: String!
+  name: String!
+  hasActiveMilestone: Boolean!
+  activeMilestone: HubMilestone
+  shipDocked: Boolean!
+  shipReturnTime: Int
+  boundingBox: BoundingBox!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+enum ResourceNodePurity {
+  IMPURE
+  NORMAL
+  PURE
+}
+
+enum ResourceType {
+  IRON_ORE
+  COPPER_ORE
+  LIMESTONE
+  COAL
+  SAM
+  SULFUR
+  CATERIUM_ORE
+  BAUXITE
+  RAW_QUARTZ
+  URANIUM
+  CRUDE_OIL
+  GEYSER
+  NITROGEN_GAS
+}
+
+enum NodeType {
+  NODE
+  GEYSER
+  FRACKING_CORE
+  FRACKING_SATELLITE
+}
+
+type ResourceNode {
+  id: String!
+  name: String!
+  className: String!
+  purity: ResourceNodePurity!
+  resourceForm: String!
+  resourceType: ResourceType!
+  nodeType: NodeType!
+  exploited: Boolean!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+enum FaunaType {
+  LIZARD_DOGGO
+  FLUFFY_TAILED_HOG
+  SPITTER
+  STINGER
+  FLYING_CRAB
+  NON_FLYING_BIRD
+  SPACE_GIRAFFE
+  SPORE_FLOWER
+  LEAF_BUG
+  GRASS_SPRITE
+  CAVE_BAT
+  GIANT_FLYING_MANTA
+  LAKE_SHARK
+  WALKER
+}
+
+enum FloraType {
+  TREE
+  LEAVES
+  FLOWER_PETALS
+  BACON_AGARIC
+  PALEBERRY
+  BERYL_NUT
+  MYCELIA
+  VINES
+  BLUE_CAP_MUSHROOM
+  PINK_JELLYFISH
+}
+
+enum SignalType {
+  SOMERSLOOP
+  MERCER_SPHERE
+  BLUE_POWER_SLUG
+  YELLOW_POWER_SLUG
+  PURPLE_POWER_SLUG
+  HARD_DRIVE
+}
+
+type ScannedFauna {
+  name: FaunaType!
+  className: String!
+  amount: Int!
+}
+
+type ScannedFlora {
+  name: FloraType!
+  className: String!
+  amount: Int!
+}
+
+type ScannedSignal {
+  name: SignalType!
+  className: String!
+  amount: Int!
+}
+
+type RadarTower {
+  id: String!
+  revealRadius: Float!
+  nodes: [ResourceNode!]!
+  fauna: [ScannedFauna!]!
+  flora: [ScannedFlora!]!
+  signal: [ScannedSignal!]!
+  boundingBox: BoundingBox!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+type SchematicCost {
+  name: String!
+  amount: Float!
+  totalCost: Float!
+}
+
+type Schematic {
+  id: String!
+  name: String!
+  tier: Int!
+  type: String!
+  purchased: Boolean!
+  locked: Boolean!
+  lockedPhase: Boolean!
+  cost: [SchematicCost!]!
+}
+
+type Player {
+  id: String!
+  name: String!
+  health: Float!
+  items: [ItemStats!]!
+  x: Float!
+  y: Float!
+  z: Float!
+  rotation: Float!
+}
+
+# ============================================================================
+# Sessions / config / status
+# ============================================================================
+
+enum SessionStage {
+  INIT
+  READY
+}
+
+enum LogLevel {
+  TRACE
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+}
+
+type Session {
+  id: String!
+  name: String!
+  address: String!
+  sessionName: String!
+  isPaused: Boolean!
+  createdAt: DateTime!
+  isOnline: Boolean!
+  isDisconnected: Boolean!
+  stage: SessionStage!
+}
+
+type SessionInfo {
+  sessionName: String!
+  isPaused: Boolean!
+  dayLength: Int!
+  nightLength: Int!
+  passedDays: Int!
+  numberOfDaysSinceLastDeath: Int!
+  hours: Int!
+  minutes: Int!
+  seconds: Float!
+  isDay: Boolean!
+  totalPlayDuration: Int!
+  totalPlayDurationText: String!
+}
+
+type Settings {
+  logLevel: LogLevel!
+}
+
+type SatisfactoryApiStatus {
+  running: Boolean!
+  pingMs: Int!
+}
+
+type ConnectivityStatus {
+  isOnline: Boolean!
+  isDisconnected: Boolean!
+  stage: SessionStage!
+}
+
+type AuthStatus {
+  authenticated: Boolean!
+  usedDefaultPassword: Boolean!
+}
+
+# ============================================================================
+# History — one concrete typed point per data type (decision D-C)
+# ============================================================================
+
+enum HistoryDataType {
+  CIRCUITS
+  FACTORY_STATS
+  PROD_STATS
+  GENERATOR_STATS
+  SINK_STATS
+}
+
+type CircuitsHistoryPoint {
+  gameTimeId: Int!
+  circuits: [Circuit!]!
+}
+
+type FactoryStatsHistoryPoint {
+  gameTimeId: Int!
+  factoryStats: FactoryStats!
+}
+
+type ProdStatsHistoryPoint {
+  gameTimeId: Int!
+  prodStats: ProdStats!
+}
+
+type GeneratorStatsHistoryPoint {
+  gameTimeId: Int!
+  generatorStats: GeneratorStats!
+}
+
+type SinkStatsHistoryPoint {
+  gameTimeId: Int!
+  sinkStats: SinkStats!
+}
+
+# ============================================================================
+# Inputs / mutation results
+# ============================================================================
+
+input LoginInput {
+  password: String!
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+input CreateSessionInput {
+  name: String!
+  address: String!
+}
+
+input UpdateSessionInput {
+  name: String
+  isPaused: Boolean
+  address: String
+}
+
+input UpdateSettingsInput {
+  logLevel: LogLevel!
+}
+
+type LoginResult {
+  success: Boolean!
+  usedDefaultPassword: Boolean!
+}
+
+type LogoutResult {
+  success: Boolean!
+}
+
+type ChangePasswordResult {
+  success: Boolean!
+  message: String!
+}
+
+# ============================================================================
+# Root operations
+# ============================================================================
+
+type Query {
+  sessions: [Session!]! @auth
+  session(id: ID!): Session @auth
+  previewSession(address: String!): SessionInfo! @auth
+  settings: Settings! @auth
+  authStatus: AuthStatus!
+  clientIp: String! @auth
+
+  satisfactoryApiStatus(sessionId: ID!): SatisfactoryApiStatus! @auth
+  connectivity(sessionId: ID!): ConnectivityStatus! @auth
+  factoryStats(sessionId: ID!): FactoryStats! @auth
+  prodStats(sessionId: ID!): ProdStats! @auth
+  generatorStats(sessionId: ID!): GeneratorStats! @auth
+  sinkStats(sessionId: ID!): SinkStats! @auth
+  circuits(sessionId: ID!): [Circuit!]! @auth
+  players(sessionId: ID!): [Player!]! @auth
+  drones(sessionId: ID!): [Drone!]! @auth
+  droneStations(sessionId: ID!): [DroneStation!]! @auth
+  trains(sessionId: ID!): [Train!]! @auth
+  trainStations(sessionId: ID!): [TrainStation!]! @auth
+  trucks(sessionId: ID!): [Truck!]! @auth
+  truckStations(sessionId: ID!): [TruckStation!]! @auth
+  tractors(sessionId: ID!): [Tractor!]! @auth
+  explorers(sessionId: ID!): [Explorer!]! @auth
+  vehiclePaths(sessionId: ID!): [VehiclePath!]! @auth
+  machines(sessionId: ID!): [Machine!]! @auth
+  storages(sessionId: ID!): [Storage!]! @auth
+  belts(sessionId: ID!): [Belt!]! @auth
+  splitterMergers(sessionId: ID!): [SplitterMerger!]! @auth
+  pipes(sessionId: ID!): [Pipe!]! @auth
+  pipeJunctions(sessionId: ID!): [PipeJunction!]! @auth
+  cables(sessionId: ID!): [Cable!]! @auth
+  trainRails(sessionId: ID!): [TrainRail!]! @auth
+  hypertubes(sessionId: ID!): [Hypertube!]! @auth
+  hypertubeEntrances(sessionId: ID!): [HypertubeEntrance!]! @auth
+  spaceElevator(sessionId: ID!): SpaceElevator @auth
+  hub(sessionId: ID!): Hub @auth
+  radarTowers(sessionId: ID!): [RadarTower!]! @auth
+  resourceNodes(sessionId: ID!): [ResourceNode!]! @auth
+  schematics(sessionId: ID!): [Schematic!]! @auth
+
+  historySaves(sessionId: ID!): [String!]! @auth
+  circuitsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [CircuitsHistoryPoint!]! @auth
+  factoryStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [FactoryStatsHistoryPoint!]! @auth
+  prodStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [ProdStatsHistoryPoint!]! @auth
+  generatorStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [GeneratorStatsHistoryPoint!]! @auth
+  sinkStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [SinkStatsHistoryPoint!]! @auth
+}
+
+type Mutation {
+  login(input: LoginInput!): LoginResult!
+  logout: LogoutResult! @auth
+  changePassword(input: ChangePasswordInput!): ChangePasswordResult! @auth
+  createSession(input: CreateSessionInput!): Session! @auth
+  updateSession(id: ID!, input: UpdateSessionInput!): Session! @auth
+  deleteSession(id: ID!): Boolean! @auth
+  validateSession(id: ID!): SessionInfo! @auth
+  updateSettings(input: UpdateSettingsInput!): Settings! @auth
+}
+
+type Subscription {
+  satisfactoryApiStatusChanged(sessionId: ID!): SatisfactoryApiStatus! @auth
+  connectivityChanged(sessionId: ID!): ConnectivityStatus! @auth
+  sessionUpdated(sessionId: ID!): Session! @auth
+
+  circuitsChanged(sessionId: ID!): [Circuit!]! @auth
+  factoryStatsChanged(sessionId: ID!): FactoryStats! @auth
+  prodStatsChanged(sessionId: ID!): ProdStats! @auth
+  generatorStatsChanged(sessionId: ID!): GeneratorStats! @auth
+  sinkStatsChanged(sessionId: ID!): SinkStats! @auth
+
+  playersChanged(sessionId: ID!): [Player!]! @auth
+  dronesChanged(sessionId: ID!): [Drone!]! @auth
+  droneStationsChanged(sessionId: ID!): [DroneStation!]! @auth
+  trainsChanged(sessionId: ID!): [Train!]! @auth
+  trainStationsChanged(sessionId: ID!): [TrainStation!]! @auth
+  trucksChanged(sessionId: ID!): [Truck!]! @auth
+  truckStationsChanged(sessionId: ID!): [TruckStation!]! @auth
+  tractorsChanged(sessionId: ID!): [Tractor!]! @auth
+  explorersChanged(sessionId: ID!): [Explorer!]! @auth
+  vehiclePathsChanged(sessionId: ID!): [VehiclePath!]! @auth
+  machinesChanged(sessionId: ID!): [Machine!]! @auth
+  storagesChanged(sessionId: ID!): [Storage!]! @auth
+
+  beltsChanged(sessionId: ID!): [Belt!]! @auth
+  splitterMergersChanged(sessionId: ID!): [SplitterMerger!]! @auth
+  pipesChanged(sessionId: ID!): [Pipe!]! @auth
+  pipeJunctionsChanged(sessionId: ID!): [PipeJunction!]! @auth
+  cablesChanged(sessionId: ID!): [Cable!]! @auth
+  trainRailsChanged(sessionId: ID!): [TrainRail!]! @auth
+  hypertubesChanged(sessionId: ID!): [Hypertube!]! @auth
+  hypertubeEntrancesChanged(sessionId: ID!): [HypertubeEntrance!]! @auth
+
+  spaceElevatorChanged(sessionId: ID!): SpaceElevator! @auth
+  hubChanged(sessionId: ID!): Hub! @auth
+  radarTowersChanged(sessionId: ID!): [RadarTower!]! @auth
+  resourceNodesChanged(sessionId: ID!): [ResourceNode!]! @auth
+  schematicsChanged(sessionId: ID!): [Schematic!]! @auth
+}
