@@ -21,43 +21,41 @@ Use [Satisfactory Mod Manager](https://docs.ficsit.app/) to install and manage m
 - Drone and train tracking
 - Player management
 - Interactive map with Leaflet
-- Real-time updates via Server-Sent Events
+- Real-time updates via GraphQL subscriptions (graphql-ws)
 - **Multi-session support:** Connect to multiple FRM endpoints simultaneously - like your friends FRM endpoints
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ Satisfactory│     │             │     │    Redis    │     │   Browser   │
-│   (FRM)     │◄────│  API Poller │────►│   Pub/Sub   │◄────│   Clients   │
-│             │     │             │     │             │     │    (SSE)    │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-     1 poll              1 API              N subscribers        N clients
+┌─────────────┐     ┌──────────────────────────────────────┐     ┌─────────────┐
+│ Satisfactory│     │   Single Go binary (:8081)           │     │   Browser   │
+│   (FRM)     │◄────│  poller → channel eventbus → GraphQL │◄────│   Clients   │
+│             │     │  + embedded SPA + SQLite + assets    │     │ (graphql-ws)│
+└─────────────┘     └──────────────────────────────────────┘     └─────────────┘
+     1 poll          1 in-process poller per session              N subscribers
 ```
 
 The dashboard is designed so that **client browsers never directly communicate with the FRM API**. Instead:
 
-1. **API Poller:** A single poller in the API server periodically fetches data from your Satisfactory FRM endpoint
-2. **Redis Pub/Sub:** The poller publishes updates to a Redis pub/sub queue
-3. **SSE Stream:** Each browser client establishes a Server-Sent Events connection to the API, which proxies events from Redis
+1. **In-process poller:** one poll loop per session fetches data from your Satisfactory FRM endpoint
+2. **Channel eventbus:** the poller fans updates out in-process over Go channels (no Redis)
+3. **GraphQL subscriptions:** each browser subscribes over a same-origin websocket (`/graphql`, graphql-ws); durable state (sessions, settings, auth, history) lives in SQLite
 
-This architecture means that **many dashboard clients will never affect your Satisfactory game performance** - the game only sees a single polling connection regardless of how many people are viewing the dashboard. The load scales on Redis (which is highly scalable) and the API server, not on your game.
+This means **many dashboard clients never affect your Satisfactory game performance** — the game only ever sees one polling connection per session regardless of how many people view the dashboard. Everything is one process, one container, one origin.
 
 ## Quick Start
 
 ```bash
-docker compose up --build
+docker compose up -d        # one-shot asset seeder + the app
 ```
 
-Services:
-- Frontend: http://localhost:3000
-- API: http://localhost:8081
+Then open http://localhost:8081. The default password is `change-me` (`SD_BOOTSTRAP_PASSWORD`) — change it after first login.
 
 ## Development
 
 ```bash
-make deps      # Start Redis
-make run       # Run frontend (3039) + backend (8081) with hot reload
+make unpack-assets   # Extract LFS assets into dashboard/public/assets (after clone)
+make run             # Run frontend (3039, proxies /graphql) + backend (8081) with hot reload
 ```
 
 Other useful commands:
@@ -65,58 +63,59 @@ Other useful commands:
 ```bash
 make help      # Show all available commands
 make lint      # Run linters
-make build     # Build for production
+make build     # Build for production (frontend embeds into the Go binary)
 ```
 
 ## Tech Stack
 
-- **Frontend:** React, TypeScript, Material-UI, Vite, Bun
-- **Backend:** Go, Gin, Redis
-- **Real-time:** Server-Sent Events (SSE)
+- **Frontend:** React, TypeScript, Vite, Bun, shadcn/ui + Tailwind, urql + graphql-codegen
+- **Backend:** Go (stdlib `net/http`), gqlgen GraphQL, SQLite (sqlc + golang-migrate)
+- **Real-time:** GraphQL subscriptions over graphql-ws (Go-channel eventbus)
 
 ## Production Deployment
 
-For production deployments, the dashboard is split into three services:
+The dashboard ships as **one application image** plus a tiny one-shot **seeder** image. The map/icon
+tiles are distributed as a versioned OCI artifact pulled with [ORAS](https://oras.land/) — they are
+never baked into the app image and never require git-lfs at deploy time.
 
 ```
-                  Ingress
-                     │
-    ┌────────────────┼────────────────┐
-    │                │                │
-/assets/images/*     /api/*           /*
-    │                │                │
-Asset Server       API Server      Dashboard
- (nginx)            (Go)           (nginx)
+   registry (ghcr.io)
+     satisfactory-dashboard        (app — code only, tens of MB)
+     satisfactory-dashboard-seed   (seeder — alpine + oras)
+     satisfactory-dashboard-assets (OCI artifact — map tiles, pushed rarely)
+            │ oras pull                          │ docker pull
+            ▼                                    ▼
+     ┌──────────────┐   /assets volume   ┌───────────────────────────┐
+     │ seed (once)  │───────────────────►│ app (Go, :8081)           │
+     └──────────────┘                    │  SPA + assets + /graphql  │
+                                         │  /data volume → SQLite     │
+                                         └───────────────────────────┘
 ```
 
 ### Services
 
-| Service | Description | Port |
-|---------|-------------|------|
-| Dashboard | React frontend (no assets) | 3000 |
-| API | Go backend with Redis | 8081 |
-| Asset Server | Static assets (map tiles, icons) | 80 |
+| Service | Description | Lifecycle |
+|---------|-------------|-----------|
+| `seed-assets` | ORAS-pulls the tiles artifact into the shared volume | one-shot (no-op once seeded) |
+| `app` | Go binary: embedded SPA + assets + GraphQL on `:8081` | long-running |
 
-### Building
+### Building & publishing
 
 ```bash
-# Build all images
-make docker-build                    # Dashboard with assets (local dev)
-make asset-server                    # Asset server image
-
-# Push to registry
-make asset-server-push               # Build and push asset server
+make docker-build                              # build app + seeder images
+make assets-publish ASSETS_TAG=tiles-YYYYMMDD  # push the tiles OCI artifact (maintainer-only)
 ```
 
-### Local Development vs Production
+Pin the tiles version with `SD_ASSETS_REF`; lock the websocket origin with `SD_EXTERNAL_URL`.
 
-| Environment | Assets Location |
-|-------------|-----------------|
-| Local (`docker compose up`) | Bundled in dashboard container |
-| Production | Separate asset server container |
+### Local contributor stack (bind-mount tiles, skip the seeder)
 
-The `INCLUDE_ASSETS` build argument controls whether assets are bundled into the dashboard image. For local development, `compose.yml` sets `INCLUDE_ASSETS=true`. For production, assets are served by a dedicated nginx container.
+```bash
+make unpack-assets
+docker compose -f compose.yml -f compose.dev.yml up
+```
 
 ## Note on Repository Size
 
-This repository includes all assets (map tiles, images, etc.) and does not rely on third-party hosting. This makes the repo self-contained but relatively large.
+This repository tracks the map/icon assets via git-lfs (`assets/*.tar.gz`). They are the *source*
+for the ORAS artifact; deployments pull images only and never need lfs.

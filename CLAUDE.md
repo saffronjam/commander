@@ -4,23 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Satisfactory Dashboard is a real-time dashboard application for monitoring and managing a Satisfactory game factory. Features: factory statistics visualization, power circuit monitoring, drone/train tracking, player management, interactive map with Leaflet, and real-time updates via Server-Sent Events (SSE).
+Satisfactory Dashboard is a real-time dashboard application for monitoring and managing a Satisfactory game factory. Features: factory statistics visualization, power circuit monitoring, drone/train tracking, player management, interactive map with Leaflet, and real-time updates via GraphQL subscriptions (graphql-ws).
 
-Architecture: React frontend (Dashboard) with Vite + Material-UI, Go backend (API) with Gin framework, Redis for caching and event streaming.
+Architecture: a single Go binary (stdlib `net/http` + gqlgen GraphQL) serves the embedded React SPA, the map/icon assets, and one same-origin `/graphql` endpoint (HTTP queries/mutations + websocket subscriptions). State lives in SQLite (sqlc + golang-migrate); live data fans out in-process over Go channels (eventbus). The frontend is React + Vite + shadcn/Tailwind, GraphQL-native via urql + graphql-codegen. There is no Redis, no Gin, no REST/SSE, no separate frontend/asset containers.
 
 ## Quick Start
 
 ```bash
-make unpack-assets           # Extract LFS assets (required after clone)
-docker compose up --build    # Run all services (frontend:3000, api:8081, redis:6379)
+# Operator (pull images): the one-shot seeder ORAS-pulls the map tiles into a
+# volume, then the single app container serves everything on :8081.
+docker compose up -d          # seed-assets (one-shot) + app (:8081)
 ```
 
 ### Development
 
 ```bash
-make unpack-assets   # Extract LFS assets (required after clone)
-make deps      # Start Redis
-make run       # Run frontend (3039) + backend (8081) with hot reload
+make unpack-assets   # Extract LFS assets into dashboard/public/assets (after clone)
+make run             # Run frontend (3039, proxies /graphql) + backend (8081) with hot reload
 ```
 
 ### Essential Commands
@@ -35,96 +35,72 @@ make generate  # Generate TypeScript types from Go structs
 
 **CRITICAL**: Run `make generate` after any changes to Go model structs to keep frontend types in sync.
 
-## API Endpoints
+## API
 
-**Sessions** (multi-session support)
+There is a single GraphQL endpoint, served same-origin:
 
-| Endpoint                       | Description              |
-| ------------------------------ | ------------------------ |
-| `GET /v1/sessions`             | List all sessions        |
-| `POST /v1/sessions`            | Create new session       |
-| `GET /v1/sessions/preview`     | Preview session config   |
-| `GET /v1/sessions/:id`         | Get session details      |
-| `PATCH /v1/sessions/:id`       | Update session           |
-| `DELETE /v1/sessions/:id`      | Delete session           |
-| `GET /v1/sessions/:id/validate`| Validate session         |
-| `GET /v1/sessions/:id/events`  | SSE event stream         |
-| `GET /v1/sessions/:id/state`   | Get session game state   |
+| Path        | Transport | Use                                                    |
+| ----------- | --------- | ------------------------------------------------------ |
+| `/graphql`  | POST/GET  | queries (snapshot + `<domain>History`) and mutations (auth, sessions, settings) |
+| `/graphql`  | websocket | subscriptions (per-domain `<domain>Changed` live data) via graphql-ws |
+| `/healthz`  | GET       | liveness probe                                         |
+| `/` + `/assets/images/satisfactory/` | GET | embedded SPA (index.html fallback) + seeded map/icon tiles |
 
-**Data Endpoints**
-
-| Endpoint                       | Description              |
-| ------------------------------ | ------------------------ |
-| `GET /v1/satisfactoryApiStatus`| Satisfactory API health  |
-| `GET /v1/state`                | Current game state       |
-| `GET /v1/circuits`             | Power circuit data       |
-| `GET /v1/drones`               | Drone list               |
-| `GET /v1/droneStations`        | Drone stations           |
-| `GET /v1/droneSetup`           | Drone setup info         |
-| `GET /v1/trains`               | Train list               |
-| `GET /v1/trainStations`        | Train stations           |
-| `GET /v1/trainSetup`           | Train setup info         |
-| `GET /v1/players`              | Player list              |
-| `GET /v1/generatorStats`       | Generator statistics     |
-| `GET /v1/prodStats`            | Production statistics    |
-| `GET /v1/factoryStats`         | Factory statistics       |
-| `GET /v1/sinkStats`            | Sink statistics          |
-
-**Infrastructure Endpoints**
-
-| Endpoint                       | Description              |
-| ------------------------------ | ------------------------ |
-| `GET /v1/belts`                | Conveyor belts & splitters |
-| `GET /v1/pipes`                | Pipes & junctions        |
-| `GET /v1/cables`               | Power cables             |
-| `GET /v1/trainRails`           | Train rail network       |
-
-**Internal**
-
-| Endpoint                       | Description              |
-| ------------------------------ | ------------------------ |
-| `/v2/docs/*`                   | Swagger UI               |
-| `/internal/metrics`            | Prometheus metrics       |
+The schema lives at `api/schema.graphql` (~30 typed domains, ~24 enums, per-type history queries,
+per-domain subscriptions). Auth is a single shared password over an HTTP-only `sd_access_token`
+cookie; the `@auth` directive guards protected fields and the websocket reads the same cookie off
+its upgrade request (same-origin).
 
 ## Development Workflow
 
 ### Adding New Features
 
-1. **Backend**: Add model in `models/models/`, create handler in `routers/api/v1/`, register route in `routers/routes/`
-2. **Type sync**: Run `make generate`
-3. **Frontend**: Use generated types from `apiTypes.ts`, create page/component
-4. **Code quality**: Run `make lint` and `make format`
+1. **Schema**: add the type/field/operation to `api/schema.graphql`
+2. **Backend**: regenerate gqlgen models (`generated.go`/`models_gen.go`), add a resolver in
+   `internal/graph/resolvers_*.go`, and a mapper in `internal/graph/mappers_*.go`; persist via the
+   SQLite store (`internal/store`) when durable
+3. **Frontend**: write the typed operation document, run `bun run codegen`, consume the generated
+   hooks/types from `src/gql`
+4. **Code quality**: run `make lint` and `make format`
 
-### Adding New Endpoints
+### Adding New GraphQL Operations
 
-1. Create handler function in `routers/api/v1/`
-2. Add route definition in `routers/routes/` implementing RoutingGroup
-3. Add to `routes.RoutingGroups()` registration
-4. Add Swagger annotations for documentation
-5. Run `swag init` in `api/` to regenerate docs
+1. Edit `api/schema.graphql` (SDL is the source of truth; field names are lowercase camelCase,
+   enums are SCREAMING_SNAKE)
+2. Regenerate gqlgen `generated.go`/`models_gen.go` (do NOT run `gqlgen generate` blindly — it
+   re-stubs `schema.resolvers.go`; resolvers live in `resolvers_*.go`)
+3. Implement the resolver and any enum/case mappers
+4. On the frontend, add the document and run `bun run codegen`
 
 ## Docker Deployment
 
 ```bash
-docker compose up --build           # Build and run all
-docker compose up -d                # Detached mode
-docker compose logs -f api          # Follow API logs
+make docker-build                   # Build the app + seeder images
+docker compose up -d                # seed-assets (one-shot ORAS pull) + app (:8081)
+docker compose logs -f app          # Follow app logs
 ```
+
+Map/icon tiles ship as a versioned OCI artifact (`…-assets:<tiles-tag>`) pulled by the one-shot
+seeder into a shared volume; pin the version via `SD_ASSETS_REF`. Publish a new tiles version with
+`make assets-publish ASSETS_TAG=tiles-YYYYMMDD` (maintainer-only, requires `oras` + LFS).
+
+**Upgrade note (auth clean-wipe):** the auth store moved from Redis to SQLite with NO migration of
+the old password/tokens. On first boot against an empty DB the password re-bootstraps to
+`SD_BOOTSTRAP_PASSWORD` (default `change-me`); re-set it after upgrade.
 
 ## Important Notes
 
 - **NEVER Start Services Without User Permission**: NEVER run backend or frontend services (make run, make backend, make frontend, etc.) without CLEAR and EXPLICIT instructions from the user. The user controls all service startup and will handle testing and verification themselves. Only start services when the user explicitly asks you to.
 - **Never Maintain Backward Compatibility**: Always implement the correct fix for a better system. Remove old code paths completely rather than maintaining dual behavior. Clean breaks are preferred over gradual migrations.
 - **No Inline Comments**: Do NOT add comments explaining logic flow in code. The code should be self-documenting. Only add comments for exported functions/types (Go doc comments, JSDoc) or truly non-obvious edge cases.
-- **State Management**: Backend is the source of truth, frontend receives updates via SSE
-- **Type Safety**: Run `make generate` after Go model changes
-- **Testing**: Set `mock: true` in config to use mock data
+- **State Management**: Backend is the source of truth; the frontend receives live updates via GraphQL subscriptions (graphql-ws). Durable state (sessions, settings, auth, history) is in SQLite; live data fans out in-process over the Go-channel eventbus.
+- **Schema is the contract**: `api/schema.graphql` is the source of truth. Regenerate gqlgen types after editing it, then `bun run codegen` on the frontend.
 
 ## Detailed Documentation
 
 - **api/CLAUDE.md**: Backend architecture, patterns, and development guide
 - **dashboard/CLAUDE.md**: Frontend architecture, patterns, and development guide
-- **Swagger UI**: `/v2/docs/` when API is running
+- **GraphQL schema**: `api/schema.graphql`
 
 ## Active Technologies
 - Go 1.24 (backend), TypeScript 5.6 (frontend) + Gin (HTTP), Redis (session store), React 18, Material-UI 6 (001-access-key-auth)

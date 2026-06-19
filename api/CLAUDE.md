@@ -1,10 +1,25 @@
 # API - Satisfactory Dashboard Backend
 
-This document provides guidance for working with the Go backend API server.
+This document provides guidance for working with the Go backend.
+
+> **Architecture note (current).** The backend is a single Go binary built on the stdlib
+> `net/http` `ServeMux` (NO Gin) exposing one same-origin GraphQL endpoint (gqlgen) at `/graphql`
+> — HTTP for queries/mutations, websocket (graphql-ws) for subscriptions — plus `/healthz`, the
+> embedded SPA, and the seeded assets dir. There is **no REST, no SSE, no Redis, no Swagger**.
+> Durable state is **SQLite** (`internal/store`, sqlc + golang-migrate); live data fans out
+> in-process over the **Go-channel eventbus** (`pkg/eventbus`). A single in-process poller
+> (`worker/session_manager.go`) owns one poll loop per active session and is the sole producer
+> onto the eventbus + LatestStore, also writing history to SQLite.
+>
+> Sections below that describe Gin handlers, the `RoutingGroup` pattern, `RequestContext`, SSE,
+> or Redis caching are **historical** and no longer reflect the code — follow the architecture
+> note and the live packages (`cmd`, `internal/graph`, `internal/store`, `pkg/eventbus`, `worker`).
 
 ## Overview
 
-Go-based REST API server for the Satisfactory Dashboard. Provides real-time factory data from Satisfactory via SSE streaming, with Redis caching and Prometheus metrics.
+The Go binary serves the embedded React SPA, the map/icon assets, and a single same-origin
+GraphQL API. It polls the Ficsit Remote Monitoring (FRM) mod per session, fans live data out over
+Go channels to GraphQL subscriptions, and persists sessions/settings/auth/history in SQLite.
 
 ## Go Coding Standards
 
