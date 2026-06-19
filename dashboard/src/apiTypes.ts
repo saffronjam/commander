@@ -452,43 +452,6 @@ export interface Machine extends Location, CircuitIDs {
 }
 
 //////////
-// source: nodes.go
-
-/**
- * NodeInfo represents information about a single API instance
- * tygo:alias object
- */
-export interface NodeInfo {
-  instanceId: string; // This instance's unique ID
-  isThisInstance: boolean; // True if this is the current instance
-  status: string; // Node status: "online", "initializing", or "offline"
-  ownedSessions: SessionLease[]; // Sessions owned by this instance
-}
-/**
- * SessionLease represents lease information for a single session
- * tygo:alias object
- */
-export interface SessionLease {
-  sessionId: string; // Session ID
-  sessionName: string; // Human-readable session name
-  ownerId: string; // Instance that owns this lease
-  preferredOwnerId: string; // Preferred owner per rendezvous hashing
-  state: string; // "owned", "other", "uncertain", "unknown"
-  acquiredAt: string; // When lease was acquired (zero if not owned)
-  lastRenewedAt: string; // When lease was last renewed (zero if not owned)
-  uncertainSince: string; // When lease became uncertain (zero if not uncertain)
-}
-/**
- * NodesResponse is the response for GET /v1/nodes
- * tygo:alias object
- */
-export interface NodesResponse {
-  thisInstanceId: string; // ID of this instance
-  liveNodes: NodeInfo[]; // All live instances with their owned sessions
-  timestamp: string; // When this snapshot was taken
-}
-
-//////////
 // source: pipe.go
 
 export interface Pipe {
