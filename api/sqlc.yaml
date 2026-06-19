@@ -1,0 +1,18 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "internal/store/migrations"
+    queries: "internal/store/queries"
+    gen:
+      go:
+        package: "sqlite"
+        out: "internal/store/sqlite"
+        emit_interface: true
+        emit_pointers_for_null_types: true
+        overrides:
+          - column: "sessions.id"
+            go_type: "api/internal/session.ID"
+          - column: "history_points.session_id"
+            go_type: "api/internal/session.ID"
+          - column: "auth_tokens.token"
+            go_type: "api/internal/auth.Token"
