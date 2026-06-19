@@ -4,6 +4,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { BrowserRouter } from 'react-router-dom';
 
 import App from './app';
+import { GraphQLClientProvider } from './gql/GraphQLClientProvider';
 import { AuthProvider } from './contexts/auth/AuthContext';
 import { SessionAwareApiProvider } from './contexts/api/SessionAwareApiProvider';
 import { DebugProvider } from './contexts/debug/DebugContext';
@@ -24,16 +25,18 @@ root.render(
         <ThemeProvider defaultTheme="dark" storageKey="satisfactory-dashboard-theme">
           <TooltipProvider>
             <Suspense>
-              <AuthProvider>
-                <DebugProvider>
-                  <SessionProvider>
-                    <SessionAwareApiProvider>
-                      <App />
-                      <Toaster />
-                    </SessionAwareApiProvider>
-                  </SessionProvider>
-                </DebugProvider>
-              </AuthProvider>
+              <GraphQLClientProvider>
+                <AuthProvider>
+                  <DebugProvider>
+                    <SessionProvider>
+                      <SessionAwareApiProvider>
+                        <App />
+                        <Toaster />
+                      </SessionAwareApiProvider>
+                    </SessionProvider>
+                  </DebugProvider>
+                </AuthProvider>
+              </GraphQLClientProvider>
             </Suspense>
           </TooltipProvider>
         </ThemeProvider>
