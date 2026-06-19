@@ -19,6 +19,14 @@ export default defineConfig({
       src: path.join(process.cwd(), "src"),
     },
   },
-  server: { port: PORT, host: true, fs: { cachedChecks: false } },
+  build: { outDir: path.resolve(__dirname, "../api/web/dist"), emptyOutDir: true },
+  server: {
+    port: PORT,
+    host: true,
+    fs: { cachedChecks: false },
+    proxy: {
+      "/graphql": { target: "http://localhost:8081", changeOrigin: true, ws: true },
+    },
+  },
   preview: { port: PORT, host: true },
 });

@@ -142,7 +142,6 @@ export type HistoryWindowSize = HistoryWindowSizePreset | number;
  * User settings persisted to localStorage.
  */
 export type Settings = {
-  apiUrl: string;
   productionView: {
     includeMinable: boolean;
     includeItems: boolean;

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { config } from 'src/config';
 import { Settings } from 'src/types';
 
 const defaultSettings: Settings = {
-  apiUrl: config.apiUrl,
   productionView: {
     includeMinable: true,
     includeItems: true,
