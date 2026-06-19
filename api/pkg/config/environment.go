@@ -30,17 +30,16 @@ func SetupEnvironment(appMode string) error {
 	Config.Mode = appMode
 	Config.Filepath = filepath
 
+	if externalURL := os.Getenv("SD_EXTERNAL_URL"); externalURL != "" {
+		Config.ExternalURL = externalURL
+		fmt.Printf("Using external URL from SD_EXTERNAL_URL: %s\n", externalURL)
+	}
+
 	bootstrapPassword, ok := os.LookupEnv("SD_BOOTSTRAP_PASSWORD")
 	if !ok || bootstrapPassword == "" {
 		bootstrapPassword = "change-me"
 	}
 	Config.Auth.BootstrapPassword = bootstrapPassword
-
-	// Load node name override from environment
-	if nodeName := os.Getenv("SD_NODE_NAME"); nodeName != "" {
-		Config.NodeName = nodeName
-		fmt.Printf("Using custom node name from SD_NODE_NAME: %s\n", nodeName)
-	}
 
 	// Load port override from environment
 	if portStr := os.Getenv("SD_API_PORT"); portStr != "" {
@@ -62,6 +61,19 @@ func SetupEnvironment(appMode string) error {
 		}
 		Config.MaxSampleGameDuration = maxSampleDuration
 		fmt.Printf("Using max sample game duration from SD_MAX_SAMPLE_GAME_DURATION: %d seconds\n", maxSampleDuration)
+	}
+
+	if dbPath := os.Getenv("SD_DB_PATH"); dbPath != "" {
+		Config.DBPath = dbPath
+		fmt.Printf("Using database path from SD_DB_PATH: %s\n", dbPath)
+	}
+
+	if assetsDir := os.Getenv("SD_ASSETS_DIR"); assetsDir != "" {
+		Config.AssetsDir = assetsDir
+		fmt.Printf("Using assets directory from SD_ASSETS_DIR: %s\n", assetsDir)
+	}
+	if Config.AssetsDir == "" {
+		Config.AssetsDir = "/assets"
 	}
 
 	return nil

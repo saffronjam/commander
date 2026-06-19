@@ -9,13 +9,9 @@ type Type struct {
 	Mode                  string `json:"mode"`
 	ExternalURL           string `json:"externalUrl"`
 	Filepath              string `json:"filepath"`
-	NodeName              string `json:"nodeName"` // If set, uses this instead of GenerateInstanceID()
+	DBPath                string `json:"dbPath"`
+	AssetsDir             string `json:"assetsDir"`
 	MaxSampleGameDuration int64  `json:"maxSampleGameDuration"`
-
-	Redis struct {
-		URL      string `json:"url"`
-		Password string `json:"password,default=default"`
-	}
 
 	Auth struct {
 		BootstrapPassword string

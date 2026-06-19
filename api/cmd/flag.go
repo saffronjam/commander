@@ -1,115 +1,26 @@
 package cmd
 
 import (
-	"api/worker"
-	"context"
+	"api/models/mode"
+	argFlag "flag"
 )
 
-type FlagType string
-
-const (
-	FlagTypeWorker FlagType = "worker"
-	FlagTypeGlobal FlagType = "global"
-)
-
-// FlagDefinition represents a definition for a flag that is passed to the program's executable.
-type FlagDefinition struct {
-	Name         string
-	ValueType    string
-	Description  string
-	FlagType     FlagType
-	DefaultValue interface{}
-	PassedValue  interface{}
-	Run          func(ctx context.Context, cancel context.CancelFunc)
+// Options holds the parsed command-line options. The process always runs the
+// HTTP server, the poller, and background workers together — there is no
+// worker-flag split.
+type Options struct {
+	Mode string
 }
 
-// GetPassedValue returns the value passed to the flag.
-func (flag *FlagDefinition) GetPassedValue() interface{} {
-	return flag.PassedValue
-}
+// ParseFlags parses the process flags into Options.
+func ParseFlags() *Options {
+	opts := &Options{}
+	argFlag.StringVar(&opts.Mode, "mode", mode.Dev, "Application mode: prod, dev, or test")
+	argFlag.Parse()
 
-type FlagDefinitionList []FlagDefinition
-
-// IsPassed returns true if the flag was passed to the program.
-func (list *FlagDefinitionList) IsPassed(name string) bool {
-	for _, flag := range *list {
-		if flag.Name == name {
-			return flag.GetPassedValue() != interface{}(nil)
-		}
+	if opts.Mode != mode.Test && opts.Mode != mode.Prod && opts.Mode != mode.Dev {
+		panic("Invalid mode specified. Valid options are: test, dev, prod")
 	}
 
-	return false
-}
-
-// GetPassedValue returns the value passed to the flag.
-func (list *FlagDefinitionList) GetPassedValue(name string) interface{} {
-	for _, flag := range *list {
-		if flag.Name == name {
-			return flag.GetPassedValue()
-		}
-	}
-
-	return nil
-}
-
-// SetPassedValue sets the value passed to the flag.
-func (list *FlagDefinitionList) SetPassedValue(name string, value interface{}) {
-	for idx, flag := range *list {
-		if flag.Name == name {
-			(*list)[idx].PassedValue = value
-			return
-		}
-	}
-}
-
-// AnyWorkerFlagsPassed returns true if any worker flags were passed to the program.
-func (list *FlagDefinitionList) AnyWorkerFlagsPassed() bool {
-	for _, flag := range *list {
-		if flag.FlagType == FlagTypeWorker && flag.GetPassedValue().(bool) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// GetFlags returns a list of all flags that can be passed to the program.
-func GetFlags() FlagDefinitionList {
-	return []FlagDefinition{
-		{
-			Name:         "mode",
-			ValueType:    "string",
-			FlagType:     FlagTypeGlobal,
-			Description:  "Set the mode of the application, 'prod', 'dev', or 'test'",
-			DefaultValue: "dev",
-		},
-		{
-			Name:         "api",
-			ValueType:    "bool",
-			FlagType:     FlagTypeWorker,
-			Description:  "Start api server",
-			DefaultValue: false,
-			Run:          nil,
-		},
-		{
-			Name:         "publisher",
-			ValueType:    "bool",
-			FlagType:     FlagTypeWorker,
-			Description:  "Start the session manager (multi-session publisher)",
-			DefaultValue: false,
-			Run: func(ctx context.Context, cancel context.CancelFunc) {
-				worker.SessionManagerWorker(ctx)
-			},
-		},
-		{
-			Name:         "settings-listener",
-			ValueType:    "bool",
-			FlagType:     FlagTypeWorker,
-			Description:  "Settings listener worker",
-			DefaultValue: false,
-			Run: func(ctx context.Context, cancel context.CancelFunc) {
-				worker.SettingsListenerWorker(ctx)
-			},
-		},
-	}
+	return opts
 }
