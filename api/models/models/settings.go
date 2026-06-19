@@ -74,31 +74,3 @@ func (s *Settings) Validate() error {
 	}
 	return nil
 }
-
-// SettingsChange represents a change to settings
-type SettingsChange struct {
-	Field    string      `json:"field"`    // e.g., "logLevel"
-	OldValue interface{} `json:"oldValue"` // Previous value
-	NewValue interface{} `json:"newValue"` // New value
-}
-
-// SettingsChangedEvent is published to Redis pub/sub when settings change
-type SettingsChangedEvent struct {
-	Settings Settings         `json:"settings"` // Full new settings
-	Changes  []SettingsChange `json:"changes"`  // List of what changed
-}
-
-// ComputeSettingsDiff compares old and new settings and returns changes
-func ComputeSettingsDiff(oldSettings, newSettings *Settings) []SettingsChange {
-	var changes []SettingsChange
-
-	if oldSettings.LogLevel != newSettings.LogLevel {
-		changes = append(changes, SettingsChange{
-			Field:    "logLevel",
-			OldValue: oldSettings.LogLevel,
-			NewValue: newSettings.LogLevel,
-		})
-	}
-
-	return changes
-}
