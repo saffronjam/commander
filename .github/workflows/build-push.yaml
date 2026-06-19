@@ -11,16 +11,20 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      build_asset_server:
-        description: 'Build asset server image (requires LFS files)'
+      publish_assets:
+        description: 'Publish the map/icon tiles OCI artifact via ORAS (requires LFS)'
         type: boolean
         default: false
+      assets_tag:
+        description: 'Tag for the assets artifact (e.g. tiles-YYYYMMDD)'
+        type: string
+        default: latest
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
-  build-frontend:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,6 +32,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -55,21 +62,18 @@ jobs:
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "version=release-${TIMESTAMP}-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Build and push frontend image
+      - name: Build and push app image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./dashboard/Dockerfile
+          file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VITE_BUILD_VERSION=${{ steps.version.outputs.version }}
-            INCLUDE_ASSETS=false
 
-  build-asset-server:
-    # Only runs when manually triggered with build_asset_server=true
-    if: github.event_name == 'workflow_dispatch' && inputs.build_asset_server
+  build-seed:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -78,79 +82,67 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create LFS file list
-        run: git lfs ls-files --long | cut -d ' ' -f1 | sort > .lfs-assets-id
-
-      - name: Restore LFS cache
-        uses: actions/cache@v4
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
         with:
-          path: .git/lfs
-          key: lfs-${{ hashFiles('.lfs-assets-id') }}
-          restore-keys: lfs-
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/satisfactory-dashboard-seed
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push seeder image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./deploy/Dockerfile.seed
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  publish-assets:
+    # Manual, rare: only when tiles change. The ONLY job that touches LFS.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Pull LFS files
         run: git lfs pull
 
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/satisfactory-dashboard-asset-server
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push asset server image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./asset-server/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-  build-api:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Install ORAS
+        uses: oras-project/setup-oras@v1
 
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ${{ env.REGISTRY }} \
+            --username ${{ github.actor }} --password-stdin
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/satisfactory-dashboard-api
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push API image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./api
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Push assets artifact
+        # Push from inside assets/ so the layer titles are bare basenames
+        # (map-realistic.tar.gz, …). The seeder does `oras pull -o "$tmp"` and
+        # reads "$tmp/<basename>"; a path-qualified title would restore under
+        # "$tmp/assets/…" and the seeder would not find the tarballs.
+        working-directory: assets
+        run: |
+          oras push ${{ env.REGISTRY }}/${{ github.repository_owner }}/satisfactory-dashboard-assets:${{ inputs.assets_tag }} \
+            --artifact-type application/vnd.satisfactory-dashboard.assets \
+            map-realistic.tar.gz:application/gzip \
+            map-game.tar.gz:application/gzip \
+            scraped-images.tar.gz:application/gzip
