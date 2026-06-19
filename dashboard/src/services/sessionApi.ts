@@ -1,115 +1,216 @@
-import { CreateSessionRequest, SessionDTO, SessionInfo } from 'src/apiTypes';
-import { config } from 'src/config';
-import { dispatchAuthExpired } from 'src/contexts/auth/AuthContext';
+import type { SessionDTO, SessionInfo } from 'src/apiTypes';
+import { graphql } from 'src/gql';
+import { client } from 'src/gql/client';
 
-const API_URL = config.apiUrl;
-
-/**
- * Handle API response and dispatch auth expired event on 401.
- */
-async function handleResponse<T>(response: Response, errorMessage: string): Promise<T> {
-  if (!response.ok) {
-    if (response.status === 401) {
-      dispatchAuthExpired();
+const SessionsQuery = graphql(`
+  query Sessions {
+    sessions {
+      id
+      name
+      address
+      sessionName
+      isPaused
+      createdAt
+      isOnline
+      isDisconnected
+      stage
     }
-    const error = await response.json().catch(() => ({ message: errorMessage }));
-    throw new Error(error.errors?.[0]?.msg || error.message || errorMessage);
   }
-  return response.json();
+`);
+
+const SessionQuery = graphql(`
+  query Session($id: ID!) {
+    session(id: $id) {
+      id
+      name
+      address
+      sessionName
+      isPaused
+      createdAt
+      isOnline
+      isDisconnected
+      stage
+    }
+  }
+`);
+
+const CreateSessionMutation = graphql(`
+  mutation CreateSession($name: String!, $address: String!) {
+    createSession(input: { name: $name, address: $address }) {
+      id
+      name
+      address
+      sessionName
+      isPaused
+      createdAt
+      isOnline
+      isDisconnected
+      stage
+    }
+  }
+`);
+
+const UpdateSessionMutation = graphql(`
+  mutation UpdateSession($id: ID!, $input: UpdateSessionInput!) {
+    updateSession(id: $id, input: $input) {
+      id
+      name
+      address
+      sessionName
+      isPaused
+      createdAt
+      isOnline
+      isDisconnected
+      stage
+    }
+  }
+`);
+
+const DeleteSessionMutation = graphql(`
+  mutation DeleteSession($id: ID!) {
+    deleteSession(id: $id)
+  }
+`);
+
+const ValidateSessionMutation = graphql(`
+  mutation ValidateSession($id: ID!) {
+    validateSession(id: $id) {
+      sessionName
+      isPaused
+      dayLength
+      nightLength
+      passedDays
+      numberOfDaysSinceLastDeath
+      hours
+      minutes
+      seconds
+      isDay
+      totalPlayDuration
+      totalPlayDurationText
+    }
+  }
+`);
+
+const PreviewSessionQuery = graphql(`
+  query PreviewSession($address: String!) {
+    previewSession(address: $address) {
+      sessionName
+      isPaused
+      dayLength
+      nightLength
+      passedDays
+      numberOfDaysSinceLastDeath
+      hours
+      minutes
+      seconds
+      isDay
+      totalPlayDuration
+      totalPlayDurationText
+    }
+  }
+`);
+
+const ClientIPQuery = graphql(`
+  query ClientIp {
+    clientIp
+  }
+`);
+
+type GqlSession = {
+  id: string;
+  name: string;
+  address: string;
+  sessionName: string;
+  isPaused: boolean;
+  createdAt: string;
+  isOnline: boolean;
+  isDisconnected: boolean;
+  stage: string;
+};
+
+function toSessionDTO(s: GqlSession): SessionDTO {
+  return {
+    id: s.id,
+    name: s.name,
+    address: s.address,
+    sessionName: s.sessionName,
+    isOnline: s.isOnline,
+    isPaused: s.isPaused,
+    isDisconnected: s.isDisconnected,
+    createdAt: s.createdAt,
+    stage: s.stage === 'READY' ? 'ready' : 'init',
+  };
 }
 
 export interface SessionPreviewResult {
   sessionInfo: SessionInfo;
 }
 
+/**
+ * Session CRUD + probe API, backed by GraphQL. Results are mapped to the
+ * existing SessionDTO/SessionInfo shapes so consumers stay unchanged.
+ */
 export const sessionApi = {
-  /**
-   * List all sessions
-   */
   list: async (): Promise<SessionDTO[]> => {
-    const response = await fetch(`${API_URL}/sessions`, { credentials: 'include' });
-    return handleResponse<SessionDTO[]>(response, 'Failed to fetch sessions');
+    const res = await client
+      .query(SessionsQuery, {}, { requestPolicy: 'network-only' })
+      .toPromise();
+    if (res.error) throw new Error(res.error.message);
+    return (res.data?.sessions ?? []).map(toSessionDTO);
   },
 
-  /**
-   * Get a specific session by ID
-   */
   get: async (id: string): Promise<SessionDTO> => {
-    const response = await fetch(`${API_URL}/sessions/${id}`, { credentials: 'include' });
-    return handleResponse<SessionDTO>(response, 'Failed to fetch session');
+    const res = await client
+      .query(SessionQuery, { id }, { requestPolicy: 'network-only' })
+      .toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data?.session) throw new Error('Failed to fetch session');
+    return toSessionDTO(res.data.session);
   },
 
-  /**
-   * Create a new session
-   */
   create: async (name: string, address: string): Promise<SessionDTO> => {
-    const body: CreateSessionRequest = { name, address };
-    const response = await fetch(`${API_URL}/sessions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      credentials: 'include',
-    });
-    return handleResponse<SessionDTO>(response, 'Failed to create session');
+    const res = await client.mutation(CreateSessionMutation, { name, address }).toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data) throw new Error('Failed to create session');
+    return toSessionDTO(res.data.createSession);
   },
 
-  /**
-   * Delete a session
-   */
   delete: async (id: string): Promise<void> => {
-    const response = await fetch(`${API_URL}/sessions/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      if (response.status === 401) {
-        dispatchAuthExpired();
-      }
-      throw new Error('Failed to delete session');
-    }
+    const res = await client.mutation(DeleteSessionMutation, { id }).toPromise();
+    if (res.error) throw new Error(res.error.message);
   },
 
-  /**
-   * Update a session (name, paused state, and/or address)
-   */
   update: async (
     id: string,
     updates: { name?: string; isPaused?: boolean; address?: string }
   ): Promise<SessionDTO> => {
-    const response = await fetch(`${API_URL}/sessions/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-      credentials: 'include',
-    });
-    return handleResponse<SessionDTO>(response, 'Failed to update session');
+    const res = await client.mutation(UpdateSessionMutation, { id, input: updates }).toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data) throw new Error('Failed to update session');
+    return toSessionDTO(res.data.updateSession);
   },
 
-  /**
-   * Validate a session (refresh connection status and session info)
-   */
   validate: async (id: string): Promise<SessionInfo> => {
-    const response = await fetch(`${API_URL}/sessions/${id}/validate`, { credentials: 'include' });
-    return handleResponse<SessionInfo>(response, 'Failed to validate session');
+    const res = await client.mutation(ValidateSessionMutation, { id }).toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data) throw new Error('Failed to validate session');
+    return res.data.validateSession as SessionInfo;
   },
 
-  /**
-   * Preview a session (validate address before creating)
-   */
   preview: async (address: string): Promise<SessionPreviewResult> => {
-    const response = await fetch(
-      `${API_URL}/sessions/preview?address=${encodeURIComponent(address)}`,
-      { credentials: 'include' }
-    );
-    return handleResponse<SessionPreviewResult>(response, 'Failed to connect to server');
+    const res = await client
+      .query(PreviewSessionQuery, { address }, { requestPolicy: 'network-only' })
+      .toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data) throw new Error('Failed to connect to server');
+    return { sessionInfo: res.data.previewSession as SessionInfo };
   },
 
-  /**
-   * Get client IP address as seen by the server
-   */
   getClientIP: async (): Promise<string> => {
-    const response = await fetch(`${API_URL}/client-ip`, { credentials: 'include' });
-    const data = await handleResponse<{ ip: string }>(response, 'Failed to get client IP');
-    return data.ip;
+    const res = await client
+      .query(ClientIPQuery, {}, { requestPolicy: 'network-only' })
+      .toPromise();
+    if (res.error) throw new Error(res.error.message);
+    return res.data?.clientIp ?? '';
   },
 };

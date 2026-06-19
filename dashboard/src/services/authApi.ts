@@ -1,91 +1,75 @@
-import {
-  AuthStatusResponse,
-  ChangePasswordRequest,
-  ChangePasswordResponse,
-  LoginRequest,
-  LoginResponse,
-  LogoutResponse,
-} from 'src/apiTypes';
-import { config } from 'src/config';
-import { dispatchAuthExpired } from 'src/contexts/auth/AuthContext';
+import { graphql } from 'src/gql';
+import { client } from 'src/gql/client';
 
-const API_URL = config.apiUrl;
+const LoginMutation = graphql(`
+  mutation Login($password: String!) {
+    login(input: { password: $password }) {
+      success
+      usedDefaultPassword
+    }
+  }
+`);
+
+const AuthStatusQuery = graphql(`
+  query AuthStatus {
+    authStatus {
+      authenticated
+      usedDefaultPassword
+    }
+  }
+`);
+
+const ChangePasswordMutation = graphql(`
+  mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
+    changePassword(input: { currentPassword: $currentPassword, newPassword: $newPassword }) {
+      success
+      message
+    }
+  }
+`);
+
+const LogoutMutation = graphql(`
+  mutation Logout {
+    logout {
+      success
+    }
+  }
+`);
 
 /**
- * Authentication API service for login and status operations.
+ * Authentication API service backed by GraphQL. The access token rides a
+ * same-origin HTTP-only cookie the server sets on login.
  */
 export const authApi = {
-  /**
-   * Authenticate with the dashboard access key.
-   * On success, the server sets an HTTP-only cookie with the access token.
-   */
-  login: async (password: string): Promise<LoginResponse> => {
-    const body: LoginRequest = { password };
-    const response = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Authentication failed' }));
-      throw new Error(error.errors?.[0]?.msg || error.message || 'Authentication failed');
-    }
-    return response.json();
+  login: async (password: string) => {
+    const res = await client.mutation(LoginMutation, { password }).toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data) throw new Error('Authentication failed');
+    return res.data.login;
   },
 
-  /**
-   * Check if the current session is authenticated.
-   * Uses the HTTP-only cookie to validate the access token.
-   */
-  getStatus: async (): Promise<AuthStatusResponse> => {
-    const response = await fetch(`${API_URL}/auth/status`, {
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      throw new Error('Failed to get authentication status');
-    }
-    return response.json();
+  getStatus: async () => {
+    const res = await client
+      .query(AuthStatusQuery, {}, { requestPolicy: 'network-only' })
+      .toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data) throw new Error('Failed to get authentication status');
+    return res.data.authStatus;
   },
 
-  /**
-   * Change the dashboard access key.
-   * Requires the current password for verification.
-   */
-  changePassword: async (
-    currentPassword: string,
-    newPassword: string
-  ): Promise<ChangePasswordResponse> => {
-    const body: ChangePasswordRequest = { currentPassword, newPassword };
-    const response = await fetch(`${API_URL}/auth/change-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      if (response.status === 401) {
-        dispatchAuthExpired();
-      }
-      const error = await response.json().catch(() => ({ message: 'Failed to change password' }));
-      throw new Error(error.errors?.[0]?.msg || error.message || 'Failed to change password');
-    }
-    return response.json();
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    const res = await client
+      .mutation(ChangePasswordMutation, { currentPassword, newPassword })
+      .toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data) throw new Error('Failed to change password');
+    return res.data.changePassword;
   },
 
-  /**
-   * Log out of the dashboard and invalidate the current session.
-   * Clears the HTTP-only cookie and removes the token from the server.
-   */
-  logout: async (): Promise<LogoutResponse> => {
-    const response = await fetch(`${API_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to logout' }));
-      throw new Error(error.errors?.[0]?.msg || error.message || 'Failed to logout');
-    }
-    return response.json();
+  logout: async () => {
+    const res = await client.mutation(LogoutMutation, {}).toPromise();
+    if (res.error) throw new Error(res.error.message);
+    if (!res.data) throw new Error('Failed to logout');
+    return res.data.logout;
   },
 };

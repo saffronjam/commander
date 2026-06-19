@@ -1,45 +1,50 @@
-import { Settings } from 'src/apiTypes';
-import { config } from 'src/config';
-import { dispatchAuthExpired } from 'src/contexts/auth/AuthContext';
+import type { Settings } from 'src/apiTypes';
+import { graphql } from 'src/gql';
+import type { LogLevel } from 'src/gql/graphql';
+import { client } from 'src/gql/client';
 
-const API_URL = config.apiUrl;
-
-/**
- * Handle API response and dispatch auth expired event on 401.
- */
-async function handleResponse<T>(response: Response, errorMessage: string): Promise<T> {
-  if (!response.ok) {
-    if (response.status === 401) {
-      dispatchAuthExpired();
+const SettingsQuery = graphql(`
+  query Settings {
+    settings {
+      logLevel
     }
-    const error = await response.json().catch(() => ({ message: errorMessage }));
-    throw new Error(error.errors?.[0]?.msg || error.message || errorMessage);
   }
-  return response.json();
+`);
+
+const UpdateSettingsMutation = graphql(`
+  mutation UpdateSettings($logLevel: LogLevel!) {
+    updateSettings(input: { logLevel: $logLevel }) {
+      logLevel
+    }
+  }
+`);
+
+// GraphQL enums are SCREAMING_SNAKE (e.g. INFO); the app uses TitleCase (Info).
+function toApiLevel(l: string): string {
+  return l.charAt(0).toUpperCase() + l.slice(1).toLowerCase();
+}
+
+function toGqlLevel(l: string): LogLevel {
+  return l.toUpperCase() as LogLevel;
 }
 
 /**
- * Settings API service for managing global application settings.
+ * Settings API service backed by GraphQL.
  */
 export const settingsApi = {
-  /**
-   * Get current settings
-   */
   get: async (): Promise<Settings> => {
-    const response = await fetch(`${API_URL}/settings`, { credentials: 'include' });
-    return handleResponse<Settings>(response, 'Failed to fetch settings');
+    const res = await client
+      .query(SettingsQuery, {}, { requestPolicy: 'network-only' })
+      .toPromise();
+    if (res.error) throw new Error(res.error.message);
+    return { logLevel: toApiLevel(res.data?.settings.logLevel ?? 'INFO') };
   },
 
-  /**
-   * Update settings
-   */
   update: async (settings: Settings): Promise<Settings> => {
-    const response = await fetch(`${API_URL}/settings`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings),
-      credentials: 'include',
-    });
-    return handleResponse<Settings>(response, 'Failed to update settings');
+    const res = await client
+      .mutation(UpdateSettingsMutation, { logLevel: toGqlLevel(settings.logLevel) })
+      .toPromise();
+    if (res.error) throw new Error(res.error.message);
+    return { logLevel: toApiLevel(res.data?.updateSettings.logLevel ?? settings.logLevel) };
   },
 };
