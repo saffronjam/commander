@@ -1,140 +1,103 @@
 package cmd
 
 import (
-	"api/models/mode"
+	"api/internal/store"
+	"api/models/models"
 	"api/pkg/config"
 	"api/pkg/db"
+	"api/pkg/eventbus"
 	"api/pkg/log"
-	"api/routers"
 	"api/service/auth"
+	"api/worker"
 	"context"
 	"errors"
-	argFlag "flag"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"os"
-	"sync"
 	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
-type Options struct {
-	Flags FlagDefinitionList
-	Mode  string
-}
-
+// App is the running process: an HTTP server plus the single poller supervisor.
 type App struct {
 	httpServer *http.Server
+	poller     *worker.SessionManager
+	bus        *eventbus.ChannelBus
+	latest     *eventbus.LatestStore
 	ctx        context.Context
 	cancel     context.CancelFunc
-	workerWg   sync.WaitGroup
 }
 
+// InitTask is a named startup step.
 type InitTask struct {
 	Name string
 	Task func() error
 }
 
+// Begin logs the start of an init task.
 func (it *InitTask) Begin(prefix string) {
 	log.Infof("%s %s%s%s %s...%s ", prefix, log.Orange, it.Name, log.Reset, log.Grey, log.Reset)
 }
 
-// Create creates a new App instance.
+// Create initializes the application, starts the HTTP server, the poller
+// supervisor, and the settings listener — all unconditionally.
 func Create(opts *Options) *App {
-	err := log.SetupLogger(opts.Mode)
-	if err != nil {
+	if err := log.SetupLogger(opts.Mode); err != nil {
 		panic(fmt.Sprintf("Failed to set up logger. details: %s", err.Error()))
 	}
 
 	initTasks := []InitTask{
-		{Name: "Validate application", Task: func() error { return validateApp(opts) }},
 		{Name: "Setup environment", Task: func() error { return config.SetupEnvironment(opts.Mode) }},
 		{Name: "Setup DB", Task: func() error { return db.Setup() }},
 		{Name: "Initialize auth", Task: initializeAuth},
+		{Name: "Apply log level", Task: applyLogLevel},
 	}
 
 	for idx, task := range initTasks {
 		task.Begin(fmt.Sprintf("(%d/%d)", idx+1, len(initTasks)))
-		err := task.Task()
-		if err != nil {
+		if err := task.Task(); err != nil {
 			log.Fatalf("Init task %s failed. details: %s", task.Name, err.Error())
 		}
 	}
 	log.Printf("%sInitialization complete%s", log.Orange, log.Reset)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	app := &App{ctx: ctx, cancel: cancel}
 
-	app := &App{
-		ctx:    ctx,
-		cancel: cancel,
+	app.bus = eventbus.NewChannelBus()
+	app.latest = eventbus.NewLatestStore()
+	app.poller = worker.NewSessionManager(app.bus, app.latest)
+
+	app.httpServer = &http.Server{
+		Addr:    fmt.Sprintf("0.0.0.0:%d", config.Config.Port),
+		Handler: app.buildHandler(auth.NewService()),
 	}
-
-	for _, flag := range opts.Flags {
-		// Handle api worker separately
-		if flag.Name == "api" {
-			continue
+	go func() {
+		log.Printf("%sHTTP server listening on %s0.0.0.0:%d%s", log.Bold, log.Orange, config.Config.Port, log.Reset)
+		if err := app.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalln(fmt.Errorf("failed to start http server. details: %w", err))
 		}
+	}()
 
-		if flag.FlagType == FlagTypeWorker && flag.GetPassedValue().(bool) {
-			app.workerWg.Add(1)
-			runFunc := flag.Run
-			go func() {
-				defer app.workerWg.Done()
-				runFunc(ctx, cancel)
-			}()
-		}
-	}
-
-	if opts.Flags.GetPassedValue("api").(bool) {
-		ginMode, exists := os.LookupEnv("GIN_MODE")
-		if exists {
-			gin.SetMode(ginMode)
-		} else {
-			gin.SetMode("release")
-		}
-
-		app.httpServer = &http.Server{
-			Addr:    fmt.Sprintf("0.0.0.0:%d", config.Config.Port),
-			Handler: routers.NewRouter(),
-		}
-
-		go func() {
-			log.Printf("%sHTTP server listening on %s0.0.0.0:%d%s", log.Bold, log.Orange, config.Config.Port, log.Reset)
-			err := app.httpServer.ListenAndServe()
-			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				log.Fatalln(fmt.Errorf("failed to start http server. details: %w", err))
-			}
-		}()
-	}
+	go app.poller.Start(ctx)
+	go store.RunTokenPrune(ctx, slog.Default(), db.DB.Store, time.Hour)
+	go store.RunHistoryRetention(ctx, slog.Default(), db.DB.Store, app.poller, time.Minute)
 
 	return app
 }
 
-// Stop gracefully shuts down the application.
-// It cancels the context to signal workers to stop, waits for workers to complete
-// their cleanup (including LeaseManager releasing leases), and shuts down the HTTP server.
+// Stop performs a deterministic, ordered shutdown: cancel the root context, drain
+// the poller's goroutines, then shut down the HTTP server.
 func (app *App) Stop() {
 	app.cancel()
 
-	// Wait for workers to complete graceful shutdown (e.g., LeaseManager releasing leases)
-	workersDone := make(chan struct{})
-	go func() {
-		app.workerWg.Wait()
-		close(workersDone)
-	}()
-
-	select {
-	case <-workersDone:
-		log.Println("All workers stopped gracefully")
-	case <-time.After(10 * time.Second):
-		log.Println("Timed out waiting for workers to stop")
+	if app.poller != nil {
+		app.poller.Stop(5 * time.Second)
 	}
 
 	if app.httpServer != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := app.httpServer.Shutdown(ctx); err != nil {
+		if err := app.httpServer.Shutdown(shutdownCtx); err != nil {
 			log.Fatalln(fmt.Errorf("failed to shutdown server. details: %w", err))
 		}
 		log.Println("HTTP server shutdown complete")
@@ -143,65 +106,8 @@ func (app *App) Stop() {
 	log.Println("Server exited successfully")
 }
 
-func ParseFlags() *Options {
-	flags := GetFlags()
-
-	// 1. Parse flags
-	for _, flag := range flags {
-		switch flag.ValueType {
-		case "bool":
-			argFlag.Bool(flag.Name, flag.DefaultValue.(bool), flag.Description)
-		case "string":
-			argFlag.String(flag.Name, flag.DefaultValue.(string), flag.Description)
-		}
-		// Add more cases as needed
-	}
-	argFlag.Parse()
-
-	// 2. Extract passed values
-	for _, flag := range flags {
-		switch flag.ValueType {
-		case "bool":
-			if lookedUpVal := argFlag.Lookup(flag.Name); lookedUpVal != nil {
-				flags.SetPassedValue(flag.Name, argFlag.Lookup(flag.Name).Value.(argFlag.Getter).Get().(bool))
-			}
-		case "string":
-			if lookedUpVal := argFlag.Lookup(flag.Name); lookedUpVal != nil {
-				flags.SetPassedValue(flag.Name, argFlag.Lookup(flag.Name).Value.(argFlag.Getter).Get().(string))
-			}
-		}
-		// Add more cases as needed
-	}
-
-	options := Options{
-		Flags: flags,
-		Mode:  flags.GetPassedValue("mode").(string),
-	}
-
-	if options.Mode != mode.Test && options.Mode != mode.Prod && options.Mode != mode.Dev {
-		panic("Invalid mode specified. Valid options are: test, dev, prod")
-	}
-
-	return &options
-}
-
-func validateApp(options *Options) error {
-	if !options.Flags.AnyWorkerFlagsPassed() {
-		log.Println("No workers specified, starting all")
-
-		for _, flag := range options.Flags {
-			switch flag.FlagType {
-			case FlagTypeWorker:
-				options.Flags.SetPassedValue(flag.Name, true)
-			}
-		}
-	}
-
-	return nil
-}
-
-// initializeAuth initializes the authentication system by checking if a password
-// exists in Redis and setting the bootstrap password if not.
+// initializeAuth initializes the authentication system, setting the bootstrap
+// password if none is set yet.
 func initializeAuth() error {
 	authService := auth.NewService()
 	usedBootstrap, err := authService.InitializePassword()
@@ -213,5 +119,22 @@ func initializeAuth() error {
 		log.Printf("%sInitialized with bootstrap password - change it via Settings%s", log.Orange, log.Reset)
 	}
 
+	return nil
+}
+
+// applyLogLevel reads the persisted log level from the store and applies it,
+// falling back to Info when unset or invalid.
+func applyLogLevel() error {
+	level := models.LogLevelInfo
+	if setting, err := db.DB.Store.GetSetting(context.Background(), "log_level"); err == nil {
+		if lvl := models.LogLevel(setting.Value); lvl.IsValid() {
+			level = lvl
+		}
+	}
+	zapLevel, err := level.ToZapLevel()
+	if err != nil {
+		return nil
+	}
+	log.SetLogLevel(zapLevel)
 	return nil
 }

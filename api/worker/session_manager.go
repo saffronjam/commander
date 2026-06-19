@@ -1,16 +1,18 @@
 package worker
 
 import (
+	sessionid "api/internal/session"
+	"api/internal/store"
 	"api/models/models"
-	"api/pkg/config"
-	"api/pkg/db/key_value"
+	"api/pkg/db"
+	"api/pkg/eventbus"
 	"api/pkg/log"
 	"api/service"
 	"api/service/client"
-	"api/service/lease"
 	"api/service/session"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -25,9 +27,19 @@ var historyEnabledTypes = map[models.SatisfactoryEventType]bool{
 	models.SatisfactoryEventSinkStats:      true,
 }
 
-// isHistoryEnabledType returns true if the event type supports historical data storage.
 func isHistoryEnabledType(eventType models.SatisfactoryEventType) bool {
 	return historyEnabledTypes[eventType]
+}
+
+func toModelsSession(s store.Session) *models.Session {
+	return &models.Session{
+		ID:          string(s.ID),
+		Name:        s.Name,
+		Address:     s.Address,
+		SessionName: s.SessionName,
+		IsPaused:    s.IsPaused,
+		CreatedAt:   s.CreatedAt,
+	}
 }
 
 // publisherState tracks the state of a session's publisher
@@ -58,52 +70,66 @@ func (ps *publisherState) GameTimeTracker() *session.GameTimeTracker {
 	return ps.gameTimeTracker
 }
 
-var (
-	globalLeaseManager   lease.LeaseManager
-	globalLeaseManagerMu sync.RWMutex
-)
-
-// SetGlobalLeaseManager stores the lease manager for access by API handlers.
-func SetGlobalLeaseManager(lm lease.LeaseManager) {
-	globalLeaseManagerMu.Lock()
-	defer globalLeaseManagerMu.Unlock()
-	globalLeaseManager = lm
+type connState struct {
+	online       bool
+	disconnected bool
 }
 
-// GetGlobalLeaseManager returns the global lease manager instance.
-// Returns nil if the lease manager has not been initialized.
-func GetGlobalLeaseManager() lease.LeaseManager {
-	globalLeaseManagerMu.RLock()
-	defer globalLeaseManagerMu.RUnlock()
-	return globalLeaseManager
-}
-
-// SessionManager manages publishers for multiple sessions
+// SessionManager is the single in-process supervisor that owns one poll loop per
+// active session and is the sole producer onto the eventbus + LatestStore.
 type SessionManager struct {
-	store        *session.Store
-	kvClient     *key_value.Client
-	leaseManager lease.LeaseManager
-	publishers   map[string]*publisherState // sessionID -> publisher state
-	mu           sync.RWMutex
+	bus        *eventbus.ChannelBus
+	latest     *eventbus.LatestStore
+	publishers map[string]*publisherState // sessionID -> publisher state
+	conn       map[string]connState       // sessionID -> connectivity
+	mu         sync.RWMutex
+	wg         sync.WaitGroup
+	baseCtx    context.Context
 }
 
-// NewSessionManager creates a new session manager with the given lease manager.
-// The lease manager coordinates distributed polling across multiple API instances.
-func NewSessionManager(leaseManager lease.LeaseManager) *SessionManager {
+// NewSessionManager creates a session manager wired to the eventbus + LatestStore.
+func NewSessionManager(bus *eventbus.ChannelBus, latest *eventbus.LatestStore) *SessionManager {
 	return &SessionManager{
-		store:        session.NewStore(),
-		kvClient:     key_value.New(),
-		leaseManager: leaseManager,
-		publishers:   make(map[string]*publisherState),
+		bus:        bus,
+		latest:     latest,
+		publishers: make(map[string]*publisherState),
+		conn:       make(map[string]connState),
 	}
 }
 
-// Start initializes the session manager and starts publishers for existing sessions
+// listSessions returns the durable session config from the SQLite store.
+func (sm *SessionManager) listSessions(ctx context.Context) ([]*models.Session, error) {
+	rows, err := db.DB.Store.ListSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*models.Session, len(rows))
+	for i, s := range rows {
+		out[i] = toModelsSession(s)
+	}
+	return out, nil
+}
+
+// getSession returns one session, or (nil, nil) if it no longer exists.
+func (sm *SessionManager) getSession(ctx context.Context, id string) (*models.Session, error) {
+	s, err := db.DB.Store.GetSession(ctx, sessionid.ID(id))
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toModelsSession(s), nil
+}
+
+// Start loads sessions, starts a publisher per non-paused session, and launches
+// the reconcile loop. Non-blocking; the App owns the lifetime.
 func (sm *SessionManager) Start(ctx context.Context) {
 	log.Infoln("Starting session manager...")
 
-	// Load existing sessions and start publishers
-	sessions, err := sm.store.List()
+	sm.baseCtx = ctx
+
+	sessions, err := sm.listSessions(ctx)
 	if err != nil {
 		log.PrettyError(fmt.Errorf("failed to load sessions: %w", err))
 		return
@@ -112,20 +138,18 @@ func (sm *SessionManager) Start(ctx context.Context) {
 	log.Infof("Found %d existing sessions", len(sessions))
 	for _, sess := range sessions {
 		if !sess.IsPaused {
-			sm.StartSession(ctx, sess)
+			sm.startPublisher(ctx, sess)
 		} else {
 			log.Infof("Skipping paused session: %s (%s)", sess.Name, sess.ID)
 		}
 	}
 
-	// Keep the manager running and periodically check for new sessions
-	go sm.watchForNewSessions(ctx)
-
-	<-ctx.Done()
-	log.Infoln("Session manager stopped")
+	sm.wg.Go(func() {
+		sm.watchForNewSessions(ctx)
+	})
 }
 
-// watchForNewSessions periodically checks for new sessions that need publishers
+// watchForNewSessions periodically reconciles publishers against the store.
 func (sm *SessionManager) watchForNewSessions(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -135,7 +159,7 @@ func (sm *SessionManager) watchForNewSessions(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			sessions, err := sm.store.List()
+			sessions, err := sm.listSessions(ctx)
 			if err != nil {
 				log.PrettyError(fmt.Errorf("failed to list sessions: %w", err))
 				continue
@@ -144,22 +168,17 @@ func (sm *SessionManager) watchForNewSessions(ctx context.Context) {
 			sm.mu.RLock()
 			for _, sess := range sessions {
 				_, isRunning := sm.publishers[sess.ID]
-
 				if sess.IsPaused && isRunning {
-					// Session was paused - stop the publisher
 					sm.mu.RUnlock()
 					log.Infof("Stopping publisher for paused session: %s (%s)", sess.Name, sess.ID)
-					sm.StopSession(sess.ID)
+					sm.stopPublisher(sess.ID)
 					sm.mu.RLock()
 				} else if !sess.IsPaused && !isRunning {
-					// Session is not paused and not running - start it
 					sm.mu.RUnlock()
-					sm.StartSession(ctx, sess)
+					sm.startPublisher(ctx, sess)
 					sm.mu.RLock()
 				}
 			}
-
-			// Check for deleted sessions
 			for sessionID := range sm.publishers {
 				found := false
 				for _, sess := range sessions {
@@ -170,7 +189,7 @@ func (sm *SessionManager) watchForNewSessions(ctx context.Context) {
 				}
 				if !found {
 					sm.mu.RUnlock()
-					sm.StopSession(sessionID)
+					sm.stopPublisher(sessionID)
 					sm.mu.RLock()
 				}
 			}
@@ -179,27 +198,14 @@ func (sm *SessionManager) watchForNewSessions(ctx context.Context) {
 	}
 }
 
-// StartSession starts a publisher for the given session if the lease can be acquired.
-// The lease manager coordinates distributed polling across multiple API instances,
-// ensuring each session is polled by exactly one instance at a time.
-func (sm *SessionManager) StartSession(parentCtx context.Context, sess *models.Session) {
+// startPublisher starts a poll loop for a session (unconditional after the
+// already-running check).
+func (sm *SessionManager) startPublisher(parentCtx context.Context, sess *models.Session) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// Check if already running
 	if _, exists := sm.publishers[sess.ID]; exists {
 		log.Warnf("Publisher for session %s already running", sess.ID)
-		return
-	}
-
-	// Try to acquire the lease before spawning the publisher
-	acquired, err := sm.leaseManager.TryAcquire(parentCtx, sess.ID)
-	if err != nil {
-		log.Warnf("Failed to acquire lease for session %s: %v", sess.ID, err)
-		return
-	}
-	if !acquired {
-		log.Debugf("Lease for session %s held by another instance, skipping", sess.ID)
 		return
 	}
 
@@ -214,11 +220,12 @@ func (sm *SessionManager) StartSession(parentCtx context.Context, sess *models.S
 
 	log.Infof("Starting publisher for session: %s (%s)", sess.Name, sess.ID)
 
+	sm.wg.Add(1)
 	go sm.publishLoop(ctx, sess, state)
 }
 
-// StopSession stops the publisher for the given session
-func (sm *SessionManager) StopSession(sessionID string) {
+// stopPublisher stops the publisher for a session id.
+func (sm *SessionManager) stopPublisher(sessionID string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -229,15 +236,54 @@ func (sm *SessionManager) StopSession(sessionID string) {
 	}
 }
 
-// Stop performs graceful shutdown of the session manager.
-// It stops the lease manager, releasing all owned leases and removing the heartbeat,
-// allowing other instances to take over polling immediately.
-func (sm *SessionManager) Stop() {
-	log.Infoln("Stopping session manager...")
-
-	if err := sm.leaseManager.Stop(); err != nil {
-		log.Warnf("Failed to stop lease manager: %v", err)
+// StartSession is the Poller interface entrypoint: load the session and start it.
+func (sm *SessionManager) StartSession(id sessionid.ID) {
+	sess, err := sm.getSession(context.Background(), string(id))
+	if err != nil || sess == nil {
+		log.Warnf("StartSession: session %s not found: %v", id, err)
+		return
 	}
+	if sm.baseCtx == nil {
+		return
+	}
+	sm.startPublisher(sm.baseCtx, sess)
+}
+
+// StopSession is the Poller interface entrypoint.
+func (sm *SessionManager) StopSession(id sessionid.ID) {
+	sm.stopPublisher(string(id))
+	if sm.latest != nil {
+		sm.latest.Clear(string(id))
+	}
+}
+
+// PreviewSession probes a game server at the address and returns its session info.
+func (sm *SessionManager) PreviewSession(ctx context.Context, address string) (models.SessionInfo, error) {
+	c := service.NewClientWithAddress(address)
+	info, err := c.GetSessionInfo(ctx)
+	if err != nil {
+		return models.SessionInfo{}, err
+	}
+	return *info, nil
+}
+
+// ValidateSession probes the game server for an existing session.
+func (sm *SessionManager) ValidateSession(ctx context.Context, id sessionid.ID) (models.SessionInfo, error) {
+	sess, err := sm.getSession(ctx, string(id))
+	if err != nil || sess == nil {
+		return models.SessionInfo{}, fmt.Errorf("session %s not found", id)
+	}
+	c := service.NewClientWithAddress(sess.Address)
+	info, err := c.GetSessionInfo(ctx)
+	if err != nil {
+		return models.SessionInfo{}, err
+	}
+	return *info, nil
+}
+
+// Stop performs graceful shutdown bounded by timeout.
+func (sm *SessionManager) Stop(timeout time.Duration) {
+	log.Infoln("Stopping session manager...")
 
 	sm.mu.Lock()
 	for sessionID, state := range sm.publishers {
@@ -246,17 +292,116 @@ func (sm *SessionManager) Stop() {
 	}
 	sm.mu.Unlock()
 
-	log.Infoln("Session manager stopped gracefully")
+	done := make(chan struct{})
+	go func() {
+		sm.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Infoln("Session manager stopped gracefully")
+	case <-time.After(timeout):
+		log.Warnln("Timed out waiting for poll goroutines to stop")
+	}
 }
 
-// publishLoop runs the event publishing loop for a session
+// --- Snapshotter (graph.Snapshotter) ---
+
+// Latest returns the poller's latest decoded payload for one (session, dataType).
+func (sm *SessionManager) Latest(sessionID sessionid.ID, dataType string) (any, bool) {
+	save := sm.CurrentSaveName(sessionID)
+	if save == "" || sm.latest == nil {
+		return nil, false
+	}
+	e, ok := sm.latest.Get(string(sessionID), save, dataType)
+	if !ok {
+		return nil, false
+	}
+	return e.Data, true
+}
+
+// CurrentSaveName returns the active save name for a session.
+func (sm *SessionManager) CurrentSaveName(sessionID sessionid.ID) string {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	if state, ok := sm.publishers[string(sessionID)]; ok {
+		return state.GetSaveName()
+	}
+	return ""
+}
+
+// Stage reports INIT until every required event type has been observed.
+func (sm *SessionManager) Stage(sessionID sessionid.ID) models.SessionStage {
+	save := sm.CurrentSaveName(sessionID)
+	if save == "" || sm.latest == nil {
+		return models.SessionStageInit
+	}
+	for _, t := range models.RequiredEventTypes {
+		if _, ok := sm.latest.Get(string(sessionID), save, string(t)); !ok {
+			return models.SessionStageInit
+		}
+	}
+	return models.SessionStageReady
+}
+
+// Connectivity returns the derived live connectivity for a session.
+func (sm *SessionManager) Connectivity(sessionID sessionid.ID) models.ConnectivityStatus {
+	sm.mu.RLock()
+	c := sm.conn[string(sessionID)]
+	sm.mu.RUnlock()
+	return models.ConnectivityStatus{
+		IsOnline:       c.online,
+		IsDisconnected: c.disconnected,
+		Stage:          sm.Stage(sessionID),
+	}
+}
+
+// --- HistoryFrontier (store.HistoryFrontier) ---
+
+// Series reports the active (session, save, dataType) history series the
+// retention pruner should bound.
+func (sm *SessionManager) Series() []store.HistorySeriesKey {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	var keys []store.HistorySeriesKey
+	for sid, state := range sm.publishers {
+		save := state.GetSaveName()
+		if save == "" {
+			continue
+		}
+		for t := range historyEnabledTypes {
+			keys = append(keys, store.HistorySeriesKey{
+				SessionID: sessionid.ID(sid),
+				SaveName:  save,
+				DataType:  string(t),
+			})
+		}
+	}
+	return keys
+}
+
+// CurrentGameTime returns the latest observed game time for a series.
+func (sm *SessionManager) CurrentGameTime(key store.HistorySeriesKey) int64 {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	if state, ok := sm.publishers[string(key.SessionID)]; ok {
+		return state.gameTimeTracker.CurrentGameTime()
+	}
+	return 0
+}
+
+func (sm *SessionManager) setConn(sessionID string, online, disconnected bool) {
+	sm.mu.Lock()
+	sm.conn[sessionID] = connState{online: online, disconnected: disconnected}
+	sm.mu.Unlock()
+}
+
+// publishLoop runs the event publishing loop for a session.
 func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session, state *publisherState) {
-	channelKey := fmt.Sprintf("%s:%s", models.SatisfactoryEventKey, sess.ID)
+	defer sm.wg.Done()
 
-	// Create the FRM client for this session
 	frmClient := service.NewClientWithAddress(sess.Address)
-
-	// Set up disconnection callback
 	frmClient.SetDisconnectedCallback(func() {
 		log.Infof("Session is offline: %s (%s)", sess.Name, sess.ID)
 		sm.transitionToDisconnected(sess.ID)
@@ -265,109 +410,64 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 	var apiClient client.Client = frmClient
 
 	handler := func(event *models.SatisfactoryEvent) {
-		// Check if session was deleted before processing
-		if session.IsSessionDeleted(sess.ID) {
+		if ctx.Err() != nil {
 			return
 		}
 
-		// Check lease ownership before processing each poll result
-		if !sm.leaseManager.IsOwned(sess.ID) {
-			// Lease is not owned. Check if it's uncertain or lost entirely.
-			if sm.leaseManager.IsUncertain(sess.ID) {
-				// Lease state is uncertain (renewal failed). Pause polling by
-				// skipping this event but keep the publisher running for recovery.
-				log.Debugf("Lease uncertain for session %s, pausing poll processing", sess.ID)
-				return
-			}
-			// Lease is not owned and not uncertain - it was taken by another instance
-			log.Infof("Lease lost for session %s, stopping publisher", sess.ID)
-			sm.StopSession(sess.ID)
-			return
-		}
+		saveName := state.GetSaveName()
 
-		// Store history and set gameTimeId for time-series data types
 		if isHistoryEnabledType(event.Type) {
-			saveName := state.GetSaveName()
 			gameTimeID := state.gameTimeTracker.CurrentGameTime()
 			if saveName != "" && gameTimeID > 0 {
-				// Set gameTimeId on event for SSE subscribers to track position
 				event.GameTimeID = gameTimeID
 
-				if err := session.StoreHistoryPoint(sess.ID, saveName, string(event.Type), gameTimeID, event.Data); err != nil {
-					log.Warnf("Failed to store history point for session %s type %s: %v", sess.ID, event.Type, err)
-				}
-
-				if err := session.PruneOldHistory(sess.ID, saveName, string(event.Type), gameTimeID, config.Config.MaxSampleGameDuration); err != nil {
-					log.Warnf("Failed to prune old history for session %s type %s: %v", sess.ID, event.Type, err)
+				if db.DB.Store != nil {
+					if data, err := json.Marshal(event.Data); err == nil {
+						if err := db.DB.Store.UpsertHistoryPoint(ctx, sessionid.ID(sess.ID), saveName, string(event.Type), gameTimeID, data); err != nil {
+							log.Warnf("Failed to upsert history point for session %s type %s: %v", sess.ID, event.Type, err)
+						}
+					}
 				}
 			}
 		}
 
-		toPublish := []models.SatisfactoryEvent{*event}
-
-		switch event.Type {
-		case models.SatisfactoryEventApiStatus:
-			// Update session online status
+		if event.Type == models.SatisfactoryEventApiStatus {
 			status := event.Data.(*models.SatisfactoryApiStatus)
-			if err := sm.store.UpdateOnlineStatus(sess.ID, status.Running); err != nil {
-				log.Warnf("Failed to update session online status: %v", err)
-			}
-
-			// Check if we should reconnect (session became online while in disconnected mode)
+			sm.setConn(sess.ID, status.Running, state.isDisconnected)
 			if status.Running && sess.IsDisconnected {
 				sm.transitionToConnected(sess.ID)
 			}
 		}
 
-		for _, e := range toPublish {
-			asJson, err := json.Marshal(e)
-			if err != nil {
-				log.PrettyError(fmt.Errorf("failed to marshal event for session %s: %w", sess.ID, err))
-				return
-			}
+		if saveName == "" {
+			return
+		}
 
-			// Cache the event data for /state endpoint (no expiration - updated by polling)
-			// Only cache if we have a save name
-			saveName := state.GetSaveName()
-			if saveName != "" {
-				cacheKey := fmt.Sprintf("state:%s:%s:%s", sess.ID, saveName, e.Type)
-				eventData, cacheErr := json.Marshal(e.Data)
-				if cacheErr == nil {
-					if setErr := sm.kvClient.Set(cacheKey, string(eventData), 0); setErr != nil {
-						log.Warnf("Failed to cache event %s for session %s: %v", e.Type, sess.ID, setErr)
-					}
-				}
-			}
-
-			// Publish to SSE subscribers
-			err = sm.kvClient.Publish(channelKey, asJson)
-			if err != nil {
-				log.PrettyError(fmt.Errorf("failed to publish event for session %s: %w", sess.ID, err))
-			}
+		busEvent := eventbus.SatisfactoryEvent{
+			SessionID:  sess.ID,
+			SaveName:   saveName,
+			DataType:   string(event.Type),
+			Data:       event.Data,
+			GameTimeID: event.GameTimeID,
+		}
+		if sm.latest != nil {
+			sm.latest.Put(busEvent)
+		}
+		if sm.bus != nil {
+			sm.bus.Publish(eventbus.Event{
+				Kind:      eventbus.KindSatisfactory,
+				SessionID: sess.ID,
+				SaveName:  saveName,
+				DataType:  string(event.Type),
+				Payload:   busEvent,
+			})
 		}
 	}
 
-	// Start session info monitor in background
-	go sm.monitorSessionInfo(ctx, sess, apiClient, channelKey, state)
+	sm.wg.Add(1)
+	go sm.monitorSessionInfo(ctx, sess, apiClient, state)
 
-	// Verify lease ownership strictly (query Redis) before starting to poll.
-	// This ensures we still own the lease after setup, preventing duplicate polling
-	// during the window between lease acquisition and poll start.
-	owned, err := sm.leaseManager.IsOwnedStrict(ctx, sess.ID)
-	if err != nil {
-		log.Warnf("Failed to verify lease ownership for session %s: %v", sess.ID, err)
-		sm.StopSession(sess.ID)
-		return
-	}
-	if !owned {
-		log.Infof("Lease lost before poll start for session %s, stopping publisher", sess.ID)
-		sm.StopSession(sess.ID)
-		return
-	}
-
-	log.Infof("Poll start: instance=%s session=%s", sm.leaseManager.InstanceID(), sess.ID)
-
-	// Choose polling mode based on disconnected state
+	var err error
 	if sess.IsDisconnected {
 		log.Infof("Starting in disconnected mode: %s (%s)", sess.Name, sess.ID)
 		err = apiClient.SetupLightPolling(ctx, handler)
@@ -377,19 +477,18 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 
 	if err != nil {
 		log.PrettyError(fmt.Errorf("failed to set up polling for session %s: %w", sess.ID, err))
-		// Mark session as offline
-		_ = sm.store.UpdateOnlineStatus(sess.ID, false)
+		sm.setConn(sess.ID, false, state.isDisconnected)
 		return
 	}
 
-	// Wait for context cancellation
 	<-ctx.Done()
 	log.Infof("Publisher stopped for session: %s (%s)", sess.Name, sess.ID)
 }
 
-// monitorSessionInfo periodically fetches session info and publishes updates when changed.
-// It also updates the publisherState with the current save name for history storage.
-func (sm *SessionManager) monitorSessionInfo(ctx context.Context, sess *models.Session, apiClient client.Client, channelKey string, state *publisherState) {
+// monitorSessionInfo periodically refreshes session info + save name.
+func (sm *SessionManager) monitorSessionInfo(ctx context.Context, sess *models.Session, apiClient client.Client, state *publisherState) {
+	defer sm.wg.Done()
+
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -403,61 +502,53 @@ func (sm *SessionManager) monitorSessionInfo(ctx context.Context, sess *models.S
 			fetchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			sessionInfo, err := apiClient.GetSessionInfo(fetchCtx)
 			cancel()
-
 			if err != nil {
 				log.Debugf("Failed to fetch session info for %s: %v", sess.ID, err)
 				continue
 			}
 
-			// Update game time tracker with latest TotalPlayDuration
 			state.gameTimeTracker.Update(int64(sessionInfo.TotalPlayDuration))
 
-			// Check if session name (save name) changed
 			if sessionInfo.SessionName != lastSessionName {
 				log.Infof("Session info changed for %s: %s -> %s", sess.ID, lastSessionName, sessionInfo.SessionName)
 				lastSessionName = sessionInfo.SessionName
-
-				// Update publisher state with new save name
 				state.SetSaveName(sessionInfo.SessionName)
 
-				// Update in Redis
-				currentSession, err := sm.store.Get(sess.ID)
-				if err != nil {
-					log.Warnf("Failed to get session %s for update: %v", sess.ID, err)
+				if err := db.DB.Store.UpdateSessionSaveName(ctx, sessionid.ID(sess.ID), sessionInfo.SessionName); err != nil {
+					log.Warnf("Failed to persist save name for %s: %v", sess.ID, err)
 					continue
 				}
-				if currentSession != nil {
-					currentSession.SessionName = sessionInfo.SessionName
-					if err := sm.store.Update(currentSession); err != nil {
-						log.Warnf("Failed to update session %s: %v", sess.ID, err)
-						continue
-					}
 
-					// Publish session update event
-					event := models.SatisfactoryEvent{
-						Type: models.SatisfactoryEventSessionUpdate,
-						Data: currentSession,
-					}
-					asJson, err := json.Marshal(event)
-					if err != nil {
-						log.Warnf("Failed to marshal session update event: %v", err)
-						continue
-					}
-					if err := sm.kvClient.Publish(channelKey, asJson); err != nil {
-						log.Warnf("Failed to publish session update event: %v", err)
-					}
+				updated, err := sm.getSession(ctx, sess.ID)
+				if err != nil || updated == nil {
+					log.Warnf("Failed to reload session %s after save name change: %v", sess.ID, err)
+					continue
+				}
+
+				if sm.bus != nil {
+					sm.bus.Publish(eventbus.Event{
+						Kind:      eventbus.KindSatisfactory,
+						SessionID: sess.ID,
+						SaveName:  sessionInfo.SessionName,
+						DataType:  string(models.SatisfactoryEventSessionUpdate),
+						Payload: eventbus.SatisfactoryEvent{
+							SessionID: sess.ID,
+							SaveName:  sessionInfo.SessionName,
+							DataType:  string(models.SatisfactoryEventSessionUpdate),
+							Data:      updated,
+						},
+					})
 				}
 			}
 		}
 	}
 }
 
-// transitionToDisconnected marks a session as disconnected and restarts in light polling mode
 func (sm *SessionManager) transitionToDisconnected(sessionID string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	sess, err := sm.store.Get(sessionID)
+	sess, err := sm.getSession(context.Background(), sessionID)
 	if err != nil || sess == nil {
 		log.Warnf("Failed to get session %s for disconnection: %v", sessionID, err)
 		return
@@ -465,25 +556,22 @@ func (sm *SessionManager) transitionToDisconnected(sessionID string) {
 
 	sess.IsDisconnected = true
 	sess.IsOnline = false
-	if err := sm.store.Update(sess); err != nil {
-		log.Warnf("Failed to mark session %s as disconnected: %v", sessionID, err)
-		return
-	}
 
 	if state, exists := sm.publishers[sessionID]; exists {
 		state.isDisconnected = true
 	}
+	sm.conn[sessionID] = connState{online: false, disconnected: true}
+	sm.publishConnectivity(sessionID, false)
 
 	log.Infof("Restarting session %s in disconnected mode", sessionID)
 	sm.restartPublisherLocked(sessionID, sess)
 }
 
-// transitionToConnected marks a session as connected and restarts in full polling mode
 func (sm *SessionManager) transitionToConnected(sessionID string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	sess, err := sm.store.Get(sessionID)
+	sess, err := sm.getSession(context.Background(), sessionID)
 	if err != nil || sess == nil {
 		log.Warnf("Failed to get session %s for reconnection: %v", sessionID, err)
 		return
@@ -491,23 +579,35 @@ func (sm *SessionManager) transitionToConnected(sessionID string) {
 
 	sess.IsDisconnected = false
 	sess.IsOnline = true
-	if err := sm.store.Update(sess); err != nil {
-		log.Warnf("Failed to mark session %s as connected: %v", sessionID, err)
-		return
-	}
 
 	if state, exists := sm.publishers[sessionID]; exists {
 		state.isDisconnected = false
 	}
+	sm.conn[sessionID] = connState{online: true, disconnected: false}
+	sm.publishConnectivity(sessionID, true)
 
 	log.Infof("Restarting session %s in connected mode", sessionID)
 	sm.restartPublisherLocked(sessionID, sess)
 }
 
-// restartPublisherLocked cancels the current publisher and starts a new one
-// Assumes lock is already held by caller
+func (sm *SessionManager) publishConnectivity(sessionID string, online bool) {
+	if sm.bus == nil {
+		return
+	}
+	sm.bus.Publish(eventbus.Event{
+		Kind:      eventbus.KindConnectivity,
+		SessionID: sessionID,
+		Payload: eventbus.ConnectivityEvent{
+			SessionID: sessionID,
+			Online:    online,
+			At:        time.Now(),
+		},
+	})
+}
+
+// restartPublisherLocked cancels the current publisher and starts a new one,
+// derived from the supervisor base context. Assumes the lock is held.
 func (sm *SessionManager) restartPublisherLocked(sessionID string, sess *models.Session) {
-	// Preserve state from the existing publisher
 	var currentSaveName string
 	var gameTimeTracker *session.GameTimeTracker
 	if existingState, exists := sm.publishers[sessionID]; exists {
@@ -520,8 +620,11 @@ func (sm *SessionManager) restartPublisherLocked(sessionID string, sess *models.
 		gameTimeTracker = session.NewGameTimeTracker()
 	}
 
-	// Start new publisher with updated session state
-	ctx, cancel := context.WithCancel(context.Background())
+	parentCtx := sm.baseCtx
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parentCtx)
 	state := &publisherState{
 		cancel:          cancel,
 		isDisconnected:  sess.IsDisconnected,
@@ -530,31 +633,6 @@ func (sm *SessionManager) restartPublisherLocked(sessionID string, sess *models.
 	}
 	sm.publishers[sessionID] = state
 
+	sm.wg.Add(1)
 	go sm.publishLoop(ctx, sess, state)
-}
-
-// SessionManagerWorker is the worker function that starts the session manager
-func SessionManagerWorker(ctx context.Context) {
-	kvClient := key_value.New()
-	logger := log.GetBaseLogger()
-
-	// Create lease manager with optional custom node name from config
-	leaseManager := lease.NewLeaseManager(
-		kvClient,
-		lease.DefaultLeaseConfig(),
-		logger,
-		config.Config.NodeName, // Pass node name from config (may be empty)
-	)
-
-	if err := leaseManager.Start(ctx); err != nil {
-		log.PrettyError(fmt.Errorf("failed to start lease manager: %w", err))
-		return
-	}
-
-	// Store globally for API handlers
-	SetGlobalLeaseManager(leaseManager)
-
-	manager := NewSessionManager(leaseManager)
-	manager.Start(ctx)
-	manager.Stop()
 }
