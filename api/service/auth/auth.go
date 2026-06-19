@@ -1,61 +1,55 @@
 package auth
 
 import (
-	"api/pkg/config"
-	"api/pkg/db/key_value"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"api/internal/auth"
+	"api/internal/store"
+	"api/pkg/config"
+	"api/pkg/db"
 )
 
 const (
-	// Redis key patterns
-	passwordKey    = "auth:password"
-	tokenKeyPrefix = "auth:token:"
+	tokenLength = 32
 
-	// Token configuration
-	tokenLength = 32 // 32 bytes = 64 hex characters
-	tokenTTL    = 7 * 24 * time.Hour
-
-	// bcrypt cost factor (12 provides ~250ms hashing time)
 	bcryptCost = 12
 )
 
-// TokenData represents the metadata stored with an access token in Redis.
+// TokenData is the metadata returned for a validated token.
 type TokenData struct {
-	CreatedAt int64  `json:"created_at"`
-	LastUsed  int64  `json:"last_used"`
-	ClientIP  string `json:"client_ip"`
+	CreatedAt int64
+	LastUsed  int64
+	ClientIP  string
 }
 
-// Service handles authentication operations including password hashing,
-// token generation, and Redis storage.
+// Service handles authentication operations backed by the SQLite store: shared
+// password hashing/validation and access-token issuance, validation, and
+// sliding expiry.
 type Service struct {
-	kvClient *key_value.Client
+	store *store.DB
 }
 
-// NewService creates a new authentication service.
+// NewService creates an authentication service over the process-wide SQLite store.
 func NewService() *Service {
-	return &Service{
-		kvClient: key_value.New(),
-	}
+	return &Service{store: db.DB.Store}
 }
 
-// InitializePassword checks if a password exists in Redis and initializes it
-// with the bootstrap password if not. Returns true if the bootstrap password
-// was used (first-time setup).
+// InitializePassword seeds the bootstrap password row if none exists yet.
+// Returns true if the bootstrap password was used (first-time setup).
 func (s *Service) InitializePassword() (bool, error) {
-	exists, err := s.kvClient.IsSet(passwordKey)
-	if err != nil {
-		return false, fmt.Errorf("failed to check password existence: %w", err)
-	}
-
-	if exists {
+	_, err := s.store.GetAuthPassword(context.Background())
+	if err == nil {
 		return false, nil
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return false, fmt.Errorf("failed to check password existence: %w", err)
 	}
 
 	bootstrapPassword := config.Config.Auth.BootstrapPassword
@@ -67,51 +61,43 @@ func (s *Service) InitializePassword() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to hash bootstrap password: %w", err)
 	}
-
-	if err := s.kvClient.Set(passwordKey, string(hash), 0); err != nil {
+	if err := s.store.UpsertAuthPassword(context.Background(), string(hash), true); err != nil {
 		return false, fmt.Errorf("failed to store password hash: %w", err)
 	}
-
 	return true, nil
 }
 
-// ValidatePassword checks if the provided password matches the stored hash.
+// ValidatePassword reports whether the provided password matches the stored hash.
 func (s *Service) ValidatePassword(password string) (bool, error) {
-	hash, err := s.kvClient.Get(passwordKey)
+	pw, err := s.store.GetAuthPassword(context.Background())
+	if errors.Is(err, store.ErrNotFound) {
+		return false, fmt.Errorf("no password configured")
+	}
 	if err != nil {
 		return false, fmt.Errorf("failed to get stored password: %w", err)
 	}
 
-	if hash == "" {
-		return false, fmt.Errorf("no password configured")
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	if err == bcrypt.ErrMismatchedHashAndPassword {
+	err = bcrypt.CompareHashAndPassword([]byte(pw.Hash), []byte(password))
+	if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 		return false, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("failed to compare password: %w", err)
 	}
-
 	return true, nil
 }
 
-// IsDefaultPassword checks if the provided password is the default "change-me".
-func (s *Service) IsDefaultPassword(password string) bool {
-	return password == "change-me"
-}
-
-// IsUsingDefaultPassword checks if the currently stored password is the default "change-me".
+// IsUsingDefaultPassword reports whether the stored password is still the
+// bootstrap default.
 func (s *Service) IsUsingDefaultPassword() bool {
-	valid, err := s.ValidatePassword("change-me")
+	isDefault, err := s.store.IsUsingDefaultPassword(context.Background())
 	if err != nil {
 		return false
 	}
-	return valid
+	return isDefault
 }
 
-// ChangePassword updates the stored password hash after verifying the current password.
+// ChangePassword updates the stored password hash after verifying the current one.
 func (s *Service) ChangePassword(currentPassword, newPassword string) error {
 	valid, err := s.ValidatePassword(currentPassword)
 	if err != nil {
@@ -125,11 +111,9 @@ func (s *Service) ChangePassword(currentPassword, newPassword string) error {
 	if err != nil {
 		return fmt.Errorf("failed to hash new password: %w", err)
 	}
-
-	if err := s.kvClient.Set(passwordKey, string(hash), 0); err != nil {
+	if err := s.store.UpsertAuthPassword(context.Background(), string(hash), false); err != nil {
 		return fmt.Errorf("failed to store new password hash: %w", err)
 	}
-
 	return nil
 }
 
@@ -139,88 +123,51 @@ func (s *Service) GenerateToken() (string, error) {
 	if _, err := rand.Read(bytes); err != nil {
 		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
-
 	return hex.EncodeToString(bytes), nil
 }
 
-// StoreToken saves a token with its metadata in Redis.
+// StoreToken persists a freshly issued token with sliding-expiry metadata.
 func (s *Service) StoreToken(token, clientIP string) error {
-	now := time.Now().Unix()
-	data := TokenData{
-		CreatedAt: now,
-		LastUsed:  now,
-		ClientIP:  clientIP,
-	}
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal token data: %w", err)
-	}
-
-	key := tokenKeyPrefix + token
-	if err := s.kvClient.Set(key, string(jsonData), tokenTTL); err != nil {
+	expiresAt := time.Now().Add(store.TokenTTL)
+	if err := s.store.InsertToken(context.Background(), auth.Token(token), expiresAt, clientIP); err != nil {
 		return fmt.Errorf("failed to store token: %w", err)
 	}
-
 	return nil
 }
 
-// ValidateToken checks if a token exists and is valid, returning the token data.
+// ValidateToken returns the token metadata if the token exists and has not
+// expired, applying sliding expiration on each successful read. It returns
+// (nil, nil) when the token is unknown or expired.
 func (s *Service) ValidateToken(token string) (*TokenData, error) {
-	key := tokenKeyPrefix + token
-	data, err := s.kvClient.Get(key)
+	t, err := s.store.GetValidToken(context.Background(), auth.Token(token), time.Now())
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get token: %w", err)
 	}
 
-	if data == "" {
-		return nil, nil
+	expiresAt := time.Now().Add(store.TokenTTL)
+	if err := s.store.TouchToken(context.Background(), auth.Token(token), expiresAt, t.ClientIP); err != nil {
+		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
 
-	var tokenData TokenData
-	if err := json.Unmarshal([]byte(data), &tokenData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal token data: %w", err)
-	}
-
-	return &tokenData, nil
+	return &TokenData{
+		CreatedAt: t.CreatedAt.Unix(),
+		LastUsed:  t.LastUsed.Unix(),
+		ClientIP:  t.ClientIP,
+	}, nil
 }
 
-// RefreshToken updates the token's last_used timestamp and extends its TTL.
-func (s *Service) RefreshToken(token string) error {
-	tokenData, err := s.ValidateToken(token)
-	if err != nil {
-		return err
-	}
-	if tokenData == nil {
-		return fmt.Errorf("token not found")
-	}
-
-	tokenData.LastUsed = time.Now().Unix()
-
-	jsonData, err := json.Marshal(tokenData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal token data: %w", err)
-	}
-
-	key := tokenKeyPrefix + token
-	if err := s.kvClient.Set(key, string(jsonData), tokenTTL); err != nil {
-		return fmt.Errorf("failed to refresh token: %w", err)
-	}
-
-	return nil
-}
-
-// DeleteToken removes a token from Redis.
+// DeleteToken removes a token (logout).
 func (s *Service) DeleteToken(token string) error {
-	key := tokenKeyPrefix + token
-	if err := s.kvClient.Del(key); err != nil {
+	if err := s.store.DeleteToken(context.Background(), auth.Token(token)); err != nil {
 		return fmt.Errorf("failed to delete token: %w", err)
 	}
-
 	return nil
 }
 
 // GetTokenTTL returns the token TTL duration for cookie configuration.
 func GetTokenTTL() time.Duration {
-	return tokenTTL
+	return store.TokenTTL
 }
