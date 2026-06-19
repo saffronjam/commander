@@ -1,0 +1,13 @@
+FROM alpine:3
+ARG ORAS_VERSION=1.2.0
+# TARGETARCH is auto-supplied by BuildKit for the build platform (amd64/arm64,
+# which match the oras release naming); fall back to amd64 for a plain
+# non-buildx `docker build`.
+ARG TARGETARCH
+RUN apk add --no-cache ca-certificates tar curl \
+ && arch="${TARGETARCH:-amd64}" \
+ && curl -fsSL "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_${arch}.tar.gz" \
+    | tar -xzf - -C /usr/local/bin oras
+COPY deploy/seed-assets.sh /seed.sh
+RUN chmod +x /seed.sh
+ENTRYPOINT ["/seed.sh"]
