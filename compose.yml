@@ -1,30 +1,44 @@
 services:
 
-  api:
-    build:
-      context: ./api
-    container_name: api
+  # One-shot seeder: pulls the versioned map/icon tiles OCI artifact into the
+  # shared assets volume via ORAS, then exits. Idempotent (a version marker
+  # makes a restart a no-op). The app waits for it to complete successfully.
+  seed-assets:
+    image: ghcr.io/saffronjam/satisfactory-dashboard-seed:latest
+    environment:
+      - SD_ASSETS_REF=${SD_ASSETS_REF:-ghcr.io/saffronjam/satisfactory-dashboard-assets:latest}
+    volumes:
+      - assets:/assets
+    restart: "no"
+
+  # Single long-running container: stdlib net/http serving the embedded SPA,
+  # the seeded assets volume, and the GraphQL endpoint (/graphql HTTP + ws) on
+  # one origin. SQLite lives on the app-data volume.
+  app:
+    image: ghcr.io/saffronjam/satisfactory-dashboard:latest
+    container_name: satisfactory-dashboard
+    depends_on:
+      seed-assets:
+        condition: service_completed_successfully
     ports:
       - "8081:8081"
     environment:
       # SD_BOOTSTRAP_PASSWORD: Initial password for dashboard authentication.
-      # Defaults to "change-me" if not set. Change this in production!
+      # On first boot against an empty SQLite DB the password re-bootstraps to
+      # this value (is_default=1). Change it after upgrade!
       - SD_BOOTSTRAP_PASSWORD=${SD_BOOTSTRAP_PASSWORD:-change-me}
       # SD_MAX_SAMPLE_GAME_DURATION: Maximum game-time duration (in seconds) to retain historical data.
-      # Required - must be set explicitly. Example: 3600 for 1 hour of game time.
       - SD_MAX_SAMPLE_GAME_DURATION=${SD_MAX_SAMPLE_GAME_DURATION}
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
+      - SD_DB_PATH=/data/satisfactory-dashboard.db
+      - SD_ASSETS_DIR=/assets
+      # SD_EXTERNAL_URL: lock the websocket Origin check to this URL (e.g.
+      # https://dashboard.example.com). Empty = accept any origin (default).
+      - SD_EXTERNAL_URL=${SD_EXTERNAL_URL:-}
     volumes:
-      - redis-data:/data
+      - app-data:/data
+      - assets:/assets:ro
     restart: unless-stopped
 
 volumes:
-  redis-data:
+  app-data:
+  assets:

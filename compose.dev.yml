@@ -1,0 +1,18 @@
+# Contributor override: skip the ORAS seeder and bind-mount locally-unpacked
+# tiles instead. Use with:
+#   make unpack-assets          # populates dashboard/public/assets
+#   docker compose -f compose.yml -f compose.dev.yml up
+#
+# Not auto-loaded (deliberately named compose.dev.yml, not compose.override.yml)
+# so the default `docker compose up` keeps using the seeder for operators.
+services:
+  # Replace the ORAS seeder with an instant no-op so the app's
+  # depends_on (service_completed_successfully) is satisfied without a pull.
+  seed-assets:
+    image: alpine:3
+    entrypoint: ["true"]
+
+  app:
+    volumes:
+      - app-data:/data
+      - ./dashboard/public/assets:/assets:ro
