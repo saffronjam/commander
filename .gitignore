@@ -361,3 +361,10 @@ __marimo__/
 DONE
 
 tmpfiles/
+
+# SPA embed dir: keep api/web/dist present (via .gitkeep) so `//go:embed all:dist`
+# compiles on a clean checkout / backend-only build. Built SPA files stay ignored.
+# (Overrides the global `dist`/`dist/` rules above for this one path.)
+!api/web/dist/
+api/web/dist/*
+!api/web/dist/.gitkeep

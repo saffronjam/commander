@@ -5,6 +5,11 @@ dashboard/node_modules
 # Build outputs
 dashboard/dist
 api/tmp
+api/web/dist
+
+# LFS map/icon tarballs — never needed by the app or seeder image build
+# (the app gets tiles from the seeded /assets volume at runtime)
+assets
 
 # Unpacked assets (we use tar files instead)
 dashboard/public/assets/images/satisfactory/map

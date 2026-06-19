@@ -1,1 +1,3 @@
 bin/
+web/dist/*
+!web/dist/.gitkeep
