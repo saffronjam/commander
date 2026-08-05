@@ -3,8 +3,10 @@ WORKDIR /web
 COPY dashboard/package.json dashboard/bun.lock* ./
 RUN bun install --frozen-lockfile
 COPY dashboard/ .
-ARG VITE_BUILD_VERSION=localbuild
-ENV VITE_BUILD_VERSION=${VITE_BUILD_VERSION}
+# The version is stamped in from the outside: .dockerignore excludes .git, so
+# nothing inside the build can derive it.
+ARG VERSION=localbuild
+ENV VITE_BUILD_VERSION=${VERSION}
 RUN bun run build
 
 FROM --platform=$BUILDPLATFORM golang:alpine AS build
@@ -16,7 +18,10 @@ COPY api/ .
 COPY --from=web /api/web/dist ./web/dist
 ARG TARGETOS
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -o /out/satisfactory-dashboard .
+ARG VERSION=localbuild
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
+    -ldflags "-X api/internal/version.Version=${VERSION}" \
+    -o /out/satisfactory-dashboard .
 
 FROM alpine:3
 RUN apk add --no-cache ca-certificates

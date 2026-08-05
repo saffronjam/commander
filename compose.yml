@@ -4,7 +4,7 @@ services:
   # shared assets volume via ORAS, then exits. Idempotent (a version marker
   # makes a restart a no-op). The app waits for it to complete successfully.
   seed-assets:
-    image: ghcr.io/saffronjam/satisfactory-dashboard-seed:latest
+    image: ghcr.io/saffronjam/satisfactory-dashboard-seed:${SD_VERSION:-latest}
     environment:
       - SD_ASSETS_REF=${SD_ASSETS_REF:-ghcr.io/saffronjam/satisfactory-dashboard-assets:latest}
     volumes:
@@ -15,7 +15,8 @@ services:
   # the seeded assets volume, and the GraphQL endpoint (/graphql HTTP + ws) on
   # one origin. SQLite lives on the app-data volume.
   app:
-    image: ghcr.io/saffronjam/satisfactory-dashboard:latest
+    # SD_VERSION pins a released tag (e.g. v1.0.0); unset tracks main.
+    image: ghcr.io/saffronjam/satisfactory-dashboard:${SD_VERSION:-latest}
     container_name: satisfactory-dashboard
     depends_on:
       seed-assets:

@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
 	authctx "api/internal/auth"
 	"api/internal/graph"
+	"api/internal/version"
 	"api/pkg/config"
 	"api/pkg/db"
 	svcauth "api/service/auth"
@@ -52,6 +54,10 @@ func (app *App) buildHandler(authSvc *svcauth.Service) http.Handler {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/version", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"version": version.Version})
 	})
 	registerStatic(mux, config.Config.AssetsDir)
 	return mux
