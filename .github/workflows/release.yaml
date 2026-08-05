@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create draft release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # The tag's subject line is dropped on purpose — the release is already
+      # titled after the tag. Only the annotation body becomes the notes.
+      - name: Extract annotated tag message
+        run: |
+          git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" > /tmp/release-notes.md
+          cat /tmp/release-notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: ${{ github.ref_name }}
+          body_path: /tmp/release-notes.md

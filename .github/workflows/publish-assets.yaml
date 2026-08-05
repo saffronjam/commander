@@ -1,0 +1,51 @@
+name: Publish assets
+
+# Manual and rare: only when the map tiles or icons change. The only workflow
+# that touches git-lfs.
+on:
+  workflow_dispatch:
+    inputs:
+      assets_tag:
+        description: "Tag for the assets artifact (e.g. tiles-YYYYMMDD)"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    name: Push tiles artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      - name: Install ORAS
+        uses: oras-project/setup-oras@v1
+
+      - name: Log in to Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ${{ env.REGISTRY }} \
+            --username ${{ github.actor }} --password-stdin
+
+      # Pushed from inside assets/ so the layer titles are bare basenames
+      # (map-realistic.tar.gz, …). The seeder does `oras pull -o "$tmp"` and reads
+      # "$tmp/<basename>"; a path-qualified title would restore under
+      # "$tmp/assets/…" and the seeder would not find the tarballs.
+      - name: Push assets artifact
+        working-directory: assets
+        run: |
+          oras push ${{ env.REGISTRY }}/${{ github.repository_owner }}/satisfactory-dashboard-assets:${{ inputs.assets_tag }} \
+            --artifact-type application/vnd.satisfactory-dashboard.assets \
+            map-realistic.tar.gz:application/gzip \
+            map-game.tar.gz:application/gzip \
+            scraped-images.tar.gz:application/gzip
