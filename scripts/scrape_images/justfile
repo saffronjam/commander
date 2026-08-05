@@ -1,0 +1,54 @@
+# Satisfactory wiki icon scraper. Run `just scrape-images` from the repo root.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set working-directory := '.'
+
+venv := "venv"
+python := venv / "bin/python"
+resolutions := "16x16 32x32 64x64 128x128 256x256"
+dashboard_icons := justfile_directory() / "../../dashboard/public/assets/images/satisfactory"
+
+[private]
+default:
+    @just --list --unsorted
+
+[doc('Create the virtualenv and install dependencies')]
+venv:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! -x "{{ python }}" ]]; then
+        python3 -m venv "{{ venv }}"
+    fi
+    "{{ venv }}/bin/pip" install --upgrade pip
+    "{{ venv }}/bin/pip" install -r requirement.txt
+
+[doc('Scrape the wiki and write image_source.json')]
+scrape: venv
+    {{ python }} extract_images_wiki_gg.py
+
+[doc('Scrape without writing the manifest')]
+dry-run: venv
+    {{ python }} extract_images_wiki_gg.py --dry-mode
+
+[doc('Download every image listed in image_source.json')]
+download: venv
+    {{ python }} download_images.py
+
+[doc('Scale the downloaded images to every resolution')]
+scale: venv
+    {{ python }} scale_images.py
+
+[doc('Scale the images and copy them into dashboard/public')]
+prod: scale
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p "{{ dashboard_icons }}"
+    for res in {{ resolutions }}; do
+        rm -rf "{{ dashboard_icons }}/$res"
+        cp -r "output/$res" "{{ dashboard_icons }}/"
+    done
+
+[confirm('Remove the virtualenv and downloads? [y/N]')]
+[doc('Remove the virtualenv and downloads')]
+clean:
+    rm -rf "{{ venv }}" downloads

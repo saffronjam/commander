@@ -1,0 +1,45 @@
+# Satisfactory map tile downloader. Run `just scrape-map` from the repo root.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set working-directory := '.'
+
+# Map tile revision. Bump together with `map_revision` in the root justfile.
+revision := "1763022054"
+venv := "venv"
+python := venv / "bin/python"
+dashboard_tiles := justfile_directory() / "../../dashboard/public/assets/images/satisfactory/map"
+
+[private]
+default:
+    @just --list --unsorted
+
+[doc('Create the virtualenv and install dependencies')]
+venv:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! -x "{{ python }}" ]]; then
+        python3 -m venv "{{ venv }}"
+    fi
+    "{{ venv }}/bin/pip" install --upgrade pip
+    "{{ venv }}/bin/pip" install -r requirement.txt
+
+[doc('Download one layer, e.g. `just scrape-map download realisticLayer`')]
+download layer="gameLayer": venv
+    {{ python }} download_tiles.py --layer {{ layer }} -j 10
+
+[doc('Download both the game and realistic layers')]
+download-all: (download "gameLayer") (download "realisticLayer")
+
+[doc('Strip the background from every tile under output/')]
+clean-tiles: venv
+    {{ python }} clean_tiles.py --input output -j 20
+
+[doc('Clean the tiles and copy them into dashboard/public')]
+prod: clean-tiles
+    rm -rf "{{ dashboard_tiles }}/{{ revision }}"
+    cp -r "output/{{ revision }}" "{{ dashboard_tiles }}/"
+
+[confirm('Remove the virtualenv and downloaded tiles? [y/N]')]
+[doc('Remove the virtualenv and output')]
+clean:
+    rm -rf "{{ venv }}" output

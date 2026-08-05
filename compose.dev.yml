@@ -1,6 +1,6 @@
 # Contributor override: skip the ORAS seeder and bind-mount locally-unpacked
 # tiles instead. Use with:
-#   make unpack-assets          # populates dashboard/public/assets
+#   just unpack-assets          # populates dashboard/public/assets
 #   docker compose -f compose.yml -f compose.dev.yml up
 #
 # Not auto-loaded (deliberately named compose.dev.yml, not compose.override.yml)
