@@ -18,7 +18,7 @@ export type NavItem = {
   title: string;
   path?: string;
   icon: React.ReactNode;
-  group: 'main' | 'sub' | 'debug';
+  group: 'main' | 'sub' | 'debug' | 'footer';
   children?: NavItem[];
   locked?: boolean;
 };
@@ -76,7 +76,7 @@ const baseNavData: NavItem[] = [
     title: 'Settings',
     path: '/settings',
     icon: <Settings size={20} />,
-    group: 'main',
+    group: 'footer',
   },
 ];
 

@@ -144,6 +144,7 @@ export function AppSidebar({ data, slots }: AppSidebarProps) {
   const mainItems = data.filter((item) => item.group === 'main');
   const subItems = data.filter((item) => item.group === 'sub');
   const debugItems = data.filter((item) => item.group === 'debug');
+  const footerItems = data.filter((item) => item.group === 'footer');
 
   return (
     <Sidebar collapsible="icon">
@@ -260,7 +261,16 @@ export function AppSidebar({ data, slots }: AppSidebarProps) {
         </ScrollArea>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">{slots?.bottomArea}</SidebarFooter>
+      <SidebarFooter className="gap-1 p-2">
+        {footerItems.length > 0 && (
+          <SidebarMenu>
+            {footerItems.map((item) => (
+              <NavItemComponent key={item.path || item.title} item={item} pathname={pathname} />
+            ))}
+          </SidebarMenu>
+        )}
+        {slots?.bottomArea}
+      </SidebarFooter>
     </Sidebar>
   );
 }

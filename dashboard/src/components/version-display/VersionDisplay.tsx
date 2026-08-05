@@ -42,7 +42,7 @@ export function VersionDisplay() {
   }, [clickCount, isDebugMode, enableDebugMode, disableDebugMode]);
 
   return (
-    <div className="p-2 pb-6">
+    <div className="group-data-[collapsible=icon]:hidden">
       {isDebugMode && (
         <div className="mb-1 flex justify-center">
           <Badge className="gap-1 bg-amber-500 text-xs font-bold text-white hover:bg-amber-500">
@@ -58,9 +58,11 @@ export function VersionDisplay() {
           </Badge>
         </div>
       )}
+      {/* Deliberately not styled as interactive: the click target is a hidden
+          debug toggle, not something a reader should be invited to press. */}
       <span
         onClick={handleVersionClick}
-        className="block cursor-pointer select-none text-center text-xs text-muted-foreground hover:opacity-80"
+        className="block select-none px-2 pt-1 text-center text-xs tabular-nums text-muted-foreground"
       >
         {CONFIG.appVersion}
       </span>
