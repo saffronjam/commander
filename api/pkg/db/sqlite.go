@@ -15,12 +15,17 @@ import (
 // the poller's writes and the resolvers' reads coexist under SQLITE_BUSY pressure.
 const serveDSN = "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_txlock=immediate"
 
-func (dbCtx *Context) setupSQLite() error {
-	path := config.Config.DBPath
-	if path == "" {
-		path = "satisfactory-dashboard.db"
+// Path returns the configured SQLite database path, falling back to a file in
+// the working directory.
+func Path() string {
+	if path := config.Config.DBPath; path != "" {
+		return path
 	}
-	sqlDB, err := sql.Open("sqlite", path+serveDSN)
+	return "satisfactory-dashboard.db"
+}
+
+func (dbCtx *Context) setupSQLite() error {
+	sqlDB, err := sql.Open("sqlite", Path()+serveDSN)
 	if err != nil {
 		return fmt.Errorf("failed to open sqlite database: %w", err)
 	}
