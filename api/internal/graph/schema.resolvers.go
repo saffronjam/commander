@@ -1,11 +1,9 @@
 package graph
 
-// Resolver root wiring. The concrete resolver methods live in resolvers_*.go
-// files in this package. NOTE: this project does NOT use gqlgen's follow-schema
-// single-file resolver layout — `gqlgen generate` would re-stub every method
-// here and collide with the resolvers_*.go files. After a schema change,
-// regenerate generated.go/models_gen.go only (or hand-add the new resolver to a
-// resolvers_*.go file).
+// Resolver root wiring. The concrete resolver methods are hand-written in the
+// resolvers_*.go files in this package, so gqlgen.yml deliberately omits the
+// `resolver:` section — `just gqlgen` regenerates generated.go and
+// models_gen.go only and never touches this file.
 
 // Mutation returns the MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
