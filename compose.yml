@@ -6,7 +6,10 @@ services:
   seed-assets:
     image: ghcr.io/saffronjam/satisfactory-dashboard-seed:${SD_VERSION:-latest}
     environment:
-      - SD_ASSETS_REF=${SD_ASSETS_REF:-ghcr.io/saffronjam/satisfactory-dashboard-assets:latest}
+      # Pinned to a published tiles revision. There is no ":latest" for this
+      # artifact: the seeder skips work while the ref matches the marker it
+      # wrote, so a moving tag would never trigger a re-pull.
+      - SD_ASSETS_REF=${SD_ASSETS_REF:-ghcr.io/saffronjam/satisfactory-dashboard-assets:tiles-20260805}
     volumes:
       - assets:/assets
     restart: "no"
