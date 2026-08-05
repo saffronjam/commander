@@ -102,6 +102,7 @@ config-backup*.gz
 # Ignore things to speed up git stash --include-untracked
 *.sql
 !api/internal/store/migrations/*.sql
+!api/internal/store/queries/*.sql
 *.pdf
 *.swp
 tmp
@@ -363,6 +364,12 @@ __marimo__/
 DONE
 
 tmpfiles/
+
+# Local dev SQLite database. Holds local sessions plus the auth password hash
+# and access tokens, and every command that opens it rewrites the WAL.
+api/*.db
+api/*.db-shm
+api/*.db-wal
 
 # SPA embed dir: keep api/web/dist present (via .gitkeep) so `//go:embed all:dist`
 # compiles on a clean checkout / backend-only build. Built SPA files stay ignored.
