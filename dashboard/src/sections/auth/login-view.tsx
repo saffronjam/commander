@@ -2,7 +2,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FieldError } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -30,7 +30,7 @@ export function LoginView() {
 
     try {
       await login(password);
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
@@ -50,12 +50,6 @@ export function LoginView() {
           <CardDescription>Enter your access key to continue</CardDescription>
         </CardHeader>
         <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="access-key">Access Key</Label>
@@ -67,6 +61,8 @@ export function LoginView() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
                   autoFocus
+                  aria-invalid={!!error}
+                  aria-describedby={error ? 'access-key-error' : undefined}
                   className="pr-10"
                 />
                 <Button
@@ -84,6 +80,7 @@ export function LoginView() {
                   </span>
                 </Button>
               </div>
+              <FieldError id="access-key-error" message={error} />
             </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={isSubmitting || !password}>

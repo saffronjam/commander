@@ -13,10 +13,15 @@ import (
 )
 
 type Querier interface {
+	CompleteInstanceSetup(ctx context.Context, authMode string) (int64, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
+	DeleteAllTokens(ctx context.Context) error
+	DeleteAuthPassword(ctx context.Context) error
 	DeleteSession(ctx context.Context, id session.ID) error
-	DeleteToken(ctx context.Context, token auth.Token) error
+	DeleteToken(ctx context.Context, tokenHash auth.TokenHash) error
+	EnsureInstance(ctx context.Context) error
 	GetAuthPassword(ctx context.Context) (GetAuthPasswordRow, error)
+	GetInstance(ctx context.Context) (GetInstanceRow, error)
 	GetLatestGameTimeId(ctx context.Context, arg GetLatestGameTimeIdParams) (int64, error)
 	GetSession(ctx context.Context, id session.ID) (Session, error)
 	GetSetting(ctx context.Context, key string) (Setting, error)
@@ -29,10 +34,12 @@ type Querier interface {
 	QueryHistoryBucketed(ctx context.Context, arg QueryHistoryBucketedParams) ([]QueryHistoryBucketedRow, error)
 	QueryHistoryRaw(ctx context.Context, arg QueryHistoryRawParams) ([]QueryHistoryRawRow, error)
 	RunTokenPrune(ctx context.Context, now time.Time) (int64, error)
+	SetAuthMode(ctx context.Context, authMode string) error
+	SetBootstrapTokenHash(ctx context.Context, bootstrapTokenHash *string) error
 	TouchToken(ctx context.Context, arg TouchTokenParams) error
 	UpdateSession(ctx context.Context, arg UpdateSessionParams) error
 	UpdateSessionSaveName(ctx context.Context, arg UpdateSessionSaveNameParams) error
-	UpsertAuthPassword(ctx context.Context, arg UpsertAuthPasswordParams) error
+	UpsertAuthPassword(ctx context.Context, hash string) error
 	UpsertHistoryPoint(ctx context.Context, arg UpsertHistoryPointParams) error
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
 }

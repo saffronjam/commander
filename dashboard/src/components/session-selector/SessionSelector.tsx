@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
-import { SessionDTO } from '@/apiTypes';
+import { ChevronDown, ChevronUp, Loader2, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { ConnectionStateConnecting, ConnectionStateOnline, type SessionDTO } from '@/apiTypes';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,9 +54,13 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
     setOpen(false);
   };
 
+  // preventDefault stops the menu item's own onSelect from closing the menu, so
+  // anything that opens a dialog has to close it explicitly or the menu is left
+  // hanging behind the modal.
   const handleEditClick = (e: React.MouseEvent, session: SessionDTO) => {
     e.stopPropagation();
     e.preventDefault();
+    setOpen(false);
     setEditingSession(session);
     setEditName(session.name);
     setEditAddress(session.address);
@@ -85,6 +89,7 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
   const handleDeleteClick = (e: React.MouseEvent, session: SessionDTO) => {
     e.stopPropagation();
     e.preventDefault();
+    setOpen(false);
     setDeleteDialogSession(session);
   };
 
@@ -111,18 +116,37 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
     onAddSession();
   };
 
-  const getStatusColor = (session: SessionDTO | null | undefined) => {
-    if (!session) return 'bg-muted';
-    if (session.isPaused) return 'bg-yellow-500';
-    if (session.isOnline) return 'bg-green-500';
-    return 'bg-red-500';
+  /**
+   * The status dot, or a spinner while a connection attempt is in flight, so a
+   * session that is still dialling does not read as failed.
+   */
+  const StatusIndicator = ({ session }: { session: SessionDTO | null | undefined }) => {
+    if (session && !session.isPaused && session.connectionState === ConnectionStateConnecting) {
+      return (
+        <Loader2
+          className="size-2.5 shrink-0 animate-spin text-muted-foreground"
+          aria-label="Connecting"
+        />
+      );
+    }
+
+    const color = (() => {
+      if (!session) return 'bg-muted';
+      if (session.isPaused) return 'bg-yellow-500';
+      if (session.connectionState === ConnectionStateOnline) return 'bg-green-500';
+      return 'bg-red-500';
+    })();
+
+    return <div className={cn('size-2 shrink-0 rounded-full', color)} />;
   };
 
   return (
     <div className="w-full">
       <DropdownMenu open={open} onOpenChange={setOpen} modal={true}>
-        <DropdownMenuTrigger className="flex h-auto w-full items-center justify-start gap-3 rounded-md bg-sidebar-accent/30 px-3 py-2.5 text-left hover:bg-sidebar-accent focus:outline-none focus:ring-2 focus:ring-ring">
-          <div className={cn('size-2 shrink-0 rounded-full', getStatusColor(selectedSession))} />
+        {/* focus-visible, not focus: Radix returns focus to the trigger when the
+            menu closes, and a plain :focus ring would stay lit afterwards. */}
+        <DropdownMenuTrigger className="flex h-auto w-full items-center justify-start gap-3 rounded-md bg-sidebar-accent/30 px-3 py-2.5 text-left hover:bg-sidebar-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <StatusIndicator session={selectedSession} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-foreground">
               {selectedSession?.name || 'Select Session'}
@@ -152,7 +176,7 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
               )}
               onSelect={() => handleSelectSession(session.id)}
             >
-              <div className={cn('size-2 shrink-0 rounded-full', getStatusColor(session))} />
+              <StatusIndicator session={session} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{session.name}</p>
                 {session.sessionName && (

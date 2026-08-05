@@ -15,7 +15,8 @@ services:
   # the seeded assets volume, and the GraphQL endpoint (/graphql HTTP + ws) on
   # one origin. SQLite lives on the app-data volume.
   app:
-    # SD_VERSION pins a released tag (e.g. v1.0.0); unset tracks main.
+    # SD_VERSION pins a released image tag; unset tracks main. Image tags carry
+    # no leading "v" (SD_VERSION=1.0.0 for release v1.0.0).
     image: ghcr.io/saffronjam/satisfactory-dashboard:${SD_VERSION:-latest}
     container_name: satisfactory-dashboard
     depends_on:
@@ -24,13 +25,12 @@ services:
     ports:
       - "8081:8081"
     environment:
-      # SD_BOOTSTRAP_PASSWORD: Initial password for dashboard authentication.
-      # On first boot against an empty SQLite DB the password re-bootstraps to
-      # this value (is_default=1). Change it after upgrade!
-      - SD_BOOTSTRAP_PASSWORD=${SD_BOOTSTRAP_PASSWORD:-change-me}
       # SD_MAX_SAMPLE_GAME_DURATION: Maximum game-time duration (in seconds) to retain historical data.
       - SD_MAX_SAMPLE_GAME_DURATION=${SD_MAX_SAMPLE_GAME_DURATION}
       - SD_DB_PATH=/data/satisfactory-dashboard.db
+      # SD_DATA_DIR: where the first-run setup token is written. Read it with
+      #   docker compose exec app cat /data/bootstrap.token
+      - SD_DATA_DIR=/data
       - SD_ASSETS_DIR=/assets
       # SD_EXTERNAL_URL: lock the websocket Origin check to this URL (e.g.
       # https://dashboard.example.com). Empty = accept any origin (default).

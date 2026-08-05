@@ -7,12 +7,12 @@ interface AuthGuardProps {
 }
 
 /**
- * Protects routes by requiring authentication.
- * Redirects unauthenticated users to the login page.
- * Shows a loading indicator while checking auth status.
+ * Gates the dashboard on the instance's authorization state. An unclaimed
+ * instance goes to setup; a password-protected one goes to login; an open one
+ * passes straight through, since the server reports every caller as authorized.
  */
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { authenticated, isLoading } = useAuth();
+  const { initialized, authenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -20,6 +20,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
         <Progress className="w-full max-w-80" />
       </div>
     );
+  }
+
+  if (!initialized) {
+    return <Navigate to="/setup" replace />;
   }
 
   if (!authenticated) {

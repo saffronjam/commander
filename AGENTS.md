@@ -51,9 +51,27 @@ user drives service startup and testing.
 | `/` and `/assets/images/satisfactory/` | GET | embedded SPA (index.html fallback) + seeded map tiles |
 
 `api/schema.graphql` is the contract: ~30 typed domains, ~24 enums, per-type history queries,
-per-domain subscriptions. Field names are lowercase camelCase; enums are SCREAMING_SNAKE. Auth is a
-single shared password over an HTTP-only `sd_access_token` cookie; the `@auth` directive guards
-protected fields and the websocket reads the same cookie off its upgrade request.
+per-domain subscriptions. Field names are lowercase camelCase; enums are SCREAMING_SNAKE.
+
+## Authorization
+
+An instance is in one of three states, and `authStatus` — the only unguarded query — reports which:
+
+| State | `initialized` | `authRequired` | Client shows |
+| --- | --- | --- | --- |
+| never set up | false | — | `/setup`, gated on the logged setup token |
+| open | true | false | the dashboard, no login, no sign-out button |
+| protected | true | true | `/login`, then the dashboard |
+
+Nothing is guarded twice: `authMiddleware` (`api/cmd/server.go`) is the **only** place that knows
+about auth modes. On an open instance it attaches an authorized `Caller` unconditionally, so the
+`@auth` directive stays a pure "is there a caller?" check across all ~30 guarded fields, and
+websocket upgrades are covered because they pass through the same middleware. Do not teach the
+directive about modes.
+
+There is no default password. A fresh instance is unclaimed and prints a single-use setup token;
+setting an access key is optional. Access tokens are stored as SHA-256 digests, never in plaintext.
+See `api/service/auth/AGENTS.md`.
 
 ## Adding a feature
 

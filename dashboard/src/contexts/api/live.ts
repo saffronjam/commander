@@ -115,9 +115,9 @@ export const SessionUpdatedSub = graphql(`
       sessionName
       isPaused
       createdAt
-      isOnline
-      isDisconnected
+      connectionState
       stage
+      offlineReason
     }
   }
 `);

@@ -20,7 +20,7 @@ src/
 ├── contexts/
 │   ├── api/              live subscription fan-in -> ApiContext   -> AGENTS.md
 │   ├── sessions/         multi-session selection + CRUD
-│   ├── auth/             cookie-backed auth state
+│   ├── auth/             instance authorization state from authStatus
 │   └── debug/            hidden debug mode
 ├── pages/                one file per route, thin — renders a section view
 ├── sections/<domain>/    the actual feature UI (overview, power, production, trains, drones,
@@ -85,6 +85,23 @@ props rather than literal colours.
 
 **Adding a page.** Component in `pages/`, route in `routes/sections.tsx`, nav entry in
 `layouts/config-nav-dashboard.tsx`.
+
+**Routing depends on three flags**, all from `authStatus` via `useAuth()` — see the authorization
+table in the root `AGENTS.md`:
+
+| Flag | Guard that reads it |
+| --- | --- |
+| `initialized` | `SetupGuard` (owns `/setup`), and both other guards redirect to setup when false |
+| `authRequired` | `GuestGuard` skips `/login` when false; `LogoutButton` renders nothing |
+| `authenticated` | `AuthGuard`; true for everyone on an open instance |
+
+Never infer authorization from the presence of a cookie or from a failed query. The server decides,
+and `checkAuthStatus()` re-reads it — that is why an unauthenticated response triggers a re-probe
+instead of clearing state locally.
+
+**Distinguish "empty" from "failed".** `useSession()` exposes both `isLoading` and `error`; an error
+must not be rendered as "you have no sessions", or the user is invited to duplicate one that already
+exists. `layouts/dashboard/layout.tsx` shows the pattern.
 
 **Adding a shadcn component.** `bunx shadcn@latest add <name>` — it lands in `components/ui/`.
 

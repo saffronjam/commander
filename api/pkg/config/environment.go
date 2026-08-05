@@ -3,8 +3,10 @@ package config
 import (
 	"fmt"
 	"os"
-	"sigs.k8s.io/yaml"
+	"path/filepath"
 	"strconv"
+
+	"sigs.k8s.io/yaml"
 )
 
 func SetupEnvironment(appMode string) error {
@@ -12,12 +14,12 @@ func SetupEnvironment(appMode string) error {
 		return fmt.Errorf("failed to set up environment. details: %w", err)
 	}
 
-	filepath, ok := os.LookupEnv("SATISFACTORY_DASHBOARD_API_CONFIG_FILE")
-	if !ok || filepath == "" {
-		filepath = "config.local.yml"
+	configPath, ok := os.LookupEnv("SATISFACTORY_DASHBOARD_API_CONFIG_FILE")
+	if !ok || configPath == "" {
+		configPath = "config.local.yml"
 	}
 
-	yamlFile, err := os.ReadFile(filepath)
+	yamlFile, err := os.ReadFile(configPath)
 	if err != nil {
 		return makeError(err)
 	}
@@ -28,18 +30,12 @@ func SetupEnvironment(appMode string) error {
 	}
 
 	Config.Mode = appMode
-	Config.Filepath = filepath
+	Config.Filepath = configPath
 
 	if externalURL := os.Getenv("SD_EXTERNAL_URL"); externalURL != "" {
 		Config.ExternalURL = externalURL
 		fmt.Printf("Using external URL from SD_EXTERNAL_URL: %s\n", externalURL)
 	}
-
-	bootstrapPassword, ok := os.LookupEnv("SD_BOOTSTRAP_PASSWORD")
-	if !ok || bootstrapPassword == "" {
-		bootstrapPassword = "change-me"
-	}
-	Config.Auth.BootstrapPassword = bootstrapPassword
 
 	// Load port override from environment
 	if portStr := os.Getenv("SD_API_PORT"); portStr != "" {
@@ -76,5 +72,22 @@ func SetupEnvironment(appMode string) error {
 		Config.AssetsDir = "/assets"
 	}
 
+	if dataDir := os.Getenv("SD_DATA_DIR"); dataDir != "" {
+		Config.DataDir = dataDir
+		fmt.Printf("Using data directory from SD_DATA_DIR: %s\n", dataDir)
+	}
+	if Config.DataDir == "" {
+		Config.DataDir = filepath.Dir(dbPathOrDefault())
+	}
+
 	return nil
+}
+
+// dbPathOrDefault mirrors pkg/db's fallback so the data directory can be
+// derived before the database is opened.
+func dbPathOrDefault() string {
+	if Config.DBPath != "" {
+		return Config.DBPath
+	}
+	return "satisfactory-dashboard.db"
 }

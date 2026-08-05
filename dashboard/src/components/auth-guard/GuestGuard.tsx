@@ -6,17 +6,21 @@ interface GuestGuardProps {
 }
 
 /**
- * Protects guest-only routes (like login) from authenticated users.
- * Redirects authenticated users to the home page.
+ * Protects the login route. An unclaimed instance belongs in setup, and an open
+ * instance has no access key to enter, so neither should ever see a login form.
  */
 export function GuestGuard({ children }: GuestGuardProps) {
-  const { authenticated, isLoading } = useAuth();
+  const { initialized, authRequired, authenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return null;
   }
 
-  if (authenticated) {
+  if (!initialized) {
+    return <Navigate to="/setup" replace />;
+  }
+
+  if (!authRequired || authenticated) {
     return <Navigate to="/" replace />;
   }
 

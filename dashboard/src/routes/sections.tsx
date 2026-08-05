@@ -4,6 +4,7 @@ import { Navigate, Outlet, useRoutes } from 'react-router-dom';
 import { Spinner } from '@/components/ui/spinner';
 import { AuthGuard } from '@/components/auth-guard/AuthGuard';
 import { GuestGuard } from '@/components/auth-guard/GuestGuard';
+import { SetupGuard } from '@/components/auth-guard/SetupGuard';
 import { DashboardLayout } from '@/layouts/dashboard';
 import DebugPage from '@/pages/debug';
 import DronesPage from '@/pages/drones';
@@ -14,6 +15,7 @@ import PlayersPage from '@/pages/players';
 import PowerPage from '@/pages/power';
 import PoductionPage from '@/pages/production';
 import SettingsPage from '@/pages/settings';
+import SetupPage from '@/pages/setup';
 import TrainsPage from '@/pages/trains';
 
 export const HomePage = lazy(() => import('@/pages/home'));
@@ -35,6 +37,14 @@ const renderFallback = (
  */
 export function Router() {
   return useRoutes([
+    {
+      path: 'setup',
+      element: (
+        <SetupGuard>
+          <SetupPage />
+        </SetupGuard>
+      ),
+    },
     {
       path: 'login',
       element: (

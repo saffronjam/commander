@@ -10,10 +10,7 @@ type Type struct {
 	ExternalURL           string `json:"externalUrl"`
 	Filepath              string `json:"filepath"`
 	DBPath                string `json:"dbPath"`
+	DataDir               string `json:"dataDir"`
 	AssetsDir             string `json:"assetsDir"`
 	MaxSampleGameDuration int64  `json:"maxSampleGameDuration"`
-
-	Auth struct {
-		BootstrapPassword string
-	}
 }

@@ -14,5 +14,5 @@ sql:
             go_type: "api/internal/session.ID"
           - column: "history_points.session_id"
             go_type: "api/internal/session.ID"
-          - column: "auth_tokens.token"
-            go_type: "api/internal/auth.Token"
+          - column: "auth_tokens.token_hash"
+            go_type: "api/internal/auth.TokenHash"

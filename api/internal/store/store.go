@@ -24,16 +24,38 @@ type Setting struct {
 	Value string
 }
 
-// AuthPassword is the singleton shared-password row.
+// AuthMode decides whether requests need an access token to be authorized.
+type AuthMode string
+
+const (
+	// AuthModeOpen authorizes every request without a token.
+	AuthModeOpen AuthMode = "open"
+	// AuthModePassword requires a valid access token.
+	AuthModePassword AuthMode = "password"
+)
+
+// Instance is the singleton instance-wide configuration. Initialized reports
+// whether first-run setup has completed, which is what separates a fresh
+// install from one deliberately running in open mode.
+type Instance struct {
+	Initialized        bool
+	InitializedAt      time.Time
+	AuthMode           AuthMode
+	BootstrapTokenHash string
+	CreatedAt          time.Time
+}
+
+// AuthPassword is the singleton shared-password row. It exists only while the
+// instance runs in password mode.
 type AuthPassword struct {
 	Hash      string
-	IsDefault bool
 	UpdatedAt time.Time
 }
 
-// Token is a stored access token with sliding-expiry metadata.
+// Token is a stored access token with sliding-expiry metadata. Only the hash is
+// persisted; the token itself lives in the client's cookie.
 type Token struct {
-	Token     auth.Token
+	TokenHash auth.TokenHash
 	CreatedAt time.Time
 	LastUsed  time.Time
 	ExpiresAt time.Time

@@ -4,39 +4,41 @@ import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/contexts/auth/useAuth';
-import { authApi } from '@/services/authApi';
 
 /**
- * Logout button component for the sidebar navigation.
- * Calls the logout API and clears authentication state.
+ * Logout button for the sidebar. Renders nothing on an open instance, where
+ * there is no access key and so nothing to sign out of.
  */
 export function LogoutButton() {
-  const { clearAuth } = useAuth();
+  const { authRequired, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = useCallback(async () => {
     setIsLoggingOut(true);
     try {
-      await authApi.logout();
-    } catch {
-      // Ignore errors - we'll clear auth state anyway
+      await logout();
     } finally {
-      clearAuth();
       setIsLoggingOut(false);
     }
-  }, [clearAuth]);
+  }, [logout]);
 
+  if (!authRequired) {
+    return null;
+  }
+
+  // No wrapper padding: the sidebar footer already insets its children, and an
+  // extra inset here would misalign this against the nav items above it.
   return (
-    <div className="px-2 pb-1">
-      <Button
-        variant="ghost"
-        onClick={handleLogout}
-        disabled={isLoggingOut}
-        className="w-full justify-center gap-2 rounded-lg px-2 py-1 text-sm font-medium"
-      >
-        {isLoggingOut ? <Spinner className="size-5" /> : <LogOut className="size-5" />}
-        {isLoggingOut ? 'Logging out...' : 'Logout'}
-      </Button>
-    </div>
+    <Button
+      variant="ghost"
+      onClick={handleLogout}
+      disabled={isLoggingOut}
+      className="h-8 w-full justify-start gap-2 px-2 text-sm font-normal group-data-[collapsible=icon]:justify-center"
+    >
+      {isLoggingOut ? <Spinner className="size-4" /> : <LogOut className="size-4" />}
+      <span className="group-data-[collapsible=icon]:hidden">
+        {isLoggingOut ? 'Signing out...' : 'Sign out'}
+      </span>
+    </Button>
   );
 }

@@ -17,6 +17,8 @@ func (r *Resolver) sessionWithStatus(s models.Session) *model.Session {
 		cs := r.Snapshot.Connectivity(session.ID(s.ID))
 		s.IsOnline = cs.IsOnline
 		s.IsDisconnected = cs.IsDisconnected
+		s.ConnectionState = cs.State
+		s.OfflineReason = cs.Reason
 		stage = cs.Stage
 	}
 	return toSession(s, stage)
@@ -65,13 +67,11 @@ func (r *queryResolver) Settings(ctx context.Context) (*model.Settings, error) {
 
 func (r *queryResolver) AuthStatus(ctx context.Context) (*model.AuthStatus, error) {
 	caller, ok := authctx.UserFromContext(ctx)
-	usedDefault := false
-	if r.Auth != nil {
-		usedDefault = r.Auth.IsUsingDefaultPassword()
-	}
+	state := r.Auth.State()
 	return &model.AuthStatus{
-		Authenticated:       ok && caller.Authenticated,
-		UsedDefaultPassword: usedDefault,
+		Initialized:   state.Initialized,
+		AuthRequired:  state.AuthRequired(),
+		Authenticated: ok && caller.Authenticated,
 	}, nil
 }
 
@@ -82,34 +82,80 @@ func (r *queryResolver) ClientIP(ctx context.Context) (string, error) {
 // --- Mutation (config + auth) ---
 
 func (r *mutationResolver) Login(ctx context.Context, input model.LoginInput) (*model.LoginResult, error) {
-	valid, err := r.Auth.ValidatePassword(input.Password)
+	token, err := r.Auth.Login(ClientIPFromContext(ctx), input.Password)
 	if err != nil {
-		return nil, err
+		return &model.LoginResult{Success: false, Message: err.Error()}, nil
 	}
-	if !valid {
-		return &model.LoginResult{Success: false, UsedDefaultPassword: false}, nil
-	}
-	token, err := r.Auth.GenerateToken()
-	if err != nil {
-		return nil, err
-	}
-	if err := r.Auth.StoreToken(token, ClientIPFromContext(ctx)); err != nil {
-		return nil, err
+	if token == "" {
+		return &model.LoginResult{Success: false, Message: "Incorrect access key"}, nil
 	}
 	setAuthCookie(ctx, token, authsvc.GetTokenTTL())
-	return &model.LoginResult{Success: true, UsedDefaultPassword: r.Auth.IsUsingDefaultPassword()}, nil
+	return &model.LoginResult{Success: true, Message: ""}, nil
 }
 
 func (r *mutationResolver) Logout(ctx context.Context) (*model.LogoutResult, error) {
+	if c := accessTokenFromContext(ctx); c != "" {
+		if err := r.Auth.DeleteToken(c); err != nil {
+			log.Warnf("failed to revoke token on logout: %s", err.Error())
+		}
+	}
 	clearAuthCookie(ctx)
 	return &model.LogoutResult{Success: true}, nil
+}
+
+// CompleteSetup claims an instance that has not been set up. It is deliberately
+// unguarded — there is no way to authenticate before setup — so the setup token,
+// the single-use check, and the rate limiter carry the whole burden.
+func (r *mutationResolver) CompleteSetup(ctx context.Context, input model.CompleteSetupInput) (*model.SetupResult, error) {
+	password := input.Password.Value()
+	if password != nil && *password == "" {
+		password = nil
+	}
+
+	if err := r.Auth.CompleteSetup(ClientIPFromContext(ctx), input.SetupToken, password); err != nil {
+		return &model.SetupResult{Success: false, Message: err.Error()}, nil
+	}
+
+	// Setting a key during setup means the operator wants to be logged in with
+	// it, rather than bounced to a login screen straight after.
+	if password != nil {
+		token, err := r.Auth.Login(ClientIPFromContext(ctx), *password)
+		if err == nil && token != "" {
+			setAuthCookie(ctx, token, authsvc.GetTokenTTL())
+		}
+	}
+	return &model.SetupResult{Success: true, Message: ""}, nil
+}
+
+func (r *mutationResolver) EnableAuth(ctx context.Context, input model.EnableAuthInput) (*model.ChangePasswordResult, error) {
+	if err := r.Auth.EnableAuth(input.Password); err != nil {
+		return &model.ChangePasswordResult{Success: false, Message: err.Error()}, nil
+	}
+	// Enabling auth revoked every session including this one, so hand the caller
+	// a token for the key they just set.
+	if token, err := r.Auth.Login(ClientIPFromContext(ctx), input.Password); err == nil && token != "" {
+		setAuthCookie(ctx, token, authsvc.GetTokenTTL())
+	}
+	return &model.ChangePasswordResult{Success: true, Message: "access key set"}, nil
+}
+
+func (r *mutationResolver) DisableAuth(ctx context.Context, input model.DisableAuthInput) (*model.ChangePasswordResult, error) {
+	if err := r.Auth.DisableAuth(input.CurrentPassword); err != nil {
+		return &model.ChangePasswordResult{Success: false, Message: err.Error()}, nil
+	}
+	clearAuthCookie(ctx)
+	return &model.ChangePasswordResult{Success: true, Message: "access key removed"}, nil
 }
 
 func (r *mutationResolver) ChangePassword(ctx context.Context, input model.ChangePasswordInput) (*model.ChangePasswordResult, error) {
 	if err := r.Auth.ChangePassword(input.CurrentPassword, input.NewPassword); err != nil {
 		return &model.ChangePasswordResult{Success: false, Message: err.Error()}, nil
 	}
-	return &model.ChangePasswordResult{Success: true, Message: "password changed"}, nil
+	// The change revoked every session, so re-issue one for this caller.
+	if token, err := r.Auth.Login(ClientIPFromContext(ctx), input.NewPassword); err == nil && token != "" {
+		setAuthCookie(ctx, token, authsvc.GetTokenTTL())
+	}
+	return &model.ChangePasswordResult{Success: true, Message: "access key changed"}, nil
 }
 
 func (r *mutationResolver) CreateSession(ctx context.Context, input model.CreateSessionInput) (*model.Session, error) {
@@ -131,6 +177,11 @@ func (r *mutationResolver) UpdateSession(ctx context.Context, id string, input m
 	})
 	if err != nil {
 		return nil, err
+	}
+	// Pointing a session at a different server has to drop the old connection
+	// and dial the new one; the poller decides whether anything actually changed.
+	if r.Poller != nil {
+		r.Poller.RestartSession(session.ID(id))
 	}
 	return r.sessionWithStatus(*s), nil
 }

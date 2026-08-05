@@ -12,49 +12,66 @@ import (
 	"api/internal/auth"
 )
 
-const deleteToken = `-- name: DeleteToken :exec
-DELETE FROM auth_tokens WHERE token = ?1
+const deleteAllTokens = `-- name: DeleteAllTokens :exec
+DELETE FROM auth_tokens
 `
 
-func (q *Queries) DeleteToken(ctx context.Context, token auth.Token) error {
-	_, err := q.db.ExecContext(ctx, deleteToken, token)
+func (q *Queries) DeleteAllTokens(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteAllTokens)
+	return err
+}
+
+const deleteAuthPassword = `-- name: DeleteAuthPassword :exec
+DELETE FROM auth_password WHERE id = 1
+`
+
+func (q *Queries) DeleteAuthPassword(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteAuthPassword)
+	return err
+}
+
+const deleteToken = `-- name: DeleteToken :exec
+DELETE FROM auth_tokens WHERE token_hash = ?1
+`
+
+func (q *Queries) DeleteToken(ctx context.Context, tokenHash auth.TokenHash) error {
+	_, err := q.db.ExecContext(ctx, deleteToken, tokenHash)
 	return err
 }
 
 const getAuthPassword = `-- name: GetAuthPassword :one
-SELECT hash, is_default, updated_at FROM auth_password WHERE id = 1
+SELECT hash, updated_at FROM auth_password WHERE id = 1
 `
 
 type GetAuthPasswordRow struct {
 	Hash      string
-	IsDefault int64
 	UpdatedAt time.Time
 }
 
 func (q *Queries) GetAuthPassword(ctx context.Context) (GetAuthPasswordRow, error) {
 	row := q.db.QueryRowContext(ctx, getAuthPassword)
 	var i GetAuthPasswordRow
-	err := row.Scan(&i.Hash, &i.IsDefault, &i.UpdatedAt)
+	err := row.Scan(&i.Hash, &i.UpdatedAt)
 	return i, err
 }
 
 const getValidToken = `-- name: GetValidToken :one
-SELECT token, created_at, last_used, expires_at, client_ip
+SELECT token_hash, created_at, last_used, expires_at, client_ip
 FROM auth_tokens
-WHERE token = ?1
+WHERE token_hash = ?1
   AND expires_at > ?2
 `
 
 type GetValidTokenParams struct {
-	Token auth.Token
-	Now   time.Time
+	TokenHash auth.TokenHash
+	Now       time.Time
 }
 
 func (q *Queries) GetValidToken(ctx context.Context, arg GetValidTokenParams) (AuthToken, error) {
-	row := q.db.QueryRowContext(ctx, getValidToken, arg.Token, arg.Now)
+	row := q.db.QueryRowContext(ctx, getValidToken, arg.TokenHash, arg.Now)
 	var i AuthToken
 	err := row.Scan(
-		&i.Token,
+		&i.TokenHash,
 		&i.CreatedAt,
 		&i.LastUsed,
 		&i.ExpiresAt,
@@ -64,19 +81,19 @@ func (q *Queries) GetValidToken(ctx context.Context, arg GetValidTokenParams) (A
 }
 
 const insertToken = `-- name: InsertToken :exec
-INSERT INTO auth_tokens (token, created_at, last_used, expires_at, client_ip)
+INSERT INTO auth_tokens (token_hash, created_at, last_used, expires_at, client_ip)
 VALUES (?1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
         ?2, ?3)
 `
 
 type InsertTokenParams struct {
-	Token     auth.Token
+	TokenHash auth.TokenHash
 	ExpiresAt time.Time
 	ClientIp  string
 }
 
 func (q *Queries) InsertToken(ctx context.Context, arg InsertTokenParams) error {
-	_, err := q.db.ExecContext(ctx, insertToken, arg.Token, arg.ExpiresAt, arg.ClientIp)
+	_, err := q.db.ExecContext(ctx, insertToken, arg.TokenHash, arg.ExpiresAt, arg.ClientIp)
 	return err
 }
 
@@ -97,35 +114,29 @@ UPDATE auth_tokens
 SET last_used = CURRENT_TIMESTAMP,
     expires_at = ?1,
     client_ip = ?2
-WHERE token = ?3
+WHERE token_hash = ?3
 `
 
 type TouchTokenParams struct {
 	ExpiresAt time.Time
 	ClientIp  string
-	Token     auth.Token
+	TokenHash auth.TokenHash
 }
 
 func (q *Queries) TouchToken(ctx context.Context, arg TouchTokenParams) error {
-	_, err := q.db.ExecContext(ctx, touchToken, arg.ExpiresAt, arg.ClientIp, arg.Token)
+	_, err := q.db.ExecContext(ctx, touchToken, arg.ExpiresAt, arg.ClientIp, arg.TokenHash)
 	return err
 }
 
 const upsertAuthPassword = `-- name: UpsertAuthPassword :exec
-INSERT INTO auth_password (id, hash, is_default, updated_at)
-VALUES (1, ?1, ?2, CURRENT_TIMESTAMP)
+INSERT INTO auth_password (id, hash, updated_at)
+VALUES (1, ?1, CURRENT_TIMESTAMP)
 ON CONFLICT(id) DO UPDATE
     SET hash = excluded.hash,
-        is_default = excluded.is_default,
         updated_at = excluded.updated_at
 `
 
-type UpsertAuthPasswordParams struct {
-	Hash      string
-	IsDefault int64
-}
-
-func (q *Queries) UpsertAuthPassword(ctx context.Context, arg UpsertAuthPasswordParams) error {
-	_, err := q.db.ExecContext(ctx, upsertAuthPassword, arg.Hash, arg.IsDefault)
+func (q *Queries) UpsertAuthPassword(ctx context.Context, hash string) error {
+	_, err := q.db.ExecContext(ctx, upsertAuthPassword, hash)
 	return err
 }

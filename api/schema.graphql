@@ -744,9 +744,9 @@ type Session {
   sessionName: String!
   isPaused: Boolean!
   createdAt: DateTime!
-  isOnline: Boolean!
-  isDisconnected: Boolean!
+  connectionState: ConnectionState!
   stage: SessionStage!
+  offlineReason: ConnectivityReason!
 }
 
 type SessionInfo {
@@ -773,15 +773,49 @@ type SatisfactoryApiStatus {
   pingMs: Int!
 }
 
-type ConnectivityStatus {
-  isOnline: Boolean!
-  isDisconnected: Boolean!
-  stage: SessionStage!
+"""
+ConnectivityReason explains why a session is unreachable, so the UI can say more
+than "offline".
+"""
+enum ConnectivityReason {
+  "The session is reachable."
+  NONE
+  "Nothing answered: timed out or refused. FRM is most likely not running."
+  NO_RESPONSE
+  "Something answered but it was not FRM: an HTTP error, TLS failure, or a body that does not parse."
+  BAD_RESPONSE
 }
 
+"""
+ConnectionState is the authoritative connection state for a session, so clients
+never derive one from a pair of booleans.
+"""
+enum ConnectionState {
+  "A poller is running but FRM has not answered yet."
+  CONNECTING
+  "FRM answered."
+  ONLINE
+  "FRM could not be reached; reason says why."
+  OFFLINE
+}
+
+type ConnectivityStatus {
+  connectionState: ConnectionState!
+  stage: SessionStage!
+  reason: ConnectivityReason!
+}
+
+"""
+AuthStatus is the only unguarded query, so it is the single source of truth for
+what the client should show before it can read anything else.
+"""
 type AuthStatus {
+  "False until first-run setup completes. The client must route to setup."
+  initialized: Boolean!
+  "False on an open instance, where no access key is needed."
+  authRequired: Boolean!
+  "Whether this caller may read guarded fields. Always true on an open instance."
   authenticated: Boolean!
-  usedDefaultPassword: Boolean!
 }
 
 # ============================================================================
@@ -829,6 +863,23 @@ input LoginInput {
   password: String!
 }
 
+"""
+CompleteSetupInput claims an unset-up instance. Omitting password leaves the
+instance open, requiring no access key.
+"""
+input CompleteSetupInput {
+  setupToken: String!
+  password: String
+}
+
+input EnableAuthInput {
+  password: String!
+}
+
+input DisableAuthInput {
+  currentPassword: String!
+}
+
 input ChangePasswordInput {
   currentPassword: String!
   newPassword: String!
@@ -851,11 +902,16 @@ input UpdateSettingsInput {
 
 type LoginResult {
   success: Boolean!
-  usedDefaultPassword: Boolean!
+  message: String!
 }
 
 type LogoutResult {
   success: Boolean!
+}
+
+type SetupResult {
+  success: Boolean!
+  message: String!
 }
 
 type ChangePasswordResult {
@@ -919,6 +975,18 @@ type Query {
 type Mutation {
   login(input: LoginInput!): LoginResult!
   logout: LogoutResult! @auth
+
+  """
+  Claims an instance that has not been set up. Unguarded by necessity, so it is
+  gated on the setup token, refuses once the instance is initialized, and is
+  rate limited per client.
+  """
+  completeSetup(input: CompleteSetupInput!): SetupResult!
+
+  "Adds an access key to an open instance, revoking existing sessions."
+  enableAuth(input: EnableAuthInput!): ChangePasswordResult! @auth
+  "Removes the access key, leaving the instance open to anyone who can reach it."
+  disableAuth(input: DisableAuthInput!): ChangePasswordResult! @auth
   changePassword(input: ChangePasswordInput!): ChangePasswordResult! @auth
   createSession(input: CreateSessionInput!): Session! @auth
   updateSession(id: ID!, input: UpdateSessionInput!): Session! @auth

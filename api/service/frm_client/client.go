@@ -5,7 +5,10 @@ import (
 	"api/pkg/log"
 	"api/service/frm_client/frm_models"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -32,6 +35,7 @@ type Client struct {
 	failureLock         sync.RWMutex // Protects failure counter and disconnected state
 	onDisconnected      func()       // Callback triggered when failure threshold reached
 	wasDisconnected     bool         // Tracks previous disconnected state for logging
+	failureReason       models.ConnectivityReason
 }
 
 // NewClientWithAddress creates a new Satisfactory API service instance with a custom URL
@@ -94,9 +98,44 @@ func (client *Client) incrementFailureCount() {
 	}
 }
 
+// classifyRequestError decides which of the two failure shapes an error is.
+// Nothing answering at all is treated as "FRM is not running"; anything that did
+// answer, including a TLS handshake, means something is there but it is not FRM.
+func classifyRequestError(err error) models.ConnectivityReason {
+	var certErr *tls.CertificateVerificationError
+	var recordErr tls.RecordHeaderError
+	var unknownAuthority x509.UnknownAuthorityError
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &certErr) || errors.As(err, &recordErr) ||
+		errors.As(err, &unknownAuthority) || errors.As(err, &hostnameErr) {
+		return models.ConnectivityReasonBadResponse
+	}
+	return models.ConnectivityReasonNoResponse
+}
+
+// recordFailureReason remembers why the last request failed.
+func (client *Client) recordFailureReason(reason models.ConnectivityReason) {
+	client.failureLock.Lock()
+	defer client.failureLock.Unlock()
+	client.failureReason = reason
+}
+
+// FailureReason returns why the session is unreachable, or none while it is
+// reachable.
+func (client *Client) FailureReason() models.ConnectivityReason {
+	client.failureLock.RLock()
+	defer client.failureLock.RUnlock()
+	if client.failureReason == "" {
+		return models.ConnectivityReasonNone
+	}
+	return client.failureReason
+}
+
 func (client *Client) resetFailureCount() {
 	client.failureLock.Lock()
 	defer client.failureLock.Unlock()
+
+	client.failureReason = models.ConnectivityReasonNone
 
 	if client.consecutiveFailures > 0 {
 		log.Debugf("Resetting failure count for %s (was %d)", client.apiUrl, client.consecutiveFailures)
@@ -482,16 +521,18 @@ func (client *Client) makeSatisfactoryCallWithTimeout(ctx context.Context, path 
 	}
 
 	if err != nil {
-		// NETWORK ERROR: Connection refused, timeout, DNS failure, etc.
+		// NETWORK ERROR: Connection refused, timeout, DNS failure, TLS failure.
 		client.setApiUp(false)
+		client.recordFailureReason(classifyRequestError(err))
 		client.incrementFailureCount()
 		return models.NewSatisfactoryApiError(fmt.Sprintf("Failed to make request to %s: %v", path, err))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// HTTP ERROR: Server responded but with error status
+		// HTTP ERROR: something is listening but it is not answering as FRM.
 		statusCode := resp.StatusCode
+		client.recordFailureReason(models.ConnectivityReasonBadResponse)
 		if statusCode == http.StatusServiceUnavailable || statusCode == http.StatusNotFound {
 			client.setApiUp(false)
 			// Don't increment failure count - server is reachable but returning errors
@@ -501,9 +542,8 @@ func (client *Client) makeSatisfactoryCallWithTimeout(ctx context.Context, path 
 
 	// Decode JSON response
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		// API responded with OK, but body is invalid JSON or doesn't match target struct
-		// This is less likely an "API down" scenario, more likely a data or code issue.
-		// We don't necessarily setApiUp(false) here, as the endpoint might be partially functional.
+		// Answered 200 but the body is not FRM's: usually a proxy or login page.
+		client.recordFailureReason(models.ConnectivityReasonBadResponse)
 		return models.NewSatisfactoryApiError(fmt.Sprintf("Failed to decode JSON response from %s: %v", path, err))
 	}
 

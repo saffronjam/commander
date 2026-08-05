@@ -63,21 +63,31 @@ func (app *App) buildHandler(authSvc *svcauth.Service) http.Handler {
 	return mux
 }
 
-// authMiddleware attaches the response writer, client IP, and (if a valid auth
-// cookie is present) the authenticated caller to the request context. It does
-// not reject — the @auth directive enforces.
+// authMiddleware attaches the response writer, client IP, and — when the caller
+// is authorized — the Caller to the request context. It does not reject; the
+// @auth directive enforces.
+//
+// This is the only place that knows about auth modes: an open instance gets a
+// Caller unconditionally, so every @auth field behaves uniformly and the
+// directive stays a pure "is there a caller?" check. Websocket upgrades pass
+// through here too, so subscriptions are covered by the same rule.
 func authMiddleware(authSvc *svcauth.Service) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			ctx = graph.WithResponseWriter(ctx, w)
 			ctx = graph.WithClientIP(ctx, clientIP(r))
-			if c, err := r.Cookie("sd_access_token"); err == nil && c.Value != "" {
+
+			if !authSvc.State().AuthRequired() {
+				ctx = authctx.WithUser(ctx, authctx.Caller{Authenticated: true})
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			if c, err := r.Cookie(graph.AuthCookieName); err == nil && c.Value != "" {
 				if td, verr := authSvc.ValidateToken(c.Value); verr == nil && td != nil {
-					ctx = authctx.WithUser(ctx, authctx.Caller{
-						Authenticated:       true,
-						UsedDefaultPassword: authSvc.IsUsingDefaultPassword(),
-					})
+					ctx = authctx.WithUser(ctx, authctx.Caller{Authenticated: true})
+					ctx = graph.WithAccessToken(ctx, c.Value)
 				}
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))

@@ -39,8 +39,9 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	AuthStatus struct {
-		Authenticated       func(childComplexity int) int
-		UsedDefaultPassword func(childComplexity int) int
+		AuthRequired  func(childComplexity int) int
+		Authenticated func(childComplexity int) int
+		Initialized   func(childComplexity int) int
 	}
 
 	Belt struct {
@@ -111,9 +112,9 @@ type ComplexityRoot struct {
 	}
 
 	ConnectivityStatus struct {
-		IsDisconnected func(childComplexity int) int
-		IsOnline       func(childComplexity int) int
-		Stage          func(childComplexity int) int
+		ConnectionState func(childComplexity int) int
+		Reason          func(childComplexity int) int
+		Stage           func(childComplexity int) int
 	}
 
 	Drone struct {
@@ -258,8 +259,8 @@ type ComplexityRoot struct {
 	}
 
 	LoginResult struct {
-		Success             func(childComplexity int) int
-		UsedDefaultPassword func(childComplexity int) int
+		Message func(childComplexity int) int
+		Success func(childComplexity int) int
 	}
 
 	LogoutResult struct {
@@ -300,8 +301,11 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		ChangePassword  func(childComplexity int, input model.ChangePasswordInput) int
+		CompleteSetup   func(childComplexity int, input model.CompleteSetupInput) int
 		CreateSession   func(childComplexity int, input model.CreateSessionInput) int
 		DeleteSession   func(childComplexity int, id string) int
+		DisableAuth     func(childComplexity int, input model.DisableAuthInput) int
+		EnableAuth      func(childComplexity int, input model.EnableAuthInput) int
 		Login           func(childComplexity int, input model.LoginInput) int
 		Logout          func(childComplexity int) int
 		UpdateSession   func(childComplexity int, id string, input model.UpdateSessionInput) int
@@ -488,15 +492,15 @@ type ComplexityRoot struct {
 	}
 
 	Session struct {
-		Address        func(childComplexity int) int
-		CreatedAt      func(childComplexity int) int
-		ID             func(childComplexity int) int
-		IsDisconnected func(childComplexity int) int
-		IsOnline       func(childComplexity int) int
-		IsPaused       func(childComplexity int) int
-		Name           func(childComplexity int) int
-		SessionName    func(childComplexity int) int
-		Stage          func(childComplexity int) int
+		Address         func(childComplexity int) int
+		ConnectionState func(childComplexity int) int
+		CreatedAt       func(childComplexity int) int
+		ID              func(childComplexity int) int
+		IsPaused        func(childComplexity int) int
+		Name            func(childComplexity int) int
+		OfflineReason   func(childComplexity int) int
+		SessionName     func(childComplexity int) int
+		Stage           func(childComplexity int) int
 	}
 
 	SessionInfo struct {
@@ -516,6 +520,11 @@ type ComplexityRoot struct {
 
 	Settings struct {
 		LogLevel func(childComplexity int) int
+	}
+
+	SetupResult struct {
+		Message func(childComplexity int) int
+		Success func(childComplexity int) int
 	}
 
 	SinkStats struct {
@@ -727,6 +736,9 @@ type ComplexityRoot struct {
 type MutationResolver interface {
 	Login(ctx context.Context, input model.LoginInput) (*model.LoginResult, error)
 	Logout(ctx context.Context) (*model.LogoutResult, error)
+	CompleteSetup(ctx context.Context, input model.CompleteSetupInput) (*model.SetupResult, error)
+	EnableAuth(ctx context.Context, input model.EnableAuthInput) (*model.ChangePasswordResult, error)
+	DisableAuth(ctx context.Context, input model.DisableAuthInput) (*model.ChangePasswordResult, error)
 	ChangePassword(ctx context.Context, input model.ChangePasswordInput) (*model.ChangePasswordResult, error)
 	CreateSession(ctx context.Context, input model.CreateSessionInput) (*model.Session, error)
 	UpdateSession(ctx context.Context, id string, input model.UpdateSessionInput) (*model.Session, error)
@@ -830,18 +842,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	_ = ec
 	switch typeName + "." + field {
 
+	case "AuthStatus.authRequired":
+		if e.ComplexityRoot.AuthStatus.AuthRequired == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuthStatus.AuthRequired(childComplexity), true
 	case "AuthStatus.authenticated":
 		if e.ComplexityRoot.AuthStatus.Authenticated == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AuthStatus.Authenticated(childComplexity), true
-	case "AuthStatus.usedDefaultPassword":
-		if e.ComplexityRoot.AuthStatus.UsedDefaultPassword == nil {
+	case "AuthStatus.initialized":
+		if e.ComplexityRoot.AuthStatus.Initialized == nil {
 			break
 		}
 
-		return e.ComplexityRoot.AuthStatus.UsedDefaultPassword(childComplexity), true
+		return e.ComplexityRoot.AuthStatus.Initialized(childComplexity), true
 
 	case "Belt.connected0":
 		if e.ComplexityRoot.Belt.Connected0 == nil {
@@ -1075,18 +1093,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CircuitsHistoryPoint.GameTimeID(childComplexity), true
 
-	case "ConnectivityStatus.isDisconnected":
-		if e.ComplexityRoot.ConnectivityStatus.IsDisconnected == nil {
+	case "ConnectivityStatus.connectionState":
+		if e.ComplexityRoot.ConnectivityStatus.ConnectionState == nil {
 			break
 		}
 
-		return e.ComplexityRoot.ConnectivityStatus.IsDisconnected(childComplexity), true
-	case "ConnectivityStatus.isOnline":
-		if e.ComplexityRoot.ConnectivityStatus.IsOnline == nil {
+		return e.ComplexityRoot.ConnectivityStatus.ConnectionState(childComplexity), true
+	case "ConnectivityStatus.reason":
+		if e.ComplexityRoot.ConnectivityStatus.Reason == nil {
 			break
 		}
 
-		return e.ComplexityRoot.ConnectivityStatus.IsOnline(childComplexity), true
+		return e.ComplexityRoot.ConnectivityStatus.Reason(childComplexity), true
 	case "ConnectivityStatus.stage":
 		if e.ComplexityRoot.ConnectivityStatus.Stage == nil {
 			break
@@ -1668,18 +1686,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Location.Z(childComplexity), true
 
+	case "LoginResult.message":
+		if e.ComplexityRoot.LoginResult.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LoginResult.Message(childComplexity), true
 	case "LoginResult.success":
 		if e.ComplexityRoot.LoginResult.Success == nil {
 			break
 		}
 
 		return e.ComplexityRoot.LoginResult.Success(childComplexity), true
-	case "LoginResult.usedDefaultPassword":
-		if e.ComplexityRoot.LoginResult.UsedDefaultPassword == nil {
-			break
-		}
-
-		return e.ComplexityRoot.LoginResult.UsedDefaultPassword(childComplexity), true
 
 	case "LogoutResult.success":
 		if e.ComplexityRoot.LogoutResult.Success == nil {
@@ -1840,6 +1858,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ChangePassword(childComplexity, args["input"].(model.ChangePasswordInput)), true
+	case "Mutation.completeSetup":
+		if e.ComplexityRoot.Mutation.CompleteSetup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_completeSetup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CompleteSetup(childComplexity, args["input"].(model.CompleteSetupInput)), true
 	case "Mutation.createSession":
 		if e.ComplexityRoot.Mutation.CreateSession == nil {
 			break
@@ -1862,6 +1891,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteSession(childComplexity, args["id"].(string)), true
+	case "Mutation.disableAuth":
+		if e.ComplexityRoot.Mutation.DisableAuth == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_disableAuth_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DisableAuth(childComplexity, args["input"].(model.DisableAuthInput)), true
+	case "Mutation.enableAuth":
+		if e.ComplexityRoot.Mutation.EnableAuth == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_enableAuth_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.EnableAuth(childComplexity, args["input"].(model.EnableAuthInput)), true
 	case "Mutation.login":
 		if e.ComplexityRoot.Mutation.Login == nil {
 			break
@@ -2899,6 +2950,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Session.Address(childComplexity), true
+	case "Session.connectionState":
+		if e.ComplexityRoot.Session.ConnectionState == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Session.ConnectionState(childComplexity), true
 	case "Session.createdAt":
 		if e.ComplexityRoot.Session.CreatedAt == nil {
 			break
@@ -2911,18 +2968,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Session.ID(childComplexity), true
-	case "Session.isDisconnected":
-		if e.ComplexityRoot.Session.IsDisconnected == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Session.IsDisconnected(childComplexity), true
-	case "Session.isOnline":
-		if e.ComplexityRoot.Session.IsOnline == nil {
-			break
-		}
-
-		return e.ComplexityRoot.Session.IsOnline(childComplexity), true
 	case "Session.isPaused":
 		if e.ComplexityRoot.Session.IsPaused == nil {
 			break
@@ -2935,6 +2980,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Session.Name(childComplexity), true
+	case "Session.offlineReason":
+		if e.ComplexityRoot.Session.OfflineReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Session.OfflineReason(childComplexity), true
 	case "Session.sessionName":
 		if e.ComplexityRoot.Session.SessionName == nil {
 			break
@@ -3027,6 +3078,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Settings.LogLevel(childComplexity), true
+
+	case "SetupResult.message":
+		if e.ComplexityRoot.SetupResult.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SetupResult.Message(childComplexity), true
+	case "SetupResult.success":
+		if e.ComplexityRoot.SetupResult.Success == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SetupResult.Success(childComplexity), true
 
 	case "SinkStats.coupons":
 		if e.ComplexityRoot.SinkStats.Coupons == nil {
@@ -4143,7 +4207,10 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputChangePasswordInput,
+		ec.unmarshalInputCompleteSetupInput,
 		ec.unmarshalInputCreateSessionInput,
+		ec.unmarshalInputDisableAuthInput,
+		ec.unmarshalInputEnableAuthInput,
 		ec.unmarshalInputLoginInput,
 		ec.unmarshalInputUpdateSessionInput,
 		ec.unmarshalInputUpdateSettingsInput,
@@ -4985,9 +5052,9 @@ type Session {
   sessionName: String!
   isPaused: Boolean!
   createdAt: DateTime!
-  isOnline: Boolean!
-  isDisconnected: Boolean!
+  connectionState: ConnectionState!
   stage: SessionStage!
+  offlineReason: ConnectivityReason!
 }
 
 type SessionInfo {
@@ -5014,15 +5081,49 @@ type SatisfactoryApiStatus {
   pingMs: Int!
 }
 
-type ConnectivityStatus {
-  isOnline: Boolean!
-  isDisconnected: Boolean!
-  stage: SessionStage!
+"""
+ConnectivityReason explains why a session is unreachable, so the UI can say more
+than "offline".
+"""
+enum ConnectivityReason {
+  "The session is reachable."
+  NONE
+  "Nothing answered: timed out or refused. FRM is most likely not running."
+  NO_RESPONSE
+  "Something answered but it was not FRM: an HTTP error, TLS failure, or a body that does not parse."
+  BAD_RESPONSE
 }
 
+"""
+ConnectionState is the authoritative connection state for a session, so clients
+never derive one from a pair of booleans.
+"""
+enum ConnectionState {
+  "A poller is running but FRM has not answered yet."
+  CONNECTING
+  "FRM answered."
+  ONLINE
+  "FRM could not be reached; reason says why."
+  OFFLINE
+}
+
+type ConnectivityStatus {
+  connectionState: ConnectionState!
+  stage: SessionStage!
+  reason: ConnectivityReason!
+}
+
+"""
+AuthStatus is the only unguarded query, so it is the single source of truth for
+what the client should show before it can read anything else.
+"""
 type AuthStatus {
+  "False until first-run setup completes. The client must route to setup."
+  initialized: Boolean!
+  "False on an open instance, where no access key is needed."
+  authRequired: Boolean!
+  "Whether this caller may read guarded fields. Always true on an open instance."
   authenticated: Boolean!
-  usedDefaultPassword: Boolean!
 }
 
 # ============================================================================
@@ -5070,6 +5171,23 @@ input LoginInput {
   password: String!
 }
 
+"""
+CompleteSetupInput claims an unset-up instance. Omitting password leaves the
+instance open, requiring no access key.
+"""
+input CompleteSetupInput {
+  setupToken: String!
+  password: String
+}
+
+input EnableAuthInput {
+  password: String!
+}
+
+input DisableAuthInput {
+  currentPassword: String!
+}
+
 input ChangePasswordInput {
   currentPassword: String!
   newPassword: String!
@@ -5092,11 +5210,16 @@ input UpdateSettingsInput {
 
 type LoginResult {
   success: Boolean!
-  usedDefaultPassword: Boolean!
+  message: String!
 }
 
 type LogoutResult {
   success: Boolean!
+}
+
+type SetupResult {
+  success: Boolean!
+  message: String!
 }
 
 type ChangePasswordResult {
@@ -5160,6 +5283,18 @@ type Query {
 type Mutation {
   login(input: LoginInput!): LoginResult!
   logout: LogoutResult! @auth
+
+  """
+  Claims an instance that has not been set up. Unguarded by necessity, so it is
+  gated on the setup token, refuses once the instance is initialized, and is
+  rate limited per client.
+  """
+  completeSetup(input: CompleteSetupInput!): SetupResult!
+
+  "Adds an access key to an open instance, revoking existing sessions."
+  enableAuth(input: EnableAuthInput!): ChangePasswordResult! @auth
+  "Removes the access key, leaving the instance open to anyone who can reach it."
+  disableAuth(input: DisableAuthInput!): ChangePasswordResult! @auth
   changePassword(input: ChangePasswordInput!): ChangePasswordResult! @auth
   createSession(input: CreateSessionInput!): Session! @auth
   updateSession(id: ID!, input: UpdateSessionInput!): Session! @auth
@@ -5226,6 +5361,17 @@ func (ec *executionContext) field_Mutation_changePassword_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_completeSetup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCompleteSetupInput2apiᚋinternalᚋgraphᚋmodelᚐCompleteSetupInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createSession_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -5245,6 +5391,28 @@ func (ec *executionContext) field_Mutation_deleteSession_args(ctx context.Contex
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_disableAuth_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNDisableAuthInput2apiᚋinternalᚋgraphᚋmodelᚐDisableAuthInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_enableAuth_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNEnableAuthInput2apiᚋinternalᚋgraphᚋmodelᚐEnableAuthInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -6238,6 +6406,64 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
+func (ec *executionContext) _AuthStatus_initialized(ctx context.Context, field graphql.CollectedField, obj *model.AuthStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AuthStatus_initialized,
+		func(ctx context.Context) (any, error) {
+			return obj.Initialized, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AuthStatus_initialized(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AuthStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AuthStatus_authRequired(ctx context.Context, field graphql.CollectedField, obj *model.AuthStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AuthStatus_authRequired,
+		func(ctx context.Context) (any, error) {
+			return obj.AuthRequired, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AuthStatus_authRequired(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AuthStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AuthStatus_authenticated(ctx context.Context, field graphql.CollectedField, obj *model.AuthStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6255,35 +6481,6 @@ func (ec *executionContext) _AuthStatus_authenticated(ctx context.Context, field
 }
 
 func (ec *executionContext) fieldContext_AuthStatus_authenticated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "AuthStatus",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _AuthStatus_usedDefaultPassword(ctx context.Context, field graphql.CollectedField, obj *model.AuthStatus) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_AuthStatus_usedDefaultPassword,
-		func(ctx context.Context) (any, error) {
-			return obj.UsedDefaultPassword, nil
-		},
-		nil,
-		ec.marshalNBoolean2bool,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_AuthStatus_usedDefaultPassword(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "AuthStatus",
 		Field:      field,
@@ -7479,59 +7676,30 @@ func (ec *executionContext) fieldContext_CircuitsHistoryPoint_circuits(_ context
 	return fc, nil
 }
 
-func (ec *executionContext) _ConnectivityStatus_isOnline(ctx context.Context, field graphql.CollectedField, obj *model.ConnectivityStatus) (ret graphql.Marshaler) {
+func (ec *executionContext) _ConnectivityStatus_connectionState(ctx context.Context, field graphql.CollectedField, obj *model.ConnectivityStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_ConnectivityStatus_isOnline,
+		ec.fieldContext_ConnectivityStatus_connectionState,
 		func(ctx context.Context) (any, error) {
-			return obj.IsOnline, nil
+			return obj.ConnectionState, nil
 		},
 		nil,
-		ec.marshalNBoolean2bool,
+		ec.marshalNConnectionState2apiᚋinternalᚋgraphᚋmodelᚐConnectionState,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_ConnectivityStatus_isOnline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_ConnectivityStatus_connectionState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ConnectivityStatus",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _ConnectivityStatus_isDisconnected(ctx context.Context, field graphql.CollectedField, obj *model.ConnectivityStatus) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_ConnectivityStatus_isDisconnected,
-		func(ctx context.Context) (any, error) {
-			return obj.IsDisconnected, nil
-		},
-		nil,
-		ec.marshalNBoolean2bool,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_ConnectivityStatus_isDisconnected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "ConnectivityStatus",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			return nil, errors.New("field of type ConnectionState does not have child fields")
 		},
 	}
 	return fc, nil
@@ -7561,6 +7729,35 @@ func (ec *executionContext) fieldContext_ConnectivityStatus_stage(_ context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type SessionStage does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectivityStatus_reason(ctx context.Context, field graphql.CollectedField, obj *model.ConnectivityStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectivityStatus_reason,
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		ec.marshalNConnectivityReason2apiᚋinternalᚋgraphᚋmodelᚐConnectivityReason,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectivityStatus_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectivityStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectivityReason does not have child fields")
 		},
 	}
 	return fc, nil
@@ -10518,30 +10715,30 @@ func (ec *executionContext) fieldContext_LoginResult_success(_ context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _LoginResult_usedDefaultPassword(ctx context.Context, field graphql.CollectedField, obj *model.LoginResult) (ret graphql.Marshaler) {
+func (ec *executionContext) _LoginResult_message(ctx context.Context, field graphql.CollectedField, obj *model.LoginResult) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_LoginResult_usedDefaultPassword,
+		ec.fieldContext_LoginResult_message,
 		func(ctx context.Context) (any, error) {
-			return obj.UsedDefaultPassword, nil
+			return obj.Message, nil
 		},
 		nil,
-		ec.marshalNBoolean2bool,
+		ec.marshalNString2string,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_LoginResult_usedDefaultPassword(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_LoginResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "LoginResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -11300,8 +11497,8 @@ func (ec *executionContext) fieldContext_Mutation_login(ctx context.Context, fie
 			switch field.Name {
 			case "success":
 				return ec.fieldContext_LoginResult_success(ctx, field)
-			case "usedDefaultPassword":
-				return ec.fieldContext_LoginResult_usedDefaultPassword(ctx, field)
+			case "message":
+				return ec.fieldContext_LoginResult_message(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type LoginResult", field.Name)
 		},
@@ -11362,6 +11559,173 @@ func (ec *executionContext) fieldContext_Mutation_logout(_ context.Context, fiel
 			}
 			return nil, fmt.Errorf("no field named %q was found under type LogoutResult", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_completeSetup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_completeSetup,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CompleteSetup(ctx, fc.Args["input"].(model.CompleteSetupInput))
+		},
+		nil,
+		ec.marshalNSetupResult2ᚖapiᚋinternalᚋgraphᚋmodelᚐSetupResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_completeSetup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_SetupResult_success(ctx, field)
+			case "message":
+				return ec.fieldContext_SetupResult_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SetupResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_completeSetup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_enableAuth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_enableAuth,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().EnableAuth(ctx, fc.Args["input"].(model.EnableAuthInput))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Auth == nil {
+					var zeroVal *model.ChangePasswordResult
+					return zeroVal, errors.New("directive auth is not implemented")
+				}
+				return ec.Directives.Auth(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNChangePasswordResult2ᚖapiᚋinternalᚋgraphᚋmodelᚐChangePasswordResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_enableAuth(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_ChangePasswordResult_success(ctx, field)
+			case "message":
+				return ec.fieldContext_ChangePasswordResult_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ChangePasswordResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_enableAuth_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_disableAuth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_disableAuth,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DisableAuth(ctx, fc.Args["input"].(model.DisableAuthInput))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Auth == nil {
+					var zeroVal *model.ChangePasswordResult
+					return zeroVal, errors.New("directive auth is not implemented")
+				}
+				return ec.Directives.Auth(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNChangePasswordResult2ᚖapiᚋinternalᚋgraphᚋmodelᚐChangePasswordResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_disableAuth(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_ChangePasswordResult_success(ctx, field)
+			case "message":
+				return ec.fieldContext_ChangePasswordResult_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ChangePasswordResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_disableAuth_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -11476,12 +11840,12 @@ func (ec *executionContext) fieldContext_Mutation_createSession(ctx context.Cont
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Session_createdAt(ctx, field)
-			case "isOnline":
-				return ec.fieldContext_Session_isOnline(ctx, field)
-			case "isDisconnected":
-				return ec.fieldContext_Session_isDisconnected(ctx, field)
+			case "connectionState":
+				return ec.fieldContext_Session_connectionState(ctx, field)
 			case "stage":
 				return ec.fieldContext_Session_stage(ctx, field)
+			case "offlineReason":
+				return ec.fieldContext_Session_offlineReason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -11550,12 +11914,12 @@ func (ec *executionContext) fieldContext_Mutation_updateSession(ctx context.Cont
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Session_createdAt(ctx, field)
-			case "isOnline":
-				return ec.fieldContext_Session_isOnline(ctx, field)
-			case "isDisconnected":
-				return ec.fieldContext_Session_isDisconnected(ctx, field)
+			case "connectionState":
+				return ec.fieldContext_Session_connectionState(ctx, field)
 			case "stage":
 				return ec.fieldContext_Session_stage(ctx, field)
+			case "offlineReason":
+				return ec.fieldContext_Session_offlineReason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -12993,12 +13357,12 @@ func (ec *executionContext) fieldContext_Query_sessions(_ context.Context, field
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Session_createdAt(ctx, field)
-			case "isOnline":
-				return ec.fieldContext_Session_isOnline(ctx, field)
-			case "isDisconnected":
-				return ec.fieldContext_Session_isDisconnected(ctx, field)
+			case "connectionState":
+				return ec.fieldContext_Session_connectionState(ctx, field)
 			case "stage":
 				return ec.fieldContext_Session_stage(ctx, field)
+			case "offlineReason":
+				return ec.fieldContext_Session_offlineReason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -13056,12 +13420,12 @@ func (ec *executionContext) fieldContext_Query_session(ctx context.Context, fiel
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Session_createdAt(ctx, field)
-			case "isOnline":
-				return ec.fieldContext_Session_isOnline(ctx, field)
-			case "isDisconnected":
-				return ec.fieldContext_Session_isDisconnected(ctx, field)
+			case "connectionState":
+				return ec.fieldContext_Session_connectionState(ctx, field)
 			case "stage":
 				return ec.fieldContext_Session_stage(ctx, field)
+			case "offlineReason":
+				return ec.fieldContext_Session_offlineReason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -13230,10 +13594,12 @@ func (ec *executionContext) fieldContext_Query_authStatus(_ context.Context, fie
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "initialized":
+				return ec.fieldContext_AuthStatus_initialized(ctx, field)
+			case "authRequired":
+				return ec.fieldContext_AuthStatus_authRequired(ctx, field)
 			case "authenticated":
 				return ec.fieldContext_AuthStatus_authenticated(ctx, field)
-			case "usedDefaultPassword":
-				return ec.fieldContext_AuthStatus_usedDefaultPassword(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AuthStatus", field.Name)
 		},
@@ -13381,12 +13747,12 @@ func (ec *executionContext) fieldContext_Query_connectivity(ctx context.Context,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "isOnline":
-				return ec.fieldContext_ConnectivityStatus_isOnline(ctx, field)
-			case "isDisconnected":
-				return ec.fieldContext_ConnectivityStatus_isDisconnected(ctx, field)
+			case "connectionState":
+				return ec.fieldContext_ConnectivityStatus_connectionState(ctx, field)
 			case "stage":
 				return ec.fieldContext_ConnectivityStatus_stage(ctx, field)
+			case "reason":
+				return ec.fieldContext_ConnectivityStatus_reason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ConnectivityStatus", field.Name)
 		},
@@ -17602,59 +17968,30 @@ func (ec *executionContext) fieldContext_Session_createdAt(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _Session_isOnline(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
+func (ec *executionContext) _Session_connectionState(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Session_isOnline,
+		ec.fieldContext_Session_connectionState,
 		func(ctx context.Context) (any, error) {
-			return obj.IsOnline, nil
+			return obj.ConnectionState, nil
 		},
 		nil,
-		ec.marshalNBoolean2bool,
+		ec.marshalNConnectionState2apiᚋinternalᚋgraphᚋmodelᚐConnectionState,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_Session_isOnline(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Session_connectionState(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Session",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Session_isDisconnected(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Session_isDisconnected,
-		func(ctx context.Context) (any, error) {
-			return obj.IsDisconnected, nil
-		},
-		nil,
-		ec.marshalNBoolean2bool,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Session_isDisconnected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Session",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			return nil, errors.New("field of type ConnectionState does not have child fields")
 		},
 	}
 	return fc, nil
@@ -17684,6 +18021,35 @@ func (ec *executionContext) fieldContext_Session_stage(_ context.Context, field 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type SessionStage does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Session_offlineReason(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Session_offlineReason,
+		func(ctx context.Context) (any, error) {
+			return obj.OfflineReason, nil
+		},
+		nil,
+		ec.marshalNConnectivityReason2apiᚋinternalᚋgraphᚋmodelᚐConnectivityReason,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Session_offlineReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Session",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ConnectivityReason does not have child fields")
 		},
 	}
 	return fc, nil
@@ -18061,6 +18427,64 @@ func (ec *executionContext) fieldContext_Settings_logLevel(_ context.Context, fi
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type LogLevel does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SetupResult_success(ctx context.Context, field graphql.CollectedField, obj *model.SetupResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SetupResult_success,
+		func(ctx context.Context) (any, error) {
+			return obj.Success, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SetupResult_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SetupResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SetupResult_message(ctx context.Context, field graphql.CollectedField, obj *model.SetupResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SetupResult_message,
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SetupResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SetupResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -19192,12 +19616,12 @@ func (ec *executionContext) fieldContext_Subscription_connectivityChanged(ctx co
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "isOnline":
-				return ec.fieldContext_ConnectivityStatus_isOnline(ctx, field)
-			case "isDisconnected":
-				return ec.fieldContext_ConnectivityStatus_isDisconnected(ctx, field)
+			case "connectionState":
+				return ec.fieldContext_ConnectivityStatus_connectionState(ctx, field)
 			case "stage":
 				return ec.fieldContext_ConnectivityStatus_stage(ctx, field)
+			case "reason":
+				return ec.fieldContext_ConnectivityStatus_reason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ConnectivityStatus", field.Name)
 		},
@@ -19266,12 +19690,12 @@ func (ec *executionContext) fieldContext_Subscription_sessionUpdated(ctx context
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Session_createdAt(ctx, field)
-			case "isOnline":
-				return ec.fieldContext_Session_isOnline(ctx, field)
-			case "isDisconnected":
-				return ec.fieldContext_Session_isDisconnected(ctx, field)
+			case "connectionState":
+				return ec.fieldContext_Session_connectionState(ctx, field)
 			case "stage":
 				return ec.fieldContext_Session_stage(ctx, field)
+			case "offlineReason":
+				return ec.fieldContext_Session_offlineReason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -25628,6 +26052,43 @@ func (ec *executionContext) unmarshalInputChangePasswordInput(ctx context.Contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCompleteSetupInput(ctx context.Context, obj any) (model.CompleteSetupInput, error) {
+	var it model.CompleteSetupInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"setupToken", "password"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "setupToken":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("setupToken"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SetupToken = data
+		case "password":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Password = graphql.OmittableOf(data)
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateSessionInput(ctx context.Context, obj any) (model.CreateSessionInput, error) {
 	var it model.CreateSessionInput
 	if obj == nil {
@@ -25660,6 +26121,66 @@ func (ec *executionContext) unmarshalInputCreateSessionInput(ctx context.Context
 				return it, err
 			}
 			it.Address = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputDisableAuthInput(ctx context.Context, obj any) (model.DisableAuthInput, error) {
+	var it model.DisableAuthInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"currentPassword"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "currentPassword":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("currentPassword"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CurrentPassword = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputEnableAuthInput(ctx context.Context, obj any) (model.EnableAuthInput, error) {
+	var it model.EnableAuthInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"password"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "password":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Password = data
 		}
 	}
 	return it, nil
@@ -25788,13 +26309,18 @@ func (ec *executionContext) _AuthStatus(ctx context.Context, sel ast.SelectionSe
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("AuthStatus")
-		case "authenticated":
-			out.Values[i] = ec._AuthStatus_authenticated(ctx, field, obj)
+		case "initialized":
+			out.Values[i] = ec._AuthStatus_initialized(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "usedDefaultPassword":
-			out.Values[i] = ec._AuthStatus_usedDefaultPassword(ctx, field, obj)
+		case "authRequired":
+			out.Values[i] = ec._AuthStatus_authRequired(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "authenticated":
+			out.Values[i] = ec._AuthStatus_authenticated(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -26357,18 +26883,18 @@ func (ec *executionContext) _ConnectivityStatus(ctx context.Context, sel ast.Sel
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("ConnectivityStatus")
-		case "isOnline":
-			out.Values[i] = ec._ConnectivityStatus_isOnline(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "isDisconnected":
-			out.Values[i] = ec._ConnectivityStatus_isDisconnected(ctx, field, obj)
+		case "connectionState":
+			out.Values[i] = ec._ConnectivityStatus_connectionState(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "stage":
 			out.Values[i] = ec._ConnectivityStatus_stage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reason":
+			out.Values[i] = ec._ConnectivityStatus_reason(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -27396,8 +27922,8 @@ func (ec *executionContext) _LoginResult(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "usedDefaultPassword":
-			out.Values[i] = ec._LoginResult_usedDefaultPassword(ctx, field, obj)
+		case "message":
+			out.Values[i] = ec._LoginResult_message(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -27706,6 +28232,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "logout":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_logout(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completeSetup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_completeSetup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enableAuth":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_enableAuth(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "disableAuth":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_disableAuth(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -29784,18 +30331,18 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "isOnline":
-			out.Values[i] = ec._Session_isOnline(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "isDisconnected":
-			out.Values[i] = ec._Session_isDisconnected(ctx, field, obj)
+		case "connectionState":
+			out.Values[i] = ec._Session_connectionState(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "stage":
 			out.Values[i] = ec._Session_stage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "offlineReason":
+			out.Values[i] = ec._Session_offlineReason(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -29929,6 +30476,50 @@ func (ec *executionContext) _Settings(ctx context.Context, sel ast.SelectionSet,
 			out.Values[i] = graphql.MarshalString("Settings")
 		case "logLevel":
 			out.Values[i] = ec._Settings_logLevel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var setupResultImplementors = []string{"SetupResult"}
+
+func (ec *executionContext) _SetupResult(ctx context.Context, sel ast.SelectionSet, obj *model.SetupResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, setupResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SetupResult")
+		case "success":
+			out.Values[i] = ec._SetupResult_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._SetupResult_message(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -31705,6 +32296,31 @@ func (ec *executionContext) marshalNCircuitsHistoryPoint2ᚖapiᚋinternalᚋgra
 	return ec._CircuitsHistoryPoint(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNCompleteSetupInput2apiᚋinternalᚋgraphᚋmodelᚐCompleteSetupInput(ctx context.Context, v any) (model.CompleteSetupInput, error) {
+	res, err := ec.unmarshalInputCompleteSetupInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNConnectionState2apiᚋinternalᚋgraphᚋmodelᚐConnectionState(ctx context.Context, v any) (model.ConnectionState, error) {
+	var res model.ConnectionState
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectionState2apiᚋinternalᚋgraphᚋmodelᚐConnectionState(ctx context.Context, sel ast.SelectionSet, v model.ConnectionState) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNConnectivityReason2apiᚋinternalᚋgraphᚋmodelᚐConnectivityReason(ctx context.Context, v any) (model.ConnectivityReason, error) {
+	var res model.ConnectivityReason
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNConnectivityReason2apiᚋinternalᚋgraphᚋmodelᚐConnectivityReason(ctx context.Context, sel ast.SelectionSet, v model.ConnectivityReason) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNConnectivityStatus2apiᚋinternalᚋgraphᚋmodelᚐConnectivityStatus(ctx context.Context, sel ast.SelectionSet, v model.ConnectivityStatus) graphql.Marshaler {
 	return ec._ConnectivityStatus(ctx, sel, &v)
 }
@@ -31738,6 +32354,11 @@ func (ec *executionContext) marshalNDateTime2timeᚐTime(ctx context.Context, se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNDisableAuthInput2apiᚋinternalᚋgraphᚋmodelᚐDisableAuthInput(ctx context.Context, v any) (model.DisableAuthInput, error) {
+	res, err := ec.unmarshalInputDisableAuthInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNDrone2ᚕᚖapiᚋinternalᚋgraphᚋmodelᚐDroneᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Drone) graphql.Marshaler {
@@ -31800,6 +32421,11 @@ func (ec *executionContext) unmarshalNDroneStatus2apiᚋinternalᚋgraphᚋmodel
 
 func (ec *executionContext) marshalNDroneStatus2apiᚋinternalᚋgraphᚋmodelᚐDroneStatus(ctx context.Context, sel ast.SelectionSet, v model.DroneStatus) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) unmarshalNEnableAuthInput2apiᚋinternalᚋgraphᚋmodelᚐEnableAuthInput(ctx context.Context, v any) (model.EnableAuthInput, error) {
+	res, err := ec.unmarshalInputEnableAuthInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNExplorer2ᚕᚖapiᚋinternalᚋgraphᚋmodelᚐExplorerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Explorer) graphql.Marshaler {
@@ -32757,6 +33383,20 @@ func (ec *executionContext) marshalNSettings2ᚖapiᚋinternalᚋgraphᚋmodel�
 		return graphql.Null
 	}
 	return ec._Settings(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSetupResult2apiᚋinternalᚋgraphᚋmodelᚐSetupResult(ctx context.Context, sel ast.SelectionSet, v model.SetupResult) graphql.Marshaler {
+	return ec._SetupResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSetupResult2ᚖapiᚋinternalᚋgraphᚋmodelᚐSetupResult(ctx context.Context, sel ast.SelectionSet, v *model.SetupResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SetupResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSignalType2apiᚋinternalᚋgraphᚋmodelᚐSignalType(ctx context.Context, v any) (model.SignalType, error) {

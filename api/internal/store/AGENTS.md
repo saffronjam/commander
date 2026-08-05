@@ -1,6 +1,6 @@
 # Store
 
-Durable state: sessions, settings, auth (shared password + access tokens), and history samples.
+Durable state: instance meta, sessions, settings, auth (access key + tokens), and history samples.
 SQLite via [sqlc](https://sqlc.dev) for the query layer and golang-migrate for the schema.
 
 ## Files
@@ -9,9 +9,10 @@ SQLite via [sqlc](https://sqlc.dev) for the query layer and golang-migrate for t
 queries/*.sql        sqlc INPUT  — hand-written, one file per domain
 migrations/*.sql     the schema  — numbered up/down pairs, embedded
 sqlite/              sqlc OUTPUT — generated, never edit
-store.go             domain types (Session, Setting, Token, HistoryPoint, HistoryQuery)
+store.go             domain types (Instance, AuthMode, Session, Setting, Token, HistoryPoint, HistoryQuery)
 db.go                DB wrapper over the generated Queries, ErrNotFound, execTx
-auth.go              password + token methods
+instance.go          the singleton instance row: setup state and auth mode
+auth.go              access key + token methods
 sessions.go          session CRUD
 settings.go          key/value settings
 history.go           history upsert, query (raw + bucketed), prune
@@ -19,6 +20,18 @@ retention.go         RunHistoryRetention / RunTokenPrune background loops
 mapper.go            sqlite row -> domain conversion, bool <-> int64
 migrations.go        //go:embed migrations/*.sql
 ```
+
+## The instance table
+
+A single row (`CHECK (id = 1)`) holding instance-wide meta. `initialized_at IS NULL` means first-run
+setup has not completed; `auth_mode` is `open` or `password`. Two columns because they are two
+independent facts: collapsing them would make "never set up" and "deliberately open" indistinguishable.
+
+`CompleteInstanceSetup` updates `WHERE initialized_at IS NULL` and returns the affected row count, so
+single-use claiming is enforced by the database rather than a read-then-write check.
+
+Access tokens are keyed by `token_hash`, never the token. `store.Token.TokenHash` is
+`auth.TokenHash`, a type distinct from `auth.Token`, so persisting a raw token does not compile.
 
 Callers depend on `*store.DB`'s domain methods and never import `internal/store/sqlite`.
 

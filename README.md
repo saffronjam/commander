@@ -62,24 +62,38 @@ docker compose up -d
 ```
 
 Two containers: a one-shot seeder that pulls the map tiles into a volume, then the app on
-[localhost:8081](http://localhost:8081). The default password is `change-me`
-(`SD_BOOTSTRAP_PASSWORD`) — change it after your first login.
+[localhost:8081](http://localhost:8081). No password ships with it — see
+[First run](#first-run).
 
 Worth setting for anything beyond a local run:
 
 | Variable | Purpose |
 | --- | --- |
-| `SD_BOOTSTRAP_PASSWORD` | initial password, applied on first boot against an empty database |
-| `SD_EXTERNAL_URL` | locks the websocket `Origin` check to your hostname |
-| `SD_VERSION` | pins a released image tag instead of tracking `main` |
+| `SD_EXTERNAL_URL` | locks the websocket `Origin` check to your hostname, and marks the auth cookie `Secure` when it is `https://` |
+| `SD_VERSION` | pins a released image tag, without the leading `v` (`1.0.0` for release `v1.0.0`) |
 | `SD_ASSETS_REF` | pins the map tiles artifact version |
+| `SD_DATA_DIR` | where the first-run setup token is written (defaults to the database's directory) |
 | `SD_MAX_SAMPLE_GAME_DURATION` | how much game-time history to retain |
 
 ## First run
 
-Log in, then add a session with the address FRM printed. The dashboard validates it, starts polling,
-and the pages fill in as data arrives. History accumulates from the moment a session is live, per
-save — switching saves in-game starts a clean series rather than mixing the two.
+A fresh instance ships with no credentials at all. It waits to be claimed, and prints a one-time
+setup token to the log on startup:
+
+```bash
+docker compose logs app | grep -A2 'not set up'
+# or
+docker compose exec app cat /data/bootstrap.token
+```
+
+Open the dashboard, paste that token, and choose whether to set an **access key**. The key is
+optional and recommended: without one, anyone who can reach the address can view your factory and
+change its sessions. You can add, change, or remove it later in Settings. The token exists so that a
+stranger who finds the URL before you do cannot claim the dashboard and lock you out.
+
+Then add a session with the address FRM printed. The dashboard validates it, starts polling, and the
+pages fill in as data arrives. History accumulates from the moment a session is live, per save —
+switching saves in-game starts a clean series rather than mixing the two.
 
 ## Run from source
 

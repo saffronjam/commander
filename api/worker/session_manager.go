@@ -42,27 +42,44 @@ func toModelsSession(s store.Session) *models.Session {
 	}
 }
 
-// publisherState tracks the state of a session's publisher
+// publisherState tracks the state of a session's publisher. The poll goroutines
+// read it while the supervisor writes it, so every field but cancel and the
+// tracker is behind mu.
 type publisherState struct {
 	cancel          context.CancelFunc
+	address         string
 	isDisconnected  bool
 	currentSaveName string
-	saveNameMu      sync.RWMutex
+	mu              sync.RWMutex
 	gameTimeTracker *session.GameTimeTracker
 }
 
 // GetSaveName returns the current save name for this publisher.
 func (ps *publisherState) GetSaveName() string {
-	ps.saveNameMu.RLock()
-	defer ps.saveNameMu.RUnlock()
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
 	return ps.currentSaveName
 }
 
 // SetSaveName updates the current save name for this publisher.
 func (ps *publisherState) SetSaveName(name string) {
-	ps.saveNameMu.Lock()
-	defer ps.saveNameMu.Unlock()
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	ps.currentSaveName = name
+}
+
+// IsDisconnected reports whether this publisher is polling in disconnected mode.
+func (ps *publisherState) IsDisconnected() bool {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	return ps.isDisconnected
+}
+
+// SetDisconnected records the publisher's polling mode.
+func (ps *publisherState) SetDisconnected(disconnected bool) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ps.isDisconnected = disconnected
 }
 
 // GameTimeTracker returns the game time tracker for this publisher.
@@ -71,8 +88,10 @@ func (ps *publisherState) GameTimeTracker() *session.GameTimeTracker {
 }
 
 type connState struct {
+	state        models.ConnectionState
 	online       bool
 	disconnected bool
+	reason       models.ConnectivityReason
 }
 
 // SessionManager is the single in-process supervisor that owns one poll loop per
@@ -167,7 +186,13 @@ func (sm *SessionManager) watchForNewSessions(ctx context.Context) {
 
 			sm.mu.RLock()
 			for _, sess := range sessions {
-				_, isRunning := sm.publishers[sess.ID]
+				running, isRunning := sm.publishers[sess.ID]
+				if isRunning && !sess.IsPaused && running.address != sess.Address {
+					sm.mu.RUnlock()
+					sm.RestartSession(sessionid.ID(sess.ID))
+					sm.mu.RLock()
+					continue
+				}
 				if sess.IsPaused && isRunning {
 					sm.mu.RUnlock()
 					log.Infof("Stopping publisher for paused session: %s (%s)", sess.Name, sess.ID)
@@ -212,11 +237,13 @@ func (sm *SessionManager) startPublisher(parentCtx context.Context, sess *models
 	ctx, cancel := context.WithCancel(parentCtx)
 	state := &publisherState{
 		cancel:          cancel,
+		address:         sess.Address,
 		isDisconnected:  sess.IsDisconnected,
 		currentSaveName: sess.SessionName,
 		gameTimeTracker: session.NewGameTimeTracker(),
 	}
 	sm.publishers[sess.ID] = state
+	sm.setConnecting(sess.ID)
 
 	log.Infof("Starting publisher for session: %s (%s)", sess.Name, sess.ID)
 
@@ -234,6 +261,38 @@ func (sm *SessionManager) stopPublisher(sessionID string) {
 		delete(sm.publishers, sessionID)
 		log.Infof("Stopped publisher for session: %s", sessionID)
 	}
+}
+
+// RestartSession reconnects a session whose address changed. It is a no-op when
+// the running publisher is already pointed at the stored address, so callers can
+// invoke it after any session update without checking first.
+func (sm *SessionManager) RestartSession(id sessionid.ID) {
+	sess, err := sm.getSession(context.Background(), string(id))
+	if err != nil || sess == nil {
+		return
+	}
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	state, running := sm.publishers[string(id)]
+	if !running || state.address == sess.Address {
+		return
+	}
+
+	log.Infof("Session address changed, reconnecting: %s (%s)", sess.Name, sess.ID)
+
+	// A new address is a new server. Drop the publisher outright rather than
+	// restarting it, so the replacement inherits neither the light-polling mode
+	// nor the previous save name — carrying that over would file the new server's
+	// first samples under the old save.
+	state.cancel()
+	delete(sm.publishers, string(id))
+
+	sess.IsDisconnected = false
+	sess.SessionName = ""
+	sm.setConnecting(sess.ID)
+	sm.restartPublisherLocked(sess.ID, sess)
 }
 
 // StartSession is the Poller interface entrypoint: load the session and start it.
@@ -350,10 +409,20 @@ func (sm *SessionManager) Connectivity(sessionID sessionid.ID) models.Connectivi
 	sm.mu.RLock()
 	c := sm.conn[string(sessionID)]
 	sm.mu.RUnlock()
+	reason := c.reason
+	if reason == "" {
+		reason = models.ConnectivityReasonNone
+	}
+	state := c.state
+	if state == "" {
+		state = models.ConnectionStateConnecting
+	}
 	return models.ConnectivityStatus{
 		IsOnline:       c.online,
 		IsDisconnected: c.disconnected,
+		State:          state,
 		Stage:          sm.Stage(sessionID),
+		Reason:         reason,
 	}
 }
 
@@ -391,10 +460,30 @@ func (sm *SessionManager) CurrentGameTime(key store.HistorySeriesKey) int64 {
 	return 0
 }
 
-func (sm *SessionManager) setConn(sessionID string, online, disconnected bool) {
+func (sm *SessionManager) setConn(sessionID string, online, disconnected bool, reason models.ConnectivityReason) {
+	state := models.ConnectionStateOffline
+	if online {
+		state = models.ConnectionStateOnline
+		reason = models.ConnectivityReasonNone
+	}
 	sm.mu.Lock()
-	sm.conn[sessionID] = connState{online: online, disconnected: disconnected}
+	sm.conn[sessionID] = connState{
+		state:        state,
+		online:       online,
+		disconnected: disconnected,
+		reason:       reason,
+	}
 	sm.mu.Unlock()
+}
+
+// setConnecting marks a session as attempting to reach FRM. Called whenever a
+// publisher starts, so a fresh or restarted session reads as connecting rather
+// than offline until FRM actually answers or fails.
+func (sm *SessionManager) setConnecting(sessionID string) {
+	sm.conn[sessionID] = connState{
+		state:  models.ConnectionStateConnecting,
+		reason: models.ConnectivityReasonNone,
+	}
 }
 
 // publishLoop runs the event publishing loop for a session.
@@ -433,7 +522,7 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 
 		if event.Type == models.SatisfactoryEventApiStatus {
 			status := event.Data.(*models.SatisfactoryApiStatus)
-			sm.setConn(sess.ID, status.Running, state.isDisconnected)
+			sm.setConn(sess.ID, status.Running, state.IsDisconnected(), apiClient.FailureReason())
 			if status.Running && sess.IsDisconnected {
 				sm.transitionToConnected(sess.ID)
 			}
@@ -477,7 +566,7 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 
 	if err != nil {
 		log.PrettyError(fmt.Errorf("failed to set up polling for session %s: %w", sess.ID, err))
-		sm.setConn(sess.ID, false, state.isDisconnected)
+		sm.setConn(sess.ID, false, state.IsDisconnected(), apiClient.FailureReason())
 		return
 	}
 
@@ -548,6 +637,15 @@ func (sm *SessionManager) transitionToDisconnected(sessionID string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
+	// Light polling keeps failing while the server is unreachable, and each
+	// restart builds a fresh client whose own once-only guard is reset — so the
+	// callback fires again every time the failure threshold is re-reached.
+	// Restarting here would loop forever; the publisher is already in the mode
+	// this transition wants.
+	if state, exists := sm.publishers[sessionID]; exists && state.IsDisconnected() {
+		return
+	}
+
 	sess, err := sm.getSession(context.Background(), sessionID)
 	if err != nil || sess == nil {
 		log.Warnf("Failed to get session %s for disconnection: %v", sessionID, err)
@@ -558,9 +656,14 @@ func (sm *SessionManager) transitionToDisconnected(sessionID string) {
 	sess.IsOnline = false
 
 	if state, exists := sm.publishers[sessionID]; exists {
-		state.isDisconnected = true
+		state.SetDisconnected(true)
 	}
-	sm.conn[sessionID] = connState{online: false, disconnected: true}
+	sm.conn[sessionID] = connState{
+		state:        models.ConnectionStateOffline,
+		online:       false,
+		disconnected: true,
+		reason:       sm.conn[sessionID].reason,
+	}
 	sm.publishConnectivity(sessionID, false)
 
 	log.Infof("Restarting session %s in disconnected mode", sessionID)
@@ -570,6 +673,12 @@ func (sm *SessionManager) transitionToDisconnected(sessionID string) {
 func (sm *SessionManager) transitionToConnected(sessionID string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
+
+	// Symmetric with transitionToDisconnected: a publisher already polling in
+	// connected mode has nothing to transition to.
+	if state, exists := sm.publishers[sessionID]; exists && !state.IsDisconnected() {
+		return
+	}
 
 	sess, err := sm.getSession(context.Background(), sessionID)
 	if err != nil || sess == nil {
@@ -581,9 +690,14 @@ func (sm *SessionManager) transitionToConnected(sessionID string) {
 	sess.IsOnline = true
 
 	if state, exists := sm.publishers[sessionID]; exists {
-		state.isDisconnected = false
+		state.SetDisconnected(false)
 	}
-	sm.conn[sessionID] = connState{online: true, disconnected: false}
+	sm.conn[sessionID] = connState{
+		state:        models.ConnectionStateOnline,
+		online:       true,
+		disconnected: false,
+		reason:       models.ConnectivityReasonNone,
+	}
 	sm.publishConnectivity(sessionID, true)
 
 	log.Infof("Restarting session %s in connected mode", sessionID)
@@ -627,6 +741,7 @@ func (sm *SessionManager) restartPublisherLocked(sessionID string, sess *models.
 	ctx, cancel := context.WithCancel(parentCtx)
 	state := &publisherState{
 		cancel:          cancel,
+		address:         sess.Address,
 		isDisconnected:  sess.IsDisconnected,
 		currentSaveName: currentSaveName,
 		gameTimeTracker: gameTimeTracker,

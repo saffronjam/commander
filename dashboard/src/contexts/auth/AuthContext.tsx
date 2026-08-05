@@ -4,46 +4,47 @@ import { createContext } from 'use-context-selector';
 
 /**
  * Authentication state and actions exposed by AuthContext.
+ *
+ * All three flags come from the server's authStatus, the only query readable
+ * before authenticating, so it is the single source of truth for what the client
+ * should render.
  */
 export interface AuthContextType {
-  /** Whether the user is currently authenticated */
+  /** Whether first-run setup has completed. False means route to /setup. */
+  initialized: boolean;
+  /** Whether an access key is needed at all. False on an open instance. */
+  authRequired: boolean;
+  /** Whether this caller may read guarded data. Always true on an open instance. */
   authenticated: boolean;
-  /** Whether the user authenticated using the default password */
-  usedDefaultPassword: boolean;
-  /** Whether the user just logged in (vs. already authenticated on page load) */
-  justLoggedIn: boolean;
-  /** Whether authentication status is being checked */
+  /** Whether the initial status probe is still in flight */
   isLoading: boolean;
-  /** Error message if authentication check failed */
+  /** Error message if the status probe failed */
   error: string | null;
-  /** Whether the session has expired (for showing notification) */
+  /** Whether the session expired (for showing a notification) */
   sessionExpired: boolean;
   /** Authenticate with the access key */
   login: (password: string) => Promise<void>;
-  /** Clear authentication state (called on logout or session expiration) */
-  clearAuth: () => void;
-  /** Re-check authentication status with the server */
+  /** Log out and drop the token */
+  logout: () => Promise<void>;
+  /** Re-check status with the server */
   checkAuthStatus: () => Promise<void>;
-  /** Clear the session expired flag after showing notification */
+  /** Clear the session expired flag after showing a notification */
   clearSessionExpired: () => void;
-  /** Clear the just logged in flag after showing notification */
-  clearJustLoggedIn: () => void;
 }
 
 const defaultAuthContext: AuthContextType = {
+  initialized: false,
+  authRequired: true,
   authenticated: false,
-  usedDefaultPassword: false,
-  justLoggedIn: false,
   isLoading: true,
   error: null,
   sessionExpired: false,
   login: async () => {
     throw new Error('AuthProvider not initialized');
   },
-  clearAuth: () => {},
+  logout: async () => {},
   checkAuthStatus: async () => {},
   clearSessionExpired: () => {},
-  clearJustLoggedIn: () => {},
 };
 
 /**
@@ -56,12 +57,12 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
-/** Custom event name for 401 unauthorized responses */
+/** Custom event name for unauthenticated GraphQL responses */
 const AUTH_EXPIRED_EVENT = 'auth:expired';
 
 /**
  * Dispatch an authentication expired event.
- * Call this from API services when a 401 response is received.
+ * Called from the GraphQL client when a response comes back unauthenticated.
  */
 export function dispatchAuthExpired(): void {
   window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
@@ -69,13 +70,11 @@ export function dispatchAuthExpired(): void {
 
 /**
  * Provides authentication state and actions to the application.
- * Handles login, logout, and session status checking.
- * Listens for 401 responses and handles session expiration.
  */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [initialized, setInitialized] = useState(false);
+  const [authRequired, setAuthRequired] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
-  const [usedDefaultPassword, setUsedDefaultPassword] = useState(false);
-  const [justLoggedIn, setJustLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -85,51 +84,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setError(null);
       const status = await authApi.getStatus();
+      setInitialized(status.initialized);
+      setAuthRequired(status.authRequired);
       setAuthenticated(status.authenticated);
-      setUsedDefaultPassword(status.usedDefaultPassword ?? false);
     } catch (err) {
       setAuthenticated(false);
-      setUsedDefaultPassword(false);
       setError(err instanceof Error ? err.message : 'Failed to check authentication status');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const login = useCallback(async (password: string) => {
-    setError(null);
-    setSessionExpired(false);
-    const response = await authApi.login(password);
-    setAuthenticated(response.success);
-    setUsedDefaultPassword(response.usedDefaultPassword);
-    if (response.success) {
-      setJustLoggedIn(true);
-    }
-  }, []);
+  const login = useCallback(
+    async (password: string) => {
+      setError(null);
+      setSessionExpired(false);
+      const response = await authApi.login(password);
+      if (!response.success) {
+        throw new Error(response.message || 'Authentication failed');
+      }
+      await checkAuthStatus();
+    },
+    [checkAuthStatus]
+  );
 
-  const clearAuth = useCallback(() => {
-    setAuthenticated(false);
-    setUsedDefaultPassword(false);
-    setJustLoggedIn(false);
-    setError(null);
-  }, []);
+  const logout = useCallback(async () => {
+    await authApi.logout();
+    await checkAuthStatus();
+  }, [checkAuthStatus]);
 
   const clearSessionExpired = useCallback(() => {
     setSessionExpired(false);
   }, []);
 
-  const clearJustLoggedIn = useCallback(() => {
-    setJustLoggedIn(false);
-  }, []);
-
+  /**
+   * Re-probe rather than assuming the worst. A late unauthenticated response from
+   * an unrelated in-flight query would otherwise log out a caller who is in fact
+   * authenticated, and would break open mode entirely.
+   */
   const handleAuthExpired = useCallback(() => {
     if (wasAuthenticatedRef.current) {
       setSessionExpired(true);
     }
-    setAuthenticated(false);
-    setUsedDefaultPassword(false);
-    setJustLoggedIn(false);
-  }, []);
+    void checkAuthStatus();
+  }, [checkAuthStatus]);
 
   useEffect(() => {
     wasAuthenticatedRef.current = authenticated;
@@ -148,30 +146,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const contextValue: AuthContextType = useMemo(
     () => ({
+      initialized,
+      authRequired,
       authenticated,
-      usedDefaultPassword,
-      justLoggedIn,
       isLoading,
       error,
       sessionExpired,
       login,
-      clearAuth,
+      logout,
       checkAuthStatus,
       clearSessionExpired,
-      clearJustLoggedIn,
     }),
     [
+      initialized,
+      authRequired,
       authenticated,
-      usedDefaultPassword,
-      justLoggedIn,
       isLoading,
       error,
       sessionExpired,
       login,
-      clearAuth,
+      logout,
       checkAuthStatus,
       clearSessionExpired,
-      clearJustLoggedIn,
     ]
   );
 

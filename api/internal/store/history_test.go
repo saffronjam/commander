@@ -120,16 +120,16 @@ func TestHistoryCascadeOnSessionDelete(t *testing.T) {
 func TestTokenExpiryAndPrune(t *testing.T) {
 	st, ctx := newStore(t)
 	now := time.Now()
-	if err := st.InsertToken(ctx, auth.Token("expired"), now.Add(-time.Hour), "1.2.3.4"); err != nil {
+	if err := st.InsertToken(ctx, auth.Token("expired").Hash(), now.Add(-time.Hour), "1.2.3.4"); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.InsertToken(ctx, auth.Token("valid"), now.Add(time.Hour), "1.2.3.4"); err != nil {
+	if err := st.InsertToken(ctx, auth.Token("valid").Hash(), now.Add(time.Hour), "1.2.3.4"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.GetValidToken(ctx, auth.Token("expired"), now); err != store.ErrNotFound {
+	if _, err := st.GetValidToken(ctx, auth.Token("expired").Hash(), now); err != store.ErrNotFound {
 		t.Fatalf("expired token must not validate, got err=%v", err)
 	}
-	got, err := st.GetValidToken(ctx, auth.Token("valid"), now)
+	got, err := st.GetValidToken(ctx, auth.Token("valid").Hash(), now)
 	if err != nil {
 		t.Fatalf("valid token must validate, got err=%v", err)
 	}

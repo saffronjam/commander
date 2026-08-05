@@ -12,9 +12,15 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 )
 
+// AuthStatus is the only unguarded query, so it is the single source of truth for
+// what the client should show before it can read anything else.
 type AuthStatus struct {
-	Authenticated       bool `json:"authenticated"`
-	UsedDefaultPassword bool `json:"usedDefaultPassword"`
+	// False until first-run setup completes. The client must route to setup.
+	Initialized bool `json:"initialized"`
+	// False on an open instance, where no access key is needed.
+	AuthRequired bool `json:"authRequired"`
+	// Whether this caller may read guarded fields. Always true on an open instance.
+	Authenticated bool `json:"authenticated"`
 }
 
 type Belt struct {
@@ -89,15 +95,26 @@ type CircuitsHistoryPoint struct {
 	Circuits   []*Circuit `json:"circuits"`
 }
 
+// CompleteSetupInput claims an unset-up instance. Omitting password leaves the
+// instance open, requiring no access key.
+type CompleteSetupInput struct {
+	SetupToken string                     `json:"setupToken"`
+	Password   graphql.Omittable[*string] `json:"password,omitempty"`
+}
+
 type ConnectivityStatus struct {
-	IsOnline       bool         `json:"isOnline"`
-	IsDisconnected bool         `json:"isDisconnected"`
-	Stage          SessionStage `json:"stage"`
+	ConnectionState ConnectionState    `json:"connectionState"`
+	Stage           SessionStage       `json:"stage"`
+	Reason          ConnectivityReason `json:"reason"`
 }
 
 type CreateSessionInput struct {
 	Name    string `json:"name"`
 	Address string `json:"address"`
+}
+
+type DisableAuthInput struct {
+	CurrentPassword string `json:"currentPassword"`
 }
 
 type Drone struct {
@@ -129,6 +146,10 @@ type DroneStation struct {
 	Rotation        float64      `json:"rotation"`
 	CircuitID       int          `json:"circuitId"`
 	CircuitGroupID  *int         `json:"circuitGroupId,omitempty"`
+}
+
+type EnableAuthInput struct {
+	Password string `json:"password"`
 }
 
 type Explorer struct {
@@ -246,8 +267,8 @@ type LoginInput struct {
 }
 
 type LoginResult struct {
-	Success             bool `json:"success"`
-	UsedDefaultPassword bool `json:"usedDefaultPassword"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
 }
 
 type LogoutResult struct {
@@ -424,15 +445,15 @@ type SchematicCost struct {
 }
 
 type Session struct {
-	ID             string       `json:"id"`
-	Name           string       `json:"name"`
-	Address        string       `json:"address"`
-	SessionName    string       `json:"sessionName"`
-	IsPaused       bool         `json:"isPaused"`
-	CreatedAt      time.Time    `json:"createdAt"`
-	IsOnline       bool         `json:"isOnline"`
-	IsDisconnected bool         `json:"isDisconnected"`
-	Stage          SessionStage `json:"stage"`
+	ID              string             `json:"id"`
+	Name            string             `json:"name"`
+	Address         string             `json:"address"`
+	SessionName     string             `json:"sessionName"`
+	IsPaused        bool               `json:"isPaused"`
+	CreatedAt       time.Time          `json:"createdAt"`
+	ConnectionState ConnectionState    `json:"connectionState"`
+	Stage           SessionStage       `json:"stage"`
+	OfflineReason   ConnectivityReason `json:"offlineReason"`
 }
 
 type SessionInfo struct {
@@ -452,6 +473,11 @@ type SessionInfo struct {
 
 type Settings struct {
 	LogLevel LogLevel `json:"logLevel"`
+}
+
+type SetupResult struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
 }
 
 type SinkStats struct {
@@ -634,6 +660,130 @@ type VehiclePath struct {
 	VehicleType VehiclePathType `json:"vehicleType"`
 	PathLength  float64         `json:"pathLength"`
 	Vertices    []*Location     `json:"vertices"`
+}
+
+// ConnectionState is the authoritative connection state for a session, so clients
+// never derive one from a pair of booleans.
+type ConnectionState string
+
+const (
+	// A poller is running but FRM has not answered yet.
+	ConnectionStateConnecting ConnectionState = "CONNECTING"
+	// FRM answered.
+	ConnectionStateOnline ConnectionState = "ONLINE"
+	// FRM could not be reached; reason says why.
+	ConnectionStateOffline ConnectionState = "OFFLINE"
+)
+
+var AllConnectionState = []ConnectionState{
+	ConnectionStateConnecting,
+	ConnectionStateOnline,
+	ConnectionStateOffline,
+}
+
+func (e ConnectionState) IsValid() bool {
+	switch e {
+	case ConnectionStateConnecting, ConnectionStateOnline, ConnectionStateOffline:
+		return true
+	}
+	return false
+}
+
+func (e ConnectionState) String() string {
+	return string(e)
+}
+
+func (e *ConnectionState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectionState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectionState", str)
+	}
+	return nil
+}
+
+func (e ConnectionState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectionState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectionState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// ConnectivityReason explains why a session is unreachable, so the UI can say more
+// than "offline".
+type ConnectivityReason string
+
+const (
+	// The session is reachable.
+	ConnectivityReasonNone ConnectivityReason = "NONE"
+	// Nothing answered: timed out or refused. FRM is most likely not running.
+	ConnectivityReasonNoResponse ConnectivityReason = "NO_RESPONSE"
+	// Something answered but it was not FRM: an HTTP error, TLS failure, or a body that does not parse.
+	ConnectivityReasonBadResponse ConnectivityReason = "BAD_RESPONSE"
+)
+
+var AllConnectivityReason = []ConnectivityReason{
+	ConnectivityReasonNone,
+	ConnectivityReasonNoResponse,
+	ConnectivityReasonBadResponse,
+}
+
+func (e ConnectivityReason) IsValid() bool {
+	switch e {
+	case ConnectivityReasonNone, ConnectivityReasonNoResponse, ConnectivityReasonBadResponse:
+		return true
+	}
+	return false
+}
+
+func (e ConnectivityReason) String() string {
+	return string(e)
+}
+
+func (e *ConnectivityReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ConnectivityReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ConnectivityReason", str)
+	}
+	return nil
+}
+
+func (e ConnectivityReason) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ConnectivityReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ConnectivityReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type DroneStatus string

@@ -23,6 +23,7 @@ type App struct {
 	poller     *worker.SessionManager
 	bus        *eventbus.ChannelBus
 	latest     *eventbus.LatestStore
+	auth       *auth.Service
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
@@ -45,10 +46,18 @@ func Create(opts *Options) *App {
 		panic(fmt.Sprintf("Failed to set up logger. details: %s", err.Error()))
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	app := &App{ctx: ctx, cancel: cancel}
+
 	initTasks := []InitTask{
 		{Name: "Setup environment", Task: func() error { return config.SetupEnvironment(opts.Mode) }},
 		{Name: "Setup DB", Task: func() error { return db.Setup() }},
-		{Name: "Initialize auth", Task: initializeAuth},
+		{Name: "Ensure instance", Task: func() error {
+			// The auth service caches instance state and owns the per-IP rate
+			// limiter, so the process must share exactly one.
+			app.auth = auth.NewService()
+			return app.auth.EnsureInstance()
+		}},
 		{Name: "Apply log level", Task: applyLogLevel},
 	}
 
@@ -60,16 +69,13 @@ func Create(opts *Options) *App {
 	}
 	log.Printf("%sInitialization complete%s", log.Orange, log.Reset)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	app := &App{ctx: ctx, cancel: cancel}
-
 	app.bus = eventbus.NewChannelBus()
 	app.latest = eventbus.NewLatestStore()
 	app.poller = worker.NewSessionManager(app.bus, app.latest)
 
 	app.httpServer = &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", config.Config.Port),
-		Handler: app.buildHandler(auth.NewService()),
+		Handler: app.buildHandler(app.auth),
 	}
 	go func() {
 		log.Printf("%sHTTP server listening on %s0.0.0.0:%d%s", log.Bold, log.Orange, config.Config.Port, log.Reset)
@@ -104,22 +110,6 @@ func (app *App) Stop() {
 	}
 
 	log.Println("Server exited successfully")
-}
-
-// initializeAuth initializes the authentication system, setting the bootstrap
-// password if none is set yet.
-func initializeAuth() error {
-	authService := auth.NewService()
-	usedBootstrap, err := authService.InitializePassword()
-	if err != nil {
-		return fmt.Errorf("failed to initialize auth: %w", err)
-	}
-
-	if usedBootstrap {
-		log.Printf("%sInitialized with bootstrap password - change it via Settings%s", log.Orange, log.Reset)
-	}
-
-	return nil
 }
 
 // applyLogLevel reads the persisted log level from the store and applies it,

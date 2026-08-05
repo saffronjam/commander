@@ -2,11 +2,11 @@ package auth
 
 import "context"
 
-// Caller is the authenticated principal attached to a request context. Auth is
-// single-shared-password, so there is no user identity beyond these flags.
+// Caller is the authorized principal attached to a request context. There is no
+// user identity: a caller is present either because a valid access token was
+// presented or because the instance runs in open mode.
 type Caller struct {
-	Authenticated       bool
-	UsedDefaultPassword bool
+	Authenticated bool
 }
 
 type callerCtxKey struct{}

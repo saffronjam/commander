@@ -14,12 +14,11 @@ import (
 type AuthPassword struct {
 	ID        int64
 	Hash      string
-	IsDefault int64
 	UpdatedAt time.Time
 }
 
 type AuthToken struct {
-	Token     auth.Token
+	TokenHash auth.TokenHash
 	CreatedAt time.Time
 	LastUsed  time.Time
 	ExpiresAt time.Time
@@ -32,6 +31,14 @@ type HistoryPoint struct {
 	DataType   string
 	GameTimeID int64
 	Data       string
+}
+
+type Instance struct {
+	ID                 int64
+	InitializedAt      *time.Time
+	AuthMode           string
+	BootstrapTokenHash *string
+	CreatedAt          time.Time
 }
 
 type Session struct {

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useSubscription } from 'urql';
 import * as API from 'src/apiTypes';
+import { connectionStateFromEnum, connectivityReasonFromEnum } from 'src/utils/session-offline';
 import { ApiContext, ApiData, DefaultApiContext } from './useApi';
 import {
   CircuitsChangedSub,
@@ -82,6 +83,8 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({
       onSessionUpdate({
         ...s,
         stage: s.stage === 'READY' ? 'ready' : 'init',
+        connectionState: connectionStateFromEnum(s.connectionState),
+        offlineReason: connectivityReasonFromEnum(s.offlineReason),
       } as unknown as API.SessionDTO);
     }
   }, [sessionUpd.data, onSessionUpdate]);

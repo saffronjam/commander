@@ -31,6 +31,13 @@ var (
 	defaultLogger = "default"
 )
 
+// A no-op logger keeps every log call safe before SetupLogger runs. The process
+// configures the real logger as its first init task, so nothing user-facing is
+// lost; without this, any log call from a package under test panics on nil.
+func init() {
+	Logger = zap.NewNop().Sugar()
+}
+
 // SetupLogger initializes the logging system with the given run mode.
 func SetupLogger(m string) error {
 	runMode = m

@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"api/internal/auth"
 	"api/internal/store/sqlite"
 )
@@ -16,7 +14,8 @@ import (
 // TokenTTL is the lifetime of a freshly issued access token.
 const TokenTTL = 7 * 24 * time.Hour
 
-// GetAuthPassword returns the singleton password row, or ErrNotFound.
+// GetAuthPassword returns the singleton password row, or ErrNotFound when the
+// instance has no password (open mode, or setup not yet completed).
 func (s *DB) GetAuthPassword(ctx context.Context) (AuthPassword, error) {
 	row, err := s.q.GetAuthPassword(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -25,53 +24,30 @@ func (s *DB) GetAuthPassword(ctx context.Context) (AuthPassword, error) {
 	if err != nil {
 		return AuthPassword{}, fmt.Errorf("get auth password: %w", err)
 	}
-	return AuthPassword{Hash: row.Hash, IsDefault: int64ToBool(row.IsDefault), UpdatedAt: row.UpdatedAt}, nil
+	return AuthPassword{Hash: row.Hash, UpdatedAt: row.UpdatedAt}, nil
 }
 
-// UpsertAuthPassword writes the shared password hash and default flag.
-func (s *DB) UpsertAuthPassword(ctx context.Context, hash string, isDefault bool) error {
-	if err := s.q.UpsertAuthPassword(ctx, sqlite.UpsertAuthPasswordParams{
-		Hash:      hash,
-		IsDefault: boolToInt64(isDefault),
-	}); err != nil {
+// UpsertAuthPassword writes the shared password hash.
+func (s *DB) UpsertAuthPassword(ctx context.Context, hash string) error {
+	if err := s.q.UpsertAuthPassword(ctx, hash); err != nil {
 		return fmt.Errorf("upsert auth password: %w", err)
 	}
 	return nil
 }
 
-// EnsureBootstrapPassword seeds the bootstrap password row if none exists,
-// hashing the configured plaintext and marking it as the default password.
-// This is the clean-wipe cutover: a fresh DB re-bootstraps to the bootstrap
-// password with is_default = 1.
-func (s *DB) EnsureBootstrapPassword(ctx context.Context, bootstrapPlaintext string) error {
-	_, err := s.q.GetAuthPassword(ctx)
-	if err == nil {
-		return nil
+// DeleteAuthPassword removes the password row, which is how an instance moves to
+// open mode.
+func (s *DB) DeleteAuthPassword(ctx context.Context) error {
+	if err := s.q.DeleteAuthPassword(ctx); err != nil {
+		return fmt.Errorf("delete auth password: %w", err)
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("check auth password: %w", err)
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(bootstrapPlaintext), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("hash bootstrap password: %w", err)
-	}
-	return s.UpsertAuthPassword(ctx, string(hash), true)
+	return nil
 }
 
-// IsUsingDefaultPassword reports whether the stored password is still the
-// bootstrap default.
-func (s *DB) IsUsingDefaultPassword(ctx context.Context) (bool, error) {
-	pw, err := s.GetAuthPassword(ctx)
-	if err != nil {
-		return false, err
-	}
-	return pw.IsDefault, nil
-}
-
-// InsertToken stores a freshly issued token.
-func (s *DB) InsertToken(ctx context.Context, token auth.Token, expiresAt time.Time, clientIP string) error {
+// InsertToken stores a freshly issued token by its hash.
+func (s *DB) InsertToken(ctx context.Context, hash auth.TokenHash, expiresAt time.Time, clientIP string) error {
 	if err := s.q.InsertToken(ctx, sqlite.InsertTokenParams{
-		Token:     token,
+		TokenHash: hash,
 		ExpiresAt: expiresAt,
 		ClientIp:  clientIP,
 	}); err != nil {
@@ -81,8 +57,8 @@ func (s *DB) InsertToken(ctx context.Context, token auth.Token, expiresAt time.T
 }
 
 // GetValidToken returns a token only if it has not expired as of now.
-func (s *DB) GetValidToken(ctx context.Context, token auth.Token, now time.Time) (Token, error) {
-	row, err := s.q.GetValidToken(ctx, sqlite.GetValidTokenParams{Token: token, Now: now})
+func (s *DB) GetValidToken(ctx context.Context, hash auth.TokenHash, now time.Time) (Token, error) {
+	row, err := s.q.GetValidToken(ctx, sqlite.GetValidTokenParams{TokenHash: hash, Now: now})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Token{}, ErrNotFound
 	}
@@ -93,11 +69,11 @@ func (s *DB) GetValidToken(ctx context.Context, token auth.Token, now time.Time)
 }
 
 // TouchToken applies sliding expiration: bump last_used, expires_at, client_ip.
-func (s *DB) TouchToken(ctx context.Context, token auth.Token, expiresAt time.Time, clientIP string) error {
+func (s *DB) TouchToken(ctx context.Context, hash auth.TokenHash, expiresAt time.Time, clientIP string) error {
 	if err := s.q.TouchToken(ctx, sqlite.TouchTokenParams{
 		ExpiresAt: expiresAt,
 		ClientIp:  clientIP,
-		Token:     token,
+		TokenHash: hash,
 	}); err != nil {
 		return fmt.Errorf("touch token: %w", err)
 	}
@@ -105,9 +81,18 @@ func (s *DB) TouchToken(ctx context.Context, token auth.Token, expiresAt time.Ti
 }
 
 // DeleteToken removes a single token (logout).
-func (s *DB) DeleteToken(ctx context.Context, token auth.Token) error {
-	if err := s.q.DeleteToken(ctx, token); err != nil {
+func (s *DB) DeleteToken(ctx context.Context, hash auth.TokenHash) error {
+	if err := s.q.DeleteToken(ctx, hash); err != nil {
 		return fmt.Errorf("delete token: %w", err)
+	}
+	return nil
+}
+
+// DeleteAllTokens revokes every session, used when the password changes or auth
+// is switched off.
+func (s *DB) DeleteAllTokens(ctx context.Context) error {
+	if err := s.q.DeleteAllTokens(ctx); err != nil {
+		return fmt.Errorf("delete all tokens: %w", err)
 	}
 	return nil
 }
@@ -123,7 +108,7 @@ func (s *DB) RunTokenPrune(ctx context.Context, now time.Time) (int64, error) {
 
 func tokenFromRow(r sqlite.AuthToken) Token {
 	return Token{
-		Token:     r.Token,
+		TokenHash: r.TokenHash,
 		CreatedAt: r.CreatedAt,
 		LastUsed:  r.LastUsed,
 		ExpiresAt: r.ExpiresAt,

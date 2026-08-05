@@ -50,11 +50,19 @@ func newMigrator(t *testing.T, db *sql.DB) *migrate.Migrate {
 
 func newStore(t *testing.T) (*store.DB, context.Context) {
 	t.Helper()
+	st, _, ctx := newStoreAndDB(t)
+	return st, ctx
+}
+
+// newStoreAndDB also hands back the raw handle, for assertions about what is
+// actually on disk rather than what the store reports.
+func newStoreAndDB(t *testing.T) (*store.DB, *sql.DB, context.Context) {
+	t.Helper()
 	db := openTestDB(t)
 	if err := newMigrator(t, db).Up(); err != nil && err != migrate.ErrNoChange {
 		t.Fatalf("migrate up: %v", err)
 	}
-	return store.New(db), context.Background()
+	return store.New(db), db, context.Background()
 }
 
 func seedSession(t *testing.T, st *store.DB, ctx context.Context) {

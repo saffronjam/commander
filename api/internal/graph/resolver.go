@@ -41,6 +41,9 @@ type Poller interface {
 	ValidateSession(ctx context.Context, id session.ID) (models.SessionInfo, error)
 	StartSession(id session.ID)
 	StopSession(id session.ID)
+	// RestartSession reconnects a session after its address changed. It is a
+	// no-op when the address is unchanged.
+	RestartSession(id session.ID)
 }
 
 // Resolver is the gqlgen root resolver holding all dependencies.

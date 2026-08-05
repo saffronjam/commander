@@ -9,50 +9,6 @@ export interface SatisfactoryApiStatus {
 }
 
 //////////
-// source: auth.go
-
-/**
- * LoginRequest represents the request body for authentication.
- */
-export interface LoginRequest {
-  password: string;
-}
-/**
- * LoginResponse represents the response after successful authentication.
- */
-export interface LoginResponse {
-  success: boolean;
-  usedDefaultPassword: boolean;
-}
-/**
- * AuthStatusResponse represents the current authentication status.
- */
-export interface AuthStatusResponse {
-  authenticated: boolean;
-  usedDefaultPassword?: boolean;
-}
-/**
- * ChangePasswordRequest represents the request to change the access key.
- */
-export interface ChangePasswordRequest {
-  currentPassword: string;
-  newPassword: string;
-}
-/**
- * ChangePasswordResponse represents the response after password change.
- */
-export interface ChangePasswordResponse {
-  success: boolean;
-  message?: string;
-}
-/**
- * LogoutResponse represents the response after logout.
- */
-export interface LogoutResponse {
-  success: boolean;
-}
-
-//////////
 // source: belt.go
 
 export interface Belt {
@@ -125,13 +81,53 @@ export interface CircuitIDs {
 // source: connectivity.go
 
 /**
+ * ConnectivityReason explains why a session is unreachable, so the UI can say
+ * something more useful than "offline".
+ */
+export type ConnectivityReason = string;
+/**
+ * ConnectivityReasonNone is the reason while the session is reachable.
+ */
+export const ConnectivityReasonNone: ConnectivityReason = "none";
+/**
+ * ConnectivityReasonNoResponse means nothing answered: the request timed out
+ * or the port refused the connection. FRM is most likely not running.
+ */
+export const ConnectivityReasonNoResponse: ConnectivityReason = "noResponse";
+/**
+ * ConnectivityReasonBadResponse means something answered but it was not FRM:
+ * an HTTP error status, a TLS failure, or a body that does not parse. Usually
+ * a reverse proxy, the wrong port, or an auth gate in front of the mod.
+ */
+export const ConnectivityReasonBadResponse: ConnectivityReason = "badResponse";
+/**
+ * ConnectionState is the single authoritative connection state for a session,
+ * so the UI never has to derive one from a pair of booleans.
+ */
+export type ConnectionState = string;
+/**
+ * ConnectionStateConnecting means a poller is running but FRM has not
+ * answered yet. This is the state at startup and after an address change.
+ */
+export const ConnectionStateConnecting: ConnectionState = "connecting";
+/**
+ * ConnectionStateOnline means FRM answered.
+ */
+export const ConnectionStateOnline: ConnectionState = "online";
+/**
+ * ConnectionStateOffline means FRM could not be reached; Reason says why.
+ */
+export const ConnectionStateOffline: ConnectionState = "offline";
+/**
  * ConnectivityStatus is the derived live connectivity + readiness for a session,
  * supplied by the poller's in-memory state (not persisted).
  */
 export interface ConnectivityStatus {
   IsOnline: boolean;
   IsDisconnected: boolean;
+  State: ConnectionState;
   Stage: SessionStage;
+  Reason: ConnectivityReason;
 }
 
 //////////
@@ -684,8 +680,10 @@ export interface Session {
   address: string; // IP:port (e.g., "192.168.1.100:8080")
   sessionName: string; // From getSessionInfo API
   isOnline: boolean; // Current connection status
+  connectionState: ConnectionState; // Authoritative connection state
   isPaused: boolean; // True if polling is paused by user
   isDisconnected: boolean; // True if session has failed to connect multiple times
+  offlineReason: ConnectivityReason; // Why the session is unreachable
   createdAt: string;
 }
 /**
@@ -745,9 +743,9 @@ export interface SessionDTO {
   name: string;
   address: string;
   sessionName: string;
-  isOnline: boolean;
+  connectionState: ConnectionState;
   isPaused: boolean;
-  isDisconnected: boolean; // True if session is in disconnected state
+  offlineReason: ConnectivityReason;
   createdAt: string;
   stage: SessionStage;
 }

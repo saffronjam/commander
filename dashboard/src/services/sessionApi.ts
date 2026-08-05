@@ -1,4 +1,5 @@
 import type { SessionDTO, SessionInfo } from 'src/apiTypes';
+import { connectionStateFromEnum, connectivityReasonFromEnum } from 'src/utils/session-offline';
 import { graphql } from 'src/gql';
 import { client } from 'src/gql/client';
 
@@ -11,9 +12,9 @@ const SessionsQuery = graphql(`
       sessionName
       isPaused
       createdAt
-      isOnline
-      isDisconnected
+      connectionState
       stage
+      offlineReason
     }
   }
 `);
@@ -27,9 +28,9 @@ const SessionQuery = graphql(`
       sessionName
       isPaused
       createdAt
-      isOnline
-      isDisconnected
+      connectionState
       stage
+      offlineReason
     }
   }
 `);
@@ -43,9 +44,9 @@ const CreateSessionMutation = graphql(`
       sessionName
       isPaused
       createdAt
-      isOnline
-      isDisconnected
+      connectionState
       stage
+      offlineReason
     }
   }
 `);
@@ -59,9 +60,9 @@ const UpdateSessionMutation = graphql(`
       sessionName
       isPaused
       createdAt
-      isOnline
-      isDisconnected
+      connectionState
       stage
+      offlineReason
     }
   }
 `);
@@ -123,9 +124,9 @@ type GqlSession = {
   sessionName: string;
   isPaused: boolean;
   createdAt: string;
-  isOnline: boolean;
-  isDisconnected: boolean;
+  connectionState: string;
   stage: string;
+  offlineReason: string;
 };
 
 function toSessionDTO(s: GqlSession): SessionDTO {
@@ -134,9 +135,9 @@ function toSessionDTO(s: GqlSession): SessionDTO {
     name: s.name,
     address: s.address,
     sessionName: s.sessionName,
-    isOnline: s.isOnline,
+    connectionState: connectionStateFromEnum(s.connectionState),
     isPaused: s.isPaused,
-    isDisconnected: s.isDisconnected,
+    offlineReason: connectivityReasonFromEnum(s.offlineReason),
     createdAt: s.createdAt,
     stage: s.stage === 'READY' ? 'ready' : 'init',
   };

@@ -8,6 +8,7 @@ import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ConnectionStateOnline } from 'src/apiTypes';
 import { CONFIG } from 'src/config-global';
 import { ApiContext } from 'src/contexts/api/useApi';
 import { useSession } from 'src/contexts/sessions';
@@ -270,6 +271,7 @@ export function DebugView() {
   const [pausedData, setPausedData] = useState<Record<string, JsonValue> | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { selectedSession } = useSession();
+  const isSessionOnline = selectedSession?.connectionState === ConnectionStateOnline;
 
   const api = useContextSelector(ApiContext, (v) => ({
     satisfactoryApiStatus: v.satisfactoryApiStatus,
@@ -434,8 +436,8 @@ export function DebugView() {
                 </Button>
               )}
             </div>
-            <Chip variant={selectedSession?.isOnline ? 'success' : 'error'}>
-              {selectedSession?.isOnline ? 'Online' : 'Offline'}
+            <Chip variant={isSessionOnline ? 'success' : 'error'}>
+              {isSessionOnline ? 'Online' : 'Offline'}
             </Chip>
             <Tooltip>
               <TooltipTrigger asChild>

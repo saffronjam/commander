@@ -27,15 +27,17 @@ var RequiredEventTypes = []SatisfactoryEventType{
 
 // Session represents a Satisfactory server connection target
 type Session struct {
-	ID                  string    `json:"id"`             // UUID
-	Name                string    `json:"name"`           // User-provided display name
-	Address             string    `json:"address"`        // IP:port (e.g., "192.168.1.100:8080")
-	SessionName         string    `json:"sessionName"`    // From getSessionInfo API
-	IsOnline            bool      `json:"isOnline"`       // Current connection status
-	IsPaused            bool      `json:"isPaused"`       // True if polling is paused by user
-	IsDisconnected      bool      `json:"isDisconnected"` // True if session has failed to connect multiple times
-	ConsecutiveFailures int       `json:"-"`              // Transient counter for consecutive connection failures
-	CreatedAt           time.Time `json:"createdAt"`
+	ID                  string             `json:"id"`              // UUID
+	Name                string             `json:"name"`            // User-provided display name
+	Address             string             `json:"address"`         // IP:port (e.g., "192.168.1.100:8080")
+	SessionName         string             `json:"sessionName"`     // From getSessionInfo API
+	IsOnline            bool               `json:"isOnline"`        // Current connection status
+	ConnectionState     ConnectionState    `json:"connectionState"` // Authoritative connection state
+	IsPaused            bool               `json:"isPaused"`        // True if polling is paused by user
+	IsDisconnected      bool               `json:"isDisconnected"`  // True if session has failed to connect multiple times
+	OfflineReason       ConnectivityReason `json:"offlineReason"`   // Why the session is unreachable
+	ConsecutiveFailures int                `json:"-"`               // Transient counter for consecutive connection failures
+	CreatedAt           time.Time          `json:"createdAt"`
 }
 
 // SessionInfoRaw represents the raw response from Satisfactory's getSessionInfo endpoint (PascalCase)
@@ -103,28 +105,28 @@ type UpdateSessionRequest struct {
 
 // SessionDTO is the data transfer object for Session with computed fields
 type SessionDTO struct {
-	ID             string       `json:"id"`
-	Name           string       `json:"name"`
-	Address        string       `json:"address"`
-	SessionName    string       `json:"sessionName"`
-	IsOnline       bool         `json:"isOnline"`
-	IsPaused       bool         `json:"isPaused"`
-	IsDisconnected bool         `json:"isDisconnected"` // True if session is in disconnected state
-	CreatedAt      time.Time    `json:"createdAt"`
-	Stage          SessionStage `json:"stage"`
+	ID              string             `json:"id"`
+	Name            string             `json:"name"`
+	Address         string             `json:"address"`
+	SessionName     string             `json:"sessionName"`
+	ConnectionState ConnectionState    `json:"connectionState"`
+	IsPaused        bool               `json:"isPaused"`
+	OfflineReason   ConnectivityReason `json:"offlineReason"`
+	CreatedAt       time.Time          `json:"createdAt"`
+	Stage           SessionStage       `json:"stage"`
 }
 
 // ToDTO converts Session to SessionDTO with computed stage field
 func (s *Session) ToDTO(stage SessionStage) SessionDTO {
 	return SessionDTO{
-		ID:             s.ID,
-		Name:           s.Name,
-		Address:        s.Address,
-		SessionName:    s.SessionName,
-		IsOnline:       s.IsOnline,
-		IsPaused:       s.IsPaused,
-		IsDisconnected: s.IsDisconnected,
-		CreatedAt:      s.CreatedAt,
-		Stage:          stage,
+		ID:              s.ID,
+		Name:            s.Name,
+		Address:         s.Address,
+		SessionName:     s.SessionName,
+		ConnectionState: s.ConnectionState,
+		IsPaused:        s.IsPaused,
+		OfflineReason:   s.OfflineReason,
+		CreatedAt:       s.CreatedAt,
+		Stage:           stage,
 	}
 }

@@ -24,7 +24,7 @@ func (r *queryResolver) SatisfactoryAPIStatus(ctx context.Context, sessionID str
 func (r *queryResolver) Connectivity(ctx context.Context, sessionID string) (*model.ConnectivityStatus, error) {
 	sid := session.ID(sessionID)
 	cs := r.Snapshot.Connectivity(sid)
-	return toConnectivityStatus(cs.IsOnline, cs.IsDisconnected, cs.Stage), nil
+	return toConnectivityStatus(cs.State, cs.Stage, cs.Reason), nil
 }
 
 func (r *queryResolver) FactoryStats(ctx context.Context, sessionID string) (*model.FactoryStats, error) {

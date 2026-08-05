@@ -52,4 +52,8 @@ type Client interface {
 	GetFailureCount() int
 	IsDisconnected() bool
 	SetDisconnectedCallback(callback func())
+
+	// FailureReason explains why the session is unreachable, so the UI can
+	// distinguish "FRM is not running" from "something else answered".
+	FailureReason() models.ConnectivityReason
 }

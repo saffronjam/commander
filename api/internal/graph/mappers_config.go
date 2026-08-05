@@ -7,15 +7,15 @@ import (
 
 func toSession(in models.Session, stage models.SessionStage) *model.Session {
 	return &model.Session{
-		ID:             in.ID,
-		Name:           in.Name,
-		Address:        in.Address,
-		SessionName:    in.SessionName,
-		IsPaused:       in.IsPaused,
-		CreatedAt:      in.CreatedAt,
-		IsOnline:       in.IsOnline,
-		IsDisconnected: in.IsDisconnected,
-		Stage:          toSessionStageEnum(stage),
+		ID:              in.ID,
+		Name:            in.Name,
+		Address:         in.Address,
+		SessionName:     in.SessionName,
+		IsPaused:        in.IsPaused,
+		CreatedAt:       in.CreatedAt,
+		ConnectionState: toConnectionStateEnum(in.ConnectionState),
+		Stage:           toSessionStageEnum(stage),
+		OfflineReason:   toConnectivityReasonEnum(in.OfflineReason),
 	}
 }
 
@@ -43,11 +43,33 @@ func toSatisfactoryApiStatus(in models.SatisfactoryApiStatus) *model.Satisfactor
 	}
 }
 
-func toConnectivityStatus(isOnline, isDisconnected bool, stage models.SessionStage) *model.ConnectivityStatus {
+func toConnectivityStatus(state models.ConnectionState, stage models.SessionStage, reason models.ConnectivityReason) *model.ConnectivityStatus {
 	return &model.ConnectivityStatus{
-		IsOnline:       isOnline,
-		IsDisconnected: isDisconnected,
-		Stage:          toSessionStageEnum(stage),
+		ConnectionState: toConnectionStateEnum(state),
+		Stage:           toSessionStageEnum(stage),
+		Reason:          toConnectivityReasonEnum(reason),
+	}
+}
+
+func toConnectionStateEnum(in models.ConnectionState) model.ConnectionState {
+	switch in {
+	case models.ConnectionStateOnline:
+		return model.ConnectionStateOnline
+	case models.ConnectionStateOffline:
+		return model.ConnectionStateOffline
+	default:
+		return model.ConnectionStateConnecting
+	}
+}
+
+func toConnectivityReasonEnum(in models.ConnectivityReason) model.ConnectivityReason {
+	switch in {
+	case models.ConnectivityReasonNoResponse:
+		return model.ConnectivityReasonNoResponse
+	case models.ConnectivityReasonBadResponse:
+		return model.ConnectivityReasonBadResponse
+	default:
+		return model.ConnectivityReasonNone
 	}
 }
 

@@ -64,7 +64,7 @@ func (r *subscriptionResolver) ConnectivityChanged(ctx context.Context, sessionI
 		defer r.EventBus.Unsubscribe(ch)
 		cs := r.Snapshot.Connectivity(sid)
 		select {
-		case out <- toConnectivityStatus(cs.IsOnline, cs.IsDisconnected, cs.Stage):
+		case out <- toConnectivityStatus(cs.State, cs.Stage, cs.Reason):
 		case <-ctx.Done():
 			return
 		}
@@ -78,7 +78,7 @@ func (r *subscriptionResolver) ConnectivityChanged(ctx context.Context, sessionI
 				}
 				cs := r.Snapshot.Connectivity(sid)
 				select {
-				case out <- toConnectivityStatus(cs.IsOnline, cs.IsDisconnected, cs.Stage):
+				case out <- toConnectivityStatus(cs.State, cs.Stage, cs.Reason):
 				case <-ctx.Done():
 					return
 				}

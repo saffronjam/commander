@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SessionDTO, SessionInfo } from 'src/apiTypes';
+import { useAuth } from 'src/contexts/auth/useAuth';
 import { sessionApi } from 'src/services/sessionApi';
 import { SessionContext, SessionContextType } from './SessionContext';
 
@@ -11,12 +12,18 @@ interface SessionProviderProps {
 }
 
 export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) => {
+  const { authenticated, isLoading: authLoading } = useAuth();
   const [sessions, setSessions] = useState<SessionDTO[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(() =>
     localStorage.getItem(SELECTED_SESSION_KEY)
   );
-  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The session list is only readable once the caller is authorized, so treat
+  // anything before the first successful fetch as still loading. Reporting an
+  // empty list too early makes the dashboard claim there are no sessions.
+  const isLoading = authLoading || !authenticated || !hasLoaded;
 
   const selectedSession = useMemo(
     () => sessions.find((s) => s.id === selectedSessionId) || null,
@@ -44,7 +51,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch sessions');
     } finally {
-      setIsLoading(false);
+      setHasLoaded(true);
     }
   }, [selectedSessionId]);
 
@@ -59,7 +66,8 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
           if (updated) {
             return {
               ...session,
-              isOnline: updated.isOnline,
+              connectionState: updated.connectionState,
+              offlineReason: updated.offlineReason,
               sessionName: updated.sessionName,
               stage: updated.stage,
             };
@@ -72,19 +80,31 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     }
   }, []);
 
-  // Initial load
+  // Load once the caller is authorized, and again whenever that flips — logging
+  // in must not leave the list stuck on whatever the unauthorized attempt saw.
   useEffect(() => {
+    if (!authenticated) {
+      setHasLoaded(false);
+      setSessions([]);
+      return;
+    }
     void refreshSessions();
-  }, []);
+    // refreshSessions is intentionally omitted: it changes with the selected
+    // session, and re-running on selection would refetch on every switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated]);
 
   // Periodic polling for session statuses
   useEffect(() => {
+    if (!authenticated) {
+      return;
+    }
     const intervalId = setInterval(() => {
       void refreshSessionStatuses();
     }, SESSION_POLL_INTERVAL);
 
     return () => clearInterval(intervalId);
-  }, [refreshSessionStatuses]);
+  }, [authenticated, refreshSessionStatuses]);
 
   const selectSession = useCallback((id: string) => {
     setSelectedSessionId(id);
