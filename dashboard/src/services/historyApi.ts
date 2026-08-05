@@ -1,4 +1,4 @@
-import type { DataPoint, HistoryChunk } from 'src/apiTypes';
+import type { DataPoint } from 'src/apiTypes';
 import { mapGeneratorStats_world } from 'src/contexts/api/live_world';
 import { graphql } from 'src/gql';
 import { client } from 'src/gql/client';
@@ -27,6 +27,14 @@ export interface FetchHistoryParams {
 export interface ListHistorySavesResponse {
   saveNames: string[];
   currentSave: string;
+}
+
+/** A batch of historical data points, reshaped from a GraphQL history query */
+export interface HistoryChunk {
+  dataType: string;
+  saveName: string;
+  latestId: number;
+  points: DataPoint[];
 }
 
 function calculateSince(params: FetchHistoryParams): number | undefined {

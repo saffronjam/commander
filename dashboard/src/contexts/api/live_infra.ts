@@ -717,6 +717,8 @@ export function mapHypertubeEntrance_infra(g: GqlHypertubeEntrance_infra): Hyper
   };
 }
 
-export function mapHypertubeEntrances_infra(list: GqlHypertubeEntrance_infra[]): HypertubeEntrance[] {
+export function mapHypertubeEntrances_infra(
+  list: GqlHypertubeEntrance_infra[]
+): HypertubeEntrance[] {
   return list.map(mapHypertubeEntrance_infra);
 }

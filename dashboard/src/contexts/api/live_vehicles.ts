@@ -120,8 +120,7 @@ const mapItemStats_vehicles = (g: { name: string; count: number }): ItemStats =>
 
 const mapFuel_vehicles = (
   g: { name: string; amount: number } | null | undefined
-): Fuel | undefined =>
-  g == null ? undefined : { Name: g.name, amount: g.amount };
+): Fuel | undefined => (g == null ? undefined : { Name: g.name, amount: g.amount });
 
 export const DronesChangedSub = graphql(`
   subscription DronesChanged($sessionId: ID!) {
@@ -557,8 +556,7 @@ export const mapDrone_vehicles = (g: GqlDrone): Drone => ({
   status: droneStatusMap_vehicles[g.status] ?? g.status,
   home: mapDroneStation_vehicles(g.home),
   paired: g.paired == null ? undefined : mapDroneStation_vehicles(g.paired),
-  destination:
-    g.destination == null ? undefined : mapDroneStation_vehicles(g.destination),
+  destination: g.destination == null ? undefined : mapDroneStation_vehicles(g.destination),
   circuitId: g.circuitId,
   circuitGroupId: g.circuitGroupId ?? 0,
 });
@@ -633,9 +631,7 @@ type GqlTrainStationPlatform = {
   rotation: number;
 };
 
-const mapTrainStationPlatform_vehicles = (
-  g: GqlTrainStationPlatform
-): TrainStationPlatform => ({
+const mapTrainStationPlatform_vehicles = (g: GqlTrainStationPlatform): TrainStationPlatform => ({
   ...mapLocation_vehicles(g),
   id: g.id,
   type: trainStationPlatformTypeMap_vehicles[g.type] ?? g.type,
@@ -755,8 +751,7 @@ export const mapTractor_vehicles = (g: GqlTractor): Tractor => ({
   circuitGroupId: g.circuitGroupId ?? undefined,
 });
 
-export const mapTractors_vehicles = (g: GqlTractor[]): Tractor[] =>
-  g.map(mapTractor_vehicles);
+export const mapTractors_vehicles = (g: GqlTractor[]): Tractor[] => g.map(mapTractor_vehicles);
 
 type GqlExplorer = {
   id: string;
@@ -785,8 +780,7 @@ export const mapExplorer_vehicles = (g: GqlExplorer): Explorer => ({
   circuitGroupId: g.circuitGroupId ?? undefined,
 });
 
-export const mapExplorers_vehicles = (g: GqlExplorer[]): Explorer[] =>
-  g.map(mapExplorer_vehicles);
+export const mapExplorers_vehicles = (g: GqlExplorer[]): Explorer[] => g.map(mapExplorer_vehicles);
 
 type GqlVehiclePath = {
   name: string;

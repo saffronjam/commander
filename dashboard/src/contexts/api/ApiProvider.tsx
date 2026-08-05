@@ -92,7 +92,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({
     ...DefaultApiContext,
     isLoading: pause ? false : !circuits.data && sessionStage !== 'ready',
     isOnline:
-      ((d(apiStatus)?.satisfactoryApiStatusChanged as { running?: boolean })?.running) ?? false,
+      (d(apiStatus)?.satisfactoryApiStatusChanged as { running?: boolean })?.running ?? false,
     satisfactoryApiStatus: d(apiStatus)
       ?.satisfactoryApiStatusChanged as unknown as API.SatisfactoryApiStatus,
     circuits: (d(circuits)?.circuitsChanged ?? []) as unknown as API.Circuit[],
