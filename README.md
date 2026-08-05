@@ -1,30 +1,34 @@
-# Satisfactory Dashboard
+<h1 align="center">Satisfactory Dashboard</h1>
+
+<p align="center">
+  Your whole factory, live, from one binary.
+</p>
+
+<p align="center">
+  <a href="https://github.com/saffronjam/satisfactory-dashboard/actions/workflows/ci.yaml"><img src="https://github.com/saffronjam/satisfactory-dashboard/actions/workflows/ci.yaml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/saffronjam/satisfactory-dashboard/releases"><img src="https://img.shields.io/github/v/release/saffronjam/satisfactory-dashboard?display_name=tag&sort=semver" alt="Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
+  <img src="https://img.shields.io/badge/go-1.25-00ADD8.svg?logo=go&logoColor=white" alt="Go 1.25" />
+  <img src="https://img.shields.io/badge/react-18-61DAFB.svg?logo=react&logoColor=white" alt="React 18" />
+</p>
+
+---
 
 <div align="center">
   <img src="docs/images/dashboard.png" alt="Satisfactory Dashboard" width="800">
 </div>
 
-A real-time scalable dashboard for monitoring and managing your Satisfactory factory.
+A real-time dashboard for a Satisfactory factory: power circuits and battery banks, production and
+sink statistics, trains, drones, trucks and their stations, players, milestones, and an interactive
+map of the whole world. Everything updates itself over GraphQL subscriptions, and every chart has
+history behind it.
 
-## Requirements
+One Go process does all of it — GraphQL API, embedded React dashboard, SQLite, and the map tiles. No
+database to run, no reverse proxy to configure, nothing to keep in sync.
 
-This dashboard is built on the [Ficsit Remote Monitoring (FRM)](https://github.com/porisius/FicsitRemoteMonitoring) mod, which exposes factory data via an API. You must have FRM installed and running in your Satisfactory game for the dashboard to work.
-
-**Installing the mod:**
-
-Use [Satisfactory Mod Manager](https://docs.ficsit.app/) to install and manage mods. Search for "Ficsit Remote Monitoring" in the mod manager and install it. Once in-game, start with `/frm http start` (See docs [here](https://docs.ficsit.app/ficsitremotemonitoring/latest/commands.html)). This should print the port that is exposed. After that, you can add your session endpoint in this dashboard.
-
-## Features
-
-- Factory statistics visualization (energy, resources, sink points)
-- Power circuit monitoring
-- Drone and train tracking
-- Player management
-- Interactive map with Leaflet
-- Real-time updates via GraphQL subscriptions (graphql-ws)
-- **Multi-session support:** Connect to multiple FRM endpoints simultaneously - like your friends FRM endpoints
-
-## Architecture
+Your browser never talks to the game. A single in-process poller reads your Ficsit Remote Monitoring
+endpoint once per session and fans the result out over Go channels to every connected subscriber, so
+ten people watching the dashboard cost the game exactly as much as one:
 
 ```
 ┌─────────────┐     ┌──────────────────────────────────────┐     ┌─────────────┐
@@ -32,90 +36,82 @@ Use [Satisfactory Mod Manager](https://docs.ficsit.app/) to install and manage m
 │   (FRM)     │◄────│  poller → channel eventbus → GraphQL │◄────│   Clients   │
 │             │     │  + embedded SPA + SQLite + assets    │     │ (graphql-ws)│
 └─────────────┘     └──────────────────────────────────────┘     └─────────────┘
-     1 poll          1 in-process poller per session              N subscribers
+    1 poll             1 in-process poller per session            N subscribers
 ```
 
-The dashboard is designed so that **client browsers never directly communicate with the FRM API**. Instead:
+Sessions are first-class: point the dashboard at several FRM endpoints — your save and your friends'
+— and switch between them from the sidebar.
 
-1. **In-process poller:** one poll loop per session fetches data from your Satisfactory FRM endpoint
-2. **Channel eventbus:** the poller fans updates out in-process over Go channels (no Redis)
-3. **GraphQL subscriptions:** each browser subscribes over a same-origin websocket (`/graphql`, graphql-ws); durable state (sessions, settings, auth, history) lives in SQLite
+## Requirements
 
-This means **many dashboard clients never affect your Satisfactory game performance** — the game only ever sees one polling connection per session regardless of how many people view the dashboard. Everything is one process, one container, one origin.
+The dashboard reads its data from the
+[Ficsit Remote Monitoring](https://github.com/porisius/FicsitRemoteMonitoring) mod, so you need it
+installed and running in your game. Install it with
+[Satisfactory Mod Manager](https://docs.ficsit.app/), then in-game run:
 
-## Quick Start
+```
+/frm http start
+```
+
+That prints the port FRM is listening on. You add that endpoint as a session in the dashboard.
+
+## Run with Docker
 
 ```bash
-docker compose up -d        # one-shot asset seeder + the app
+docker compose up -d
 ```
 
-Then open http://localhost:8081. The default password is `change-me` (`SD_BOOTSTRAP_PASSWORD`) — change it after first login.
+Two containers: a one-shot seeder that pulls the map tiles into a volume, then the app on
+[localhost:8081](http://localhost:8081). The default password is `change-me`
+(`SD_BOOTSTRAP_PASSWORD`) — change it after your first login.
 
-## Development
+Worth setting for anything beyond a local run:
+
+| Variable | Purpose |
+| --- | --- |
+| `SD_BOOTSTRAP_PASSWORD` | initial password, applied on first boot against an empty database |
+| `SD_EXTERNAL_URL` | locks the websocket `Origin` check to your hostname |
+| `SD_VERSION` | pins a released image tag instead of tracking `main` |
+| `SD_ASSETS_REF` | pins the map tiles artifact version |
+| `SD_MAX_SAMPLE_GAME_DURATION` | how much game-time history to retain |
+
+## First run
+
+Log in, then add a session with the address FRM printed. The dashboard validates it, starts polling,
+and the pages fill in as data arrives. History accumulates from the moment a session is live, per
+save — switching saves in-game starts a clean series rather than mixing the two.
+
+## Run from source
+
+Needs Go 1.25+, Bun, and [`just`](https://github.com/casey/just).
 
 ```bash
-make unpack-assets   # Extract LFS assets into dashboard/public/assets (after clone)
-make run             # Run frontend (3039, proxies /graphql) + backend (8081) with hot reload
+just install         # Go + frontend dependencies
+just unpack-assets   # extract the git-lfs map tiles and icons
+just dev             # dashboard on :3039, API on :8081, both hot-reloading
 ```
 
-Other useful commands:
+`just` on its own lists every recipe. The ones worth knowing:
 
 ```bash
-make help      # Show all available commands
-make lint      # Run linters
-make build     # Build for production (frontend embeds into the Go binary)
+just generate            # regenerate sqlc, gqlgen, GraphQL client and domain types
+just check               # exactly what CI runs
+just package             # build the container images
 ```
 
-## Tech Stack
+CI fails on generated-code drift, so run `just check` before pushing anything that touches
+`api/schema.graphql`, `api/internal/store/queries/`, `api/models/models/`, or a GraphQL document.
 
-- **Frontend:** React, TypeScript, Vite, Bun, shadcn/ui + Tailwind, urql + graphql-codegen
-- **Backend:** Go (stdlib `net/http`), gqlgen GraphQL, SQLite (sqlc + golang-migrate)
-- **Real-time:** GraphQL subscriptions over graphql-ws (Go-channel eventbus)
+## Releases
 
-## Production Deployment
+Releasing is one annotated tag. Its body becomes a draft GitHub release, and the tag name is stamped
+into the build — you can read it at the bottom of the sidebar and on `/version`, so you always know
+what is actually deployed.
 
-The dashboard ships as **one application image** plus a tiny one-shot **seeder** image. The map/icon
-tiles are distributed as a versioned OCI artifact pulled with [ORAS](https://oras.land/) — they are
-never baked into the app image and never require git-lfs at deploy time.
+Images are published to `ghcr.io/saffronjam/satisfactory-dashboard`. The map and icon tiles are
+distributed separately as a versioned OCI artifact pulled with [ORAS](https://oras.land/), which is
+why the app image stays small and no deployment ever needs git-lfs.
 
-```
-   registry (ghcr.io)
-     satisfactory-dashboard        (app — code only, tens of MB)
-     satisfactory-dashboard-seed   (seeder — alpine + oras)
-     satisfactory-dashboard-assets (OCI artifact — map tiles, pushed rarely)
-            │ oras pull                          │ docker pull
-            ▼                                    ▼
-     ┌──────────────┐   /assets volume   ┌───────────────────────────┐
-     │ seed (once)  │───────────────────►│ app (Go, :8081)           │
-     └──────────────┘                    │  SPA + assets + /graphql  │
-                                         │  /data volume → SQLite     │
-                                         └───────────────────────────┘
-```
+## License
 
-### Services
-
-| Service | Description | Lifecycle |
-|---------|-------------|-----------|
-| `seed-assets` | ORAS-pulls the tiles artifact into the shared volume | one-shot (no-op once seeded) |
-| `app` | Go binary: embedded SPA + assets + GraphQL on `:8081` | long-running |
-
-### Building & publishing
-
-```bash
-make docker-build                              # build app + seeder images
-make assets-publish ASSETS_TAG=tiles-YYYYMMDD  # push the tiles OCI artifact (maintainer-only)
-```
-
-Pin the tiles version with `SD_ASSETS_REF`; lock the websocket origin with `SD_EXTERNAL_URL`.
-
-### Local contributor stack (bind-mount tiles, skip the seeder)
-
-```bash
-make unpack-assets
-docker compose -f compose.yml -f compose.dev.yml up
-```
-
-## Note on Repository Size
-
-This repository tracks the map/icon assets via git-lfs (`assets/*.tar.gz`). They are the *source*
-for the ORAS artifact; deployments pull images only and never need lfs.
+[MIT](LICENSE)

@@ -1,47 +1,18 @@
 # Satisfactory Map Tile Downloader
 
-Downloads and processes map tiles from the Satisfactory Interactive Map for use in the dashboard's Leaflet map component.
-
-## Quick Start
+Downloads and processes map tiles from the Satisfactory Interactive Map for the dashboard's Leaflet
+map component.
 
 ```bash
-make venv           # Set up Python environment
-make download-all   # Download all map tiles
-make prod           # Process and move to dashboard
+just scrape-map                # list every recipe
+just scrape-map download-all   # fetch both tile layers
+just scrape-map prod           # clean the tiles and copy them into dashboard/public
 ```
 
-## Available Commands
+Output is a tile pyramid, `output/<revision>/<game|realistic>/<zoom>/<x>/<y>.png`.
 
-| Command | Description |
-|---------|-------------|
-| `make venv` | Create virtual environment and install dependencies |
-| `make deps` | Update dependencies in existing venv |
-| `make download-game` | Download game-style map tiles |
-| `make download-realistic` | Download realistic map tiles |
-| `make download-all` | Download both tile sets |
-| `make clean-tiles` | Remove gray background from tiles |
-| `make prod` | Clean tiles and move to dashboard |
-| `make clean` | Remove venv and output |
-
-## Output Structure
-
-```
-output/
-└── <version>/
-    ├── game/
-    │   └── <zoom>/<x>/<y>.png
-    └── realistic/
-        └── <zoom>/<x>/<y>.png
-```
-
-Current version: `1763022054`
-
-## Workflow
-
-1. **Download**: `make download-all` fetches tiles from satisfactory-calculator.com
-2. **Process**: `make prod` removes background and moves to dashboard
-
-## Manual Usage
+For the scripts, the revision bump checklist, and how these tiles reach a deployment, see
+[AGENTS.md](AGENTS.md). To drive the scripts by hand:
 
 ```bash
 source venv/bin/activate
@@ -49,7 +20,4 @@ python download_tiles.py --help
 python clean_tiles.py --help
 ```
 
-## Dependencies
-
-- Python 3.x
-- See `requirement.txt` for packages
+Requires Python 3.x; packages are listed in `requirement.txt`.
