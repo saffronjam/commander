@@ -35,10 +35,9 @@ func RunTokenPrune(ctx context.Context, logger *slog.Logger, store TokenPruneSto
 	}
 }
 
-// HistorySeriesKey identifies one (session, save, dataType) time series.
+// HistorySeriesKey identifies one (session, dataType) time series.
 type HistorySeriesKey struct {
 	SessionID session.ID
-	SaveName  string
 	DataType  string
 }
 
@@ -52,7 +51,7 @@ type HistoryFrontier interface {
 // HistoryRetentionStore is the slice of the store the history pruner needs.
 type HistoryRetentionStore interface {
 	GetSetting(ctx context.Context, key string) (Setting, error)
-	PruneHistoryOlderThan(ctx context.Context, sessionID session.ID, saveName, dataType string, cutoff int64) (int64, error)
+	PruneHistoryOlderThan(ctx context.Context, sessionID session.ID, dataType string, cutoff int64) (int64, error)
 }
 
 // RunHistoryRetention prunes each active series to currentGameTime - window on a
@@ -79,9 +78,9 @@ func RunHistoryRetention(ctx context.Context, logger *slog.Logger, store History
 				if cutoff <= 0 {
 					continue
 				}
-				if _, err := store.PruneHistoryOlderThan(ctx, key.SessionID, key.SaveName, key.DataType, cutoff); err != nil {
+				if _, err := store.PruneHistoryOlderThan(ctx, key.SessionID, key.DataType, cutoff); err != nil {
 					logger.Error("prune history failed",
-						"session", string(key.SessionID), "save", key.SaveName, "type", key.DataType, "error", err)
+						"session", string(key.SessionID), "type", key.DataType, "error", err)
 				}
 			}
 		}

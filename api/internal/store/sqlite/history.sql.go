@@ -11,79 +11,21 @@ import (
 	"api/internal/session"
 )
 
-const getLatestGameTimeId = `-- name: GetLatestGameTimeId :one
-SELECT CAST(COALESCE(MAX(game_time_id), 0) AS INTEGER) AS latest_id
-FROM history_points
-WHERE session_id = ?1
-  AND save_name = ?2
-  AND data_type = ?3
-`
-
-type GetLatestGameTimeIdParams struct {
-	SessionID session.ID
-	SaveName  string
-	DataType  string
-}
-
-func (q *Queries) GetLatestGameTimeId(ctx context.Context, arg GetLatestGameTimeIdParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getLatestGameTimeId, arg.SessionID, arg.SaveName, arg.DataType)
-	var latest_id int64
-	err := row.Scan(&latest_id)
-	return latest_id, err
-}
-
-const listHistorySaves = `-- name: ListHistorySaves :many
-SELECT DISTINCT save_name
-FROM history_points
-WHERE session_id = ?1
-ORDER BY save_name ASC
-`
-
-func (q *Queries) ListHistorySaves(ctx context.Context, sessionID session.ID) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listHistorySaves, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var save_name string
-		if err := rows.Scan(&save_name); err != nil {
-			return nil, err
-		}
-		items = append(items, save_name)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const pruneHistoryOlderThan = `-- name: PruneHistoryOlderThan :execrows
 DELETE FROM history_points
 WHERE session_id = ?1
-  AND save_name = ?2
-  AND data_type = ?3
-  AND game_time_id < CAST(?4 AS INTEGER)
+  AND data_type = ?2
+  AND game_time_id < CAST(?3 AS INTEGER)
 `
 
 type PruneHistoryOlderThanParams struct {
 	SessionID session.ID
-	SaveName  string
 	DataType  string
 	Cutoff    int64
 }
 
 func (q *Queries) PruneHistoryOlderThan(ctx context.Context, arg PruneHistoryOlderThanParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pruneHistoryOlderThan,
-		arg.SessionID,
-		arg.SaveName,
-		arg.DataType,
-		arg.Cutoff,
-	)
+	result, err := q.db.ExecContext(ctx, pruneHistoryOlderThan, arg.SessionID, arg.DataType, arg.Cutoff)
 	if err != nil {
 		return 0, err
 	}
@@ -96,26 +38,29 @@ WITH bucketed AS (
            game_time_id / CAST(?1 AS INTEGER) AS bucket
     FROM history_points
     WHERE session_id = ?2
-      AND save_name = ?3
-      AND data_type = ?4
-      AND game_time_id > CAST(?5 AS INTEGER)
-      AND game_time_id <= CAST(?6 AS INTEGER)
+      AND data_type = ?3
+      AND game_time_id > CAST(?4 AS INTEGER)
+      AND game_time_id <= CAST(?5 AS INTEGER)
+),
+newest AS (
+    SELECT b.game_time_id, b.data
+    FROM bucketed b
+    WHERE b.game_time_id = (
+        SELECT MAX(b2.game_time_id) FROM bucketed b2 WHERE b2.bucket = b.bucket
+    )
+    ORDER BY b.game_time_id DESC
+    LIMIT IIF(CAST(?6 AS INTEGER) > 0, CAST(?6 AS INTEGER), -1)
 )
-SELECT b.game_time_id, b.data
-FROM bucketed b
-WHERE b.game_time_id = (
-    SELECT MAX(b2.game_time_id) FROM bucketed b2 WHERE b2.bucket = b.bucket
-)
-ORDER BY b.game_time_id ASC
+SELECT game_time_id, data FROM newest ORDER BY game_time_id ASC
 `
 
 type QueryHistoryBucketedParams struct {
 	BucketSeconds int64
 	SessionID     session.ID
-	SaveName      string
 	DataType      string
 	Since         int64
 	ToID          int64
+	Lim           int64
 }
 
 type QueryHistoryBucketedRow struct {
@@ -127,10 +72,10 @@ func (q *Queries) QueryHistoryBucketed(ctx context.Context, arg QueryHistoryBuck
 	rows, err := q.db.QueryContext(ctx, queryHistoryBucketed,
 		arg.BucketSeconds,
 		arg.SessionID,
-		arg.SaveName,
 		arg.DataType,
 		arg.Since,
 		arg.ToID,
+		arg.Lim,
 	)
 	if err != nil {
 		return nil, err
@@ -155,19 +100,21 @@ func (q *Queries) QueryHistoryBucketed(ctx context.Context, arg QueryHistoryBuck
 
 const queryHistoryRaw = `-- name: QueryHistoryRaw :many
 SELECT game_time_id, data
-FROM history_points
-WHERE session_id = ?1
-  AND save_name = ?2
-  AND data_type = ?3
-  AND game_time_id > CAST(?4 AS INTEGER)
-  AND game_time_id <= CAST(?5 AS INTEGER)
+FROM (
+    SELECT game_time_id, data
+    FROM history_points
+    WHERE session_id = ?1
+      AND data_type = ?2
+      AND game_time_id > CAST(?3 AS INTEGER)
+      AND game_time_id <= CAST(?4 AS INTEGER)
+    ORDER BY game_time_id DESC
+    LIMIT IIF(CAST(?5 AS INTEGER) > 0, CAST(?5 AS INTEGER), -1)
+) AS newest
 ORDER BY game_time_id ASC
-LIMIT IIF(CAST(?6 AS INTEGER) > 0, CAST(?6 AS INTEGER), -1)
 `
 
 type QueryHistoryRawParams struct {
 	SessionID session.ID
-	SaveName  string
 	DataType  string
 	Since     int64
 	ToID      int64
@@ -182,7 +129,6 @@ type QueryHistoryRawRow struct {
 func (q *Queries) QueryHistoryRaw(ctx context.Context, arg QueryHistoryRawParams) ([]QueryHistoryRawRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryHistoryRaw,
 		arg.SessionID,
-		arg.SaveName,
 		arg.DataType,
 		arg.Since,
 		arg.ToID,
@@ -210,21 +156,19 @@ func (q *Queries) QueryHistoryRaw(ctx context.Context, arg QueryHistoryRawParams
 }
 
 const upsertHistoryPoint = `-- name: UpsertHistoryPoint :exec
-INSERT INTO history_points (session_id, save_name, data_type, game_time_id, data)
+INSERT INTO history_points (session_id, data_type, game_time_id, data)
 VALUES (
     ?1,
     ?2,
     ?3,
-    ?4,
-    ?5
+    ?4
 )
-ON CONFLICT(session_id, save_name, data_type, game_time_id)
+ON CONFLICT(session_id, data_type, game_time_id)
 DO UPDATE SET data = excluded.data
 `
 
 type UpsertHistoryPointParams struct {
 	SessionID  session.ID
-	SaveName   string
 	DataType   string
 	GameTimeID int64
 	Data       string
@@ -233,7 +177,6 @@ type UpsertHistoryPointParams struct {
 func (q *Queries) UpsertHistoryPoint(ctx context.Context, arg UpsertHistoryPointParams) error {
 	_, err := q.db.ExecContext(ctx, upsertHistoryPoint,
 		arg.SessionID,
-		arg.SaveName,
 		arg.DataType,
 		arg.GameTimeID,
 		arg.Data,

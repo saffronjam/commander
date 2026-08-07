@@ -27,7 +27,6 @@ type AuthToken struct {
 
 type HistoryPoint struct {
 	SessionID  session.ID
-	SaveName   string
 	DataType   string
 	GameTimeID int64
 	Data       string
@@ -42,12 +41,12 @@ type Instance struct {
 }
 
 type Session struct {
-	ID          session.ID
-	Name        string
-	Address     string
-	SessionName string
-	IsPaused    int64
-	CreatedAt   time.Time
+	ID        session.ID
+	Name      string
+	Address   string
+	SaveName  string
+	IsPaused  int64
+	CreatedAt time.Time
 }
 
 type Setting struct {

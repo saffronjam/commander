@@ -66,13 +66,16 @@ it, and `just sqlc` reads the same directory as the schema, so an incomplete pai
 
 ## History
 
-One row per `(session_id, save_name, data_type, game_time_id)`, with the sample as opaque JSON in
+One row per `(session_id, data_type, game_time_id)`, with the sample as opaque JSON in
 `data`. The resolver decodes `data` per `data_type`; the store never interprets it.
 
 - Writes are upserts, so replaying game time after a save rollback overwrites rather than duplicates.
-- `save_name` is part of the key everywhere — switching saves must never mix series.
+- A session is pinned to one save (`sessions.save_name`, `CHECK (save_name <> '')`), so history
+  needs no save in its key: one session is one series per data type.
 - `QueryHistory` returns raw points ascending, or, when `BucketSeconds > 0`, the last point per
   bucket (downsampling for charts). `Limit <= 0` means unlimited; `ToID <= 0` becomes `maxGameTimeID`.
+  Both forms keep the **newest** points when `Limit` trims the result, which is why each is a
+  descending inner select re-sorted ascending on the way out.
 - `RunHistoryRetention` trims each series past `SD_MAX_SAMPLE_GAME_DURATION` of game time;
   `RunTokenPrune` deletes expired tokens hourly. Both are started from `cmd.Create`.
 

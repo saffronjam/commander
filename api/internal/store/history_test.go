@@ -11,13 +11,13 @@ import (
 func TestUpsertHistoryPointOverwrites(t *testing.T) {
 	st, ctx := newStore(t)
 	seedSession(t, st, ctx)
-	if err := st.UpsertHistoryPoint(ctx, testSession, "save1", "circuits", 100, []byte(`{"v":1}`)); err != nil {
+	if err := st.UpsertHistoryPoint(ctx, testSession, "circuits", 100, []byte(`{"v":1}`)); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.UpsertHistoryPoint(ctx, testSession, "save1", "circuits", 100, []byte(`{"v":2}`)); err != nil {
+	if err := st.UpsertHistoryPoint(ctx, testSession, "circuits", 100, []byte(`{"v":2}`)); err != nil {
 		t.Fatal(err)
 	}
-	pts, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, SaveName: "save1", DataType: "circuits", Since: -1})
+	pts, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, DataType: "circuits", Since: -1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,71 +29,73 @@ func TestUpsertHistoryPointOverwrites(t *testing.T) {
 	}
 }
 
-func TestQueryHistoryRawSinceAndLimit(t *testing.T) {
+func TestQueryHistoryRawSince(t *testing.T) {
 	st, ctx := newStore(t)
 	seedSession(t, st, ctx)
 	for i := int64(1); i <= 10; i++ {
-		if err := st.UpsertHistoryPoint(ctx, testSession, "s", "circuits", i, []byte(`{}`)); err != nil {
+		if err := st.UpsertHistoryPoint(ctx, testSession, "circuits", i, []byte(`{}`)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	pts, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, SaveName: "s", DataType: "circuits", Since: 5})
+	pts, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, DataType: "circuits", Since: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(pts) != 5 || pts[0].GameTimeID != 6 || pts[4].GameTimeID != 10 {
 		t.Fatalf("since=5 want ids 6..10, got %+v", pts)
 	}
-	pts, err = st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, SaveName: "s", DataType: "circuits", Since: -1, Limit: 3})
+}
+
+func TestQueryHistoryLimitKeepsNewest(t *testing.T) {
+	st, ctx := newStore(t)
+	seedSession(t, st, ctx)
+	for i := int64(1); i <= 10; i++ {
+		if err := st.UpsertHistoryPoint(ctx, testSession, "circuits", i, []byte(`{}`)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, DataType: "circuits", Since: -1, Limit: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pts) != 3 {
-		t.Fatalf("limit=3 want 3 points, got %d", len(pts))
+	assertIDs(t, "raw limit=3", raw, []int64{8, 9, 10})
+
+	bucketed, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, DataType: "circuits", Since: -1, BucketSeconds: 2, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
 	}
+	assertIDs(t, "bucketed limit=2", bucketed, []int64{9, 10})
 }
 
 func TestQueryHistoryBucketedKeepsLast(t *testing.T) {
 	st, ctx := newStore(t)
 	seedSession(t, st, ctx)
 	for i := int64(1); i <= 9; i++ {
-		if err := st.UpsertHistoryPoint(ctx, testSession, "s", "circuits", i, []byte(`{}`)); err != nil {
+		if err := st.UpsertHistoryPoint(ctx, testSession, "circuits", i, []byte(`{}`)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	pts, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, SaveName: "s", DataType: "circuits", Since: -1, BucketSeconds: 3})
+	pts, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, DataType: "circuits", Since: -1, BucketSeconds: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := make([]int64, len(pts))
-	for i, p := range pts {
-		got[i] = p.GameTimeID
-	}
-	want := []int64{2, 5, 8, 9}
-	if len(got) != len(want) {
-		t.Fatalf("bucketed keep-last want %v, got %v", want, got)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("bucketed keep-last want %v, got %v", want, got)
-		}
-	}
+	assertIDs(t, "bucketed keep-last", pts, []int64{2, 5, 8, 9})
 }
 
 func TestPruneHistoryOlderThan(t *testing.T) {
 	st, ctx := newStore(t)
 	seedSession(t, st, ctx)
 	for i := int64(1); i <= 10; i++ {
-		_ = st.UpsertHistoryPoint(ctx, testSession, "s", "circuits", i, []byte(`{}`))
+		_ = st.UpsertHistoryPoint(ctx, testSession, "circuits", i, []byte(`{}`))
 	}
-	n, err := st.PruneHistoryOlderThan(ctx, testSession, "s", "circuits", 5)
+	n, err := st.PruneHistoryOlderThan(ctx, testSession, "circuits", 5)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n != 4 {
 		t.Fatalf("want 4 rows pruned (ids 1..4), got %d", n)
 	}
-	pts, _ := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, SaveName: "s", DataType: "circuits", Since: -1})
+	pts, _ := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, DataType: "circuits", Since: -1})
 	if len(pts) != 6 || pts[0].GameTimeID != 5 {
 		t.Fatalf("after prune want ids 5..10, got %+v", pts)
 	}
@@ -102,18 +104,18 @@ func TestPruneHistoryOlderThan(t *testing.T) {
 func TestHistoryCascadeOnSessionDelete(t *testing.T) {
 	st, ctx := newStore(t)
 	seedSession(t, st, ctx)
-	if err := st.UpsertHistoryPoint(ctx, testSession, "s", "circuits", 1, []byte(`{}`)); err != nil {
+	if err := st.UpsertHistoryPoint(ctx, testSession, "circuits", 1, []byte(`{}`)); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.DeleteSession(ctx, testSession); err != nil {
 		t.Fatal(err)
 	}
-	saves, err := st.ListHistorySaves(ctx, testSession)
+	pts, err := st.QueryHistory(ctx, store.HistoryQuery{SessionID: testSession, DataType: "circuits", Since: -1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(saves) != 0 {
-		t.Fatalf("want history cascaded away on session delete, got saves %v", saves)
+	if len(pts) != 0 {
+		t.Fatalf("want history cascaded away on session delete, got %d points", len(pts))
 	}
 }
 
@@ -142,5 +144,21 @@ func TestTokenExpiryAndPrune(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("want 1 expired token pruned, got %d", n)
+	}
+}
+
+func assertIDs(t *testing.T, label string, pts []store.HistoryPoint, want []int64) {
+	t.Helper()
+	got := make([]int64, len(pts))
+	for i, p := range pts {
+		got[i] = p.GameTimeID
+	}
+	if len(got) != len(want) {
+		t.Fatalf("%s want %v, got %v", label, want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("%s want %v, got %v", label, want, got)
+		}
 	}
 }

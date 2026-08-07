@@ -8,14 +8,15 @@ import (
 )
 
 // Session is the durable session configuration. Runtime status (online,
-// disconnected, stage) is poller in-memory state, not stored here.
+// disconnected, stage) is poller in-memory state, not stored here. SaveName is
+// the save the session is pinned to, fixed when the session is created.
 type Session struct {
-	ID          session.ID
-	Name        string
-	Address     string
-	SessionName string
-	IsPaused    bool
-	CreatedAt   time.Time
+	ID        session.ID
+	Name      string
+	Address   string
+	SaveName  string
+	IsPaused  bool
+	CreatedAt time.Time
 }
 
 // Setting is a single key/value configuration row.
@@ -69,11 +70,11 @@ type HistoryPoint struct {
 	Data       []byte
 }
 
-// HistoryQuery selects one (session, save, dataType) series. BucketSeconds > 0
-// downsamples to the last point per bucket; Limit <= 0 means unlimited.
+// HistoryQuery selects one (session, dataType) series. BucketSeconds > 0
+// downsamples to the last point per bucket; Limit <= 0 means unlimited. When
+// Limit trims the result the newest points are kept.
 type HistoryQuery struct {
 	SessionID     session.ID
-	SaveName      string
 	DataType      string
 	Since         int64
 	ToID          int64

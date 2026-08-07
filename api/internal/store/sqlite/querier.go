@@ -22,12 +22,10 @@ type Querier interface {
 	EnsureInstance(ctx context.Context) error
 	GetAuthPassword(ctx context.Context) (GetAuthPasswordRow, error)
 	GetInstance(ctx context.Context) (GetInstanceRow, error)
-	GetLatestGameTimeId(ctx context.Context, arg GetLatestGameTimeIdParams) (int64, error)
 	GetSession(ctx context.Context, id session.ID) (Session, error)
 	GetSetting(ctx context.Context, key string) (Setting, error)
 	GetValidToken(ctx context.Context, arg GetValidTokenParams) (AuthToken, error)
 	InsertToken(ctx context.Context, arg InsertTokenParams) error
-	ListHistorySaves(ctx context.Context, sessionID session.ID) ([]string, error)
 	ListSessions(ctx context.Context) ([]Session, error)
 	ListSettings(ctx context.Context) ([]Setting, error)
 	PruneHistoryOlderThan(ctx context.Context, arg PruneHistoryOlderThanParams) (int64, error)
@@ -38,7 +36,6 @@ type Querier interface {
 	SetBootstrapTokenHash(ctx context.Context, bootstrapTokenHash *string) error
 	TouchToken(ctx context.Context, arg TouchTokenParams) error
 	UpdateSession(ctx context.Context, arg UpdateSessionParams) error
-	UpdateSessionSaveName(ctx context.Context, arg UpdateSessionSaveNameParams) error
 	UpsertAuthPassword(ctx context.Context, hash string) error
 	UpsertHistoryPoint(ctx context.Context, arg UpsertHistoryPointParams) error
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error

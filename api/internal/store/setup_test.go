@@ -67,7 +67,7 @@ func newStoreAndDB(t *testing.T) (*store.DB, *sql.DB, context.Context) {
 
 func seedSession(t *testing.T, st *store.DB, ctx context.Context) {
 	t.Helper()
-	if err := st.CreateSession(ctx, testSession, "Test", "127.0.0.1:8080"); err != nil {
+	if err := st.CreateSession(ctx, testSession, "Test", "127.0.0.1:8080", "save1"); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 }

@@ -10,9 +10,10 @@ import (
 	"api/internal/store/sqlite"
 )
 
-// CreateSession inserts a new session configuration row.
-func (s *DB) CreateSession(ctx context.Context, id session.ID, name, address string) error {
-	if err := s.q.CreateSession(ctx, sqlite.CreateSessionParams{ID: id, Name: name, Address: address}); err != nil {
+// CreateSession inserts a new session configuration row. saveName is the save
+// the session is pinned to and cannot be changed afterwards.
+func (s *DB) CreateSession(ctx context.Context, id session.ID, name, address, saveName string) error {
+	if err := s.q.CreateSession(ctx, sqlite.CreateSessionParams{ID: id, Name: name, Address: address, SaveName: saveName}); err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
 	return nil
@@ -56,17 +57,6 @@ func (s *DB) UpdateSession(ctx context.Context, id session.ID, name, address str
 	return nil
 }
 
-// UpdateSessionSaveName persists the active save name observed by the poller.
-func (s *DB) UpdateSessionSaveName(ctx context.Context, id session.ID, saveName string) error {
-	if err := s.q.UpdateSessionSaveName(ctx, sqlite.UpdateSessionSaveNameParams{
-		SessionName: saveName,
-		ID:          id,
-	}); err != nil {
-		return fmt.Errorf("update session save name: %w", err)
-	}
-	return nil
-}
-
 // DeleteSession removes a session; its history cascades away via the FK.
 func (s *DB) DeleteSession(ctx context.Context, id session.ID) error {
 	if err := s.q.DeleteSession(ctx, id); err != nil {
@@ -77,11 +67,11 @@ func (s *DB) DeleteSession(ctx context.Context, id session.ID) error {
 
 func sessionFromRow(r sqlite.Session) Session {
 	return Session{
-		ID:          r.ID,
-		Name:        r.Name,
-		Address:     r.Address,
-		SessionName: r.SessionName,
-		IsPaused:    int64ToBool(r.IsPaused),
-		CreatedAt:   r.CreatedAt,
+		ID:        r.ID,
+		Name:      r.Name,
+		Address:   r.Address,
+		SaveName:  r.SaveName,
+		IsPaused:  int64ToBool(r.IsPaused),
+		CreatedAt: r.CreatedAt,
 	}
 }

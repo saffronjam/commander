@@ -12,18 +12,24 @@ import (
 )
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (id, name, address, created_at)
-VALUES (?1, ?2, ?3, CURRENT_TIMESTAMP)
+INSERT INTO sessions (id, name, address, save_name, created_at)
+VALUES (?1, ?2, ?3, ?4, CURRENT_TIMESTAMP)
 `
 
 type CreateSessionParams struct {
-	ID      session.ID
-	Name    string
-	Address string
+	ID       session.ID
+	Name     string
+	Address  string
+	SaveName string
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
-	_, err := q.db.ExecContext(ctx, createSession, arg.ID, arg.Name, arg.Address)
+	_, err := q.db.ExecContext(ctx, createSession,
+		arg.ID,
+		arg.Name,
+		arg.Address,
+		arg.SaveName,
+	)
 	return err
 }
 
@@ -37,7 +43,7 @@ func (q *Queries) DeleteSession(ctx context.Context, id session.ID) error {
 }
 
 const getSession = `-- name: GetSession :one
-SELECT id, name, address, session_name, is_paused, created_at
+SELECT id, name, address, save_name, is_paused, created_at
 FROM sessions WHERE id = ?1
 `
 
@@ -48,7 +54,7 @@ func (q *Queries) GetSession(ctx context.Context, id session.ID) (Session, error
 		&i.ID,
 		&i.Name,
 		&i.Address,
-		&i.SessionName,
+		&i.SaveName,
 		&i.IsPaused,
 		&i.CreatedAt,
 	)
@@ -56,7 +62,7 @@ func (q *Queries) GetSession(ctx context.Context, id session.ID) (Session, error
 }
 
 const listSessions = `-- name: ListSessions :many
-SELECT id, name, address, session_name, is_paused, created_at
+SELECT id, name, address, save_name, is_paused, created_at
 FROM sessions ORDER BY created_at ASC
 `
 
@@ -73,7 +79,7 @@ func (q *Queries) ListSessions(ctx context.Context) ([]Session, error) {
 			&i.ID,
 			&i.Name,
 			&i.Address,
-			&i.SessionName,
+			&i.SaveName,
 			&i.IsPaused,
 			&i.CreatedAt,
 		); err != nil {
@@ -112,21 +118,5 @@ func (q *Queries) UpdateSession(ctx context.Context, arg UpdateSessionParams) er
 		arg.IsPaused,
 		arg.ID,
 	)
-	return err
-}
-
-const updateSessionSaveName = `-- name: UpdateSessionSaveName :exec
-UPDATE sessions
-SET session_name = ?1
-WHERE id = ?2
-`
-
-type UpdateSessionSaveNameParams struct {
-	SessionName string
-	ID          session.ID
-}
-
-func (q *Queries) UpdateSessionSaveName(ctx context.Context, arg UpdateSessionSaveNameParams) error {
-	_, err := q.db.ExecContext(ctx, updateSessionSaveName, arg.SessionName, arg.ID)
 	return err
 }
