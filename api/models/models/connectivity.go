@@ -28,14 +28,19 @@ const (
 	ConnectionStateOnline ConnectionState = "online"
 	// ConnectionStateOffline means FRM could not be reached; Reason says why.
 	ConnectionStateOffline ConnectionState = "offline"
+	// ConnectionStateSaveMismatch means FRM answered but has a different save
+	// loaded than the one this session is pinned to, so its data does not belong
+	// to this session. MismatchedSaveName names what is loaded instead.
+	ConnectionStateSaveMismatch ConnectionState = "saveMismatch"
 )
 
 // ConnectivityStatus is the derived live connectivity + readiness for a session,
 // supplied by the poller's in-memory state (not persisted).
 type ConnectivityStatus struct {
-	IsOnline       bool
-	IsDisconnected bool
-	State          ConnectionState
-	Stage          SessionStage
-	Reason         ConnectivityReason
+	IsOnline           bool
+	IsDisconnected     bool
+	State              ConnectionState
+	Stage              SessionStage
+	Reason             ConnectivityReason
+	MismatchedSaveName string
 }

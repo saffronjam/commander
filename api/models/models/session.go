@@ -27,16 +27,17 @@ var RequiredEventTypes = []SatisfactoryEventType{
 
 // Session represents a Satisfactory server connection target
 type Session struct {
-	ID                  string             `json:"id"`              // UUID
-	Name                string             `json:"name"`            // User-provided display name
-	Address             string             `json:"address"`         // IP:port (e.g., "192.168.1.100:8080")
-	SessionName         string             `json:"sessionName"`     // From getSessionInfo API
-	IsOnline            bool               `json:"isOnline"`        // Current connection status
-	ConnectionState     ConnectionState    `json:"connectionState"` // Authoritative connection state
-	IsPaused            bool               `json:"isPaused"`        // True if polling is paused by user
-	IsDisconnected      bool               `json:"isDisconnected"`  // True if session has failed to connect multiple times
-	OfflineReason       ConnectivityReason `json:"offlineReason"`   // Why the session is unreachable
-	ConsecutiveFailures int                `json:"-"`               // Transient counter for consecutive connection failures
+	ID                  string             `json:"id"`                 // UUID
+	Name                string             `json:"name"`               // User-provided display name
+	Address             string             `json:"address"`            // IP:port (e.g., "192.168.1.100:8080")
+	SaveName            string             `json:"saveName"`           // The save this session is pinned to
+	IsOnline            bool               `json:"isOnline"`           // Current connection status
+	ConnectionState     ConnectionState    `json:"connectionState"`    // Authoritative connection state
+	MismatchedSaveName  string             `json:"mismatchedSaveName"` // Save the server has loaded instead, when it differs
+	IsPaused            bool               `json:"isPaused"`           // True if polling is paused by user
+	IsDisconnected      bool               `json:"isDisconnected"`     // True if session has failed to connect multiple times
+	OfflineReason       ConnectivityReason `json:"offlineReason"`      // Why the session is unreachable
+	ConsecutiveFailures int                `json:"-"`                  // Transient counter for consecutive connection failures
 	CreatedAt           time.Time          `json:"createdAt"`
 }
 
@@ -58,7 +59,7 @@ type SessionInfoRaw struct {
 
 // SessionInfo is the normalized DTO sent to the frontend (camelCase)
 type SessionInfo struct {
-	SessionName                string  `json:"sessionName"`
+	SaveName                   string  `json:"saveName"`
 	IsPaused                   bool    `json:"isPaused"`
 	DayLength                  int     `json:"dayLength"`
 	NightLength                int     `json:"nightLength"`
@@ -75,7 +76,7 @@ type SessionInfo struct {
 // ToDTO converts raw FRM API response to the normalized DTO
 func (r *SessionInfoRaw) ToDTO() *SessionInfo {
 	return &SessionInfo{
-		SessionName:                r.SessionName,
+		SaveName:                   r.SessionName,
 		IsPaused:                   r.IsPaused,
 		DayLength:                  r.DayLength,
 		NightLength:                r.NightLength,
@@ -90,10 +91,19 @@ func (r *SessionInfoRaw) ToDTO() *SessionInfo {
 	}
 }
 
+// DiscoveredServer is one FRM server found by sweeping the network.
+type DiscoveredServer struct {
+	Address string      `json:"address"`
+	Info    SessionInfo `json:"info"`
+	// AlreadyAdded is true when a session already exists for this server.
+	AlreadyAdded bool `json:"alreadyAdded"`
+}
+
 // CreateSessionRequest is the request body for creating a new session
 type CreateSessionRequest struct {
-	Name    string `json:"name" binding:"required"`
-	Address string `json:"address" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	Address  string `json:"address" binding:"required"`
+	SaveName string `json:"saveName" binding:"required"`
 }
 
 // UpdateSessionRequest is the request body for updating a session (all fields optional)
@@ -105,28 +115,30 @@ type UpdateSessionRequest struct {
 
 // SessionDTO is the data transfer object for Session with computed fields
 type SessionDTO struct {
-	ID              string             `json:"id"`
-	Name            string             `json:"name"`
-	Address         string             `json:"address"`
-	SessionName     string             `json:"sessionName"`
-	ConnectionState ConnectionState    `json:"connectionState"`
-	IsPaused        bool               `json:"isPaused"`
-	OfflineReason   ConnectivityReason `json:"offlineReason"`
-	CreatedAt       time.Time          `json:"createdAt"`
-	Stage           SessionStage       `json:"stage"`
+	ID                 string             `json:"id"`
+	Name               string             `json:"name"`
+	Address            string             `json:"address"`
+	SaveName           string             `json:"saveName"`
+	ConnectionState    ConnectionState    `json:"connectionState"`
+	MismatchedSaveName string             `json:"mismatchedSaveName"`
+	IsPaused           bool               `json:"isPaused"`
+	OfflineReason      ConnectivityReason `json:"offlineReason"`
+	CreatedAt          time.Time          `json:"createdAt"`
+	Stage              SessionStage       `json:"stage"`
 }
 
 // ToDTO converts Session to SessionDTO with computed stage field
 func (s *Session) ToDTO(stage SessionStage) SessionDTO {
 	return SessionDTO{
-		ID:              s.ID,
-		Name:            s.Name,
-		Address:         s.Address,
-		SessionName:     s.SessionName,
-		ConnectionState: s.ConnectionState,
-		IsPaused:        s.IsPaused,
-		OfflineReason:   s.OfflineReason,
-		CreatedAt:       s.CreatedAt,
-		Stage:           stage,
+		ID:                 s.ID,
+		Name:               s.Name,
+		Address:            s.Address,
+		SaveName:           s.SaveName,
+		ConnectionState:    s.ConnectionState,
+		MismatchedSaveName: s.MismatchedSaveName,
+		IsPaused:           s.IsPaused,
+		OfflineReason:      s.OfflineReason,
+		CreatedAt:          s.CreatedAt,
+		Stage:              stage,
 	}
 }
