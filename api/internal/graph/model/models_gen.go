@@ -106,15 +106,31 @@ type ConnectivityStatus struct {
 	ConnectionState ConnectionState    `json:"connectionState"`
 	Stage           SessionStage       `json:"stage"`
 	Reason          ConnectivityReason `json:"reason"`
+	// The save the server has loaded instead. Non-null exactly when connectionState is SAVE_MISMATCH.
+	MismatchedSaveName *string `json:"mismatchedSaveName,omitempty"`
 }
 
 type CreateSessionInput struct {
 	Name    string `json:"name"`
 	Address string `json:"address"`
+	// The save the client saw when it probed the address. The server re-probes and
+	// rejects the mutation if the server has since loaded a different save, so a
+	// session can never be pinned to a save nobody confirmed.
+	ExpectedSaveName string `json:"expectedSaveName"`
 }
 
 type DisableAuthInput struct {
 	CurrentPassword string `json:"currentPassword"`
+}
+
+// DiscoveredSession is an FRM server found by sweeping the network. info is the
+// same probe result the add-session form shows, so choosing one needs no second
+// round trip.
+type DiscoveredSession struct {
+	Address string       `json:"address"`
+	Info    *SessionInfo `json:"info"`
+	// True when a session already exists for this server, so the client can show it without offering it.
+	AlreadyAdded bool `json:"alreadyAdded"`
 }
 
 type Drone struct {
@@ -445,19 +461,22 @@ type SchematicCost struct {
 }
 
 type Session struct {
-	ID              string             `json:"id"`
-	Name            string             `json:"name"`
-	Address         string             `json:"address"`
-	SessionName     string             `json:"sessionName"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Address string `json:"address"`
+	// The save this session is pinned to, fixed when the session is created.
+	SaveName        string             `json:"saveName"`
 	IsPaused        bool               `json:"isPaused"`
 	CreatedAt       time.Time          `json:"createdAt"`
 	ConnectionState ConnectionState    `json:"connectionState"`
 	Stage           SessionStage       `json:"stage"`
 	OfflineReason   ConnectivityReason `json:"offlineReason"`
+	// The save the server has loaded instead. Non-null exactly when connectionState is SAVE_MISMATCH.
+	MismatchedSaveName *string `json:"mismatchedSaveName,omitempty"`
 }
 
 type SessionInfo struct {
-	SessionName                string  `json:"sessionName"`
+	SaveName                   string  `json:"saveName"`
 	IsPaused                   bool    `json:"isPaused"`
 	DayLength                  int     `json:"dayLength"`
 	NightLength                int     `json:"nightLength"`
@@ -673,17 +692,20 @@ const (
 	ConnectionStateOnline ConnectionState = "ONLINE"
 	// FRM could not be reached; reason says why.
 	ConnectionStateOffline ConnectionState = "OFFLINE"
+	// FRM answered but has a save loaded other than the one this session is pinned to.
+	ConnectionStateSaveMismatch ConnectionState = "SAVE_MISMATCH"
 )
 
 var AllConnectionState = []ConnectionState{
 	ConnectionStateConnecting,
 	ConnectionStateOnline,
 	ConnectionStateOffline,
+	ConnectionStateSaveMismatch,
 }
 
 func (e ConnectionState) IsValid() bool {
 	switch e {
-	case ConnectionStateConnecting, ConnectionStateOnline, ConnectionStateOffline:
+	case ConnectionStateConnecting, ConnectionStateOnline, ConnectionStateOffline, ConnectionStateSaveMismatch:
 		return true
 	}
 	return false

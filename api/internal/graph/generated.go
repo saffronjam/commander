@@ -112,9 +112,16 @@ type ComplexityRoot struct {
 	}
 
 	ConnectivityStatus struct {
-		ConnectionState func(childComplexity int) int
-		Reason          func(childComplexity int) int
-		Stage           func(childComplexity int) int
+		ConnectionState    func(childComplexity int) int
+		MismatchedSaveName func(childComplexity int) int
+		Reason             func(childComplexity int) int
+		Stage              func(childComplexity int) int
+	}
+
+	DiscoveredSession struct {
+		Address      func(childComplexity int) int
+		AlreadyAdded func(childComplexity int) int
+		Info         func(childComplexity int) int
 	}
 
 	Drone struct {
@@ -300,17 +307,16 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		ChangePassword  func(childComplexity int, input model.ChangePasswordInput) int
-		CompleteSetup   func(childComplexity int, input model.CompleteSetupInput) int
-		CreateSession   func(childComplexity int, input model.CreateSessionInput) int
-		DeleteSession   func(childComplexity int, id string) int
-		DisableAuth     func(childComplexity int, input model.DisableAuthInput) int
-		EnableAuth      func(childComplexity int, input model.EnableAuthInput) int
-		Login           func(childComplexity int, input model.LoginInput) int
-		Logout          func(childComplexity int) int
-		UpdateSession   func(childComplexity int, id string, input model.UpdateSessionInput) int
-		UpdateSettings  func(childComplexity int, input model.UpdateSettingsInput) int
-		ValidateSession func(childComplexity int, id string) int
+		ChangePassword func(childComplexity int, input model.ChangePasswordInput) int
+		CompleteSetup  func(childComplexity int, input model.CompleteSetupInput) int
+		CreateSession  func(childComplexity int, input model.CreateSessionInput) int
+		DeleteSession  func(childComplexity int, id string) int
+		DisableAuth    func(childComplexity int, input model.DisableAuthInput) int
+		EnableAuth     func(childComplexity int, input model.EnableAuthInput) int
+		Login          func(childComplexity int, input model.LoginInput) int
+		Logout         func(childComplexity int) int
+		UpdateSession  func(childComplexity int, id string, input model.UpdateSessionInput) int
+		UpdateSettings func(childComplexity int, input model.UpdateSettingsInput) int
 	}
 
 	Pipe struct {
@@ -380,17 +386,17 @@ type ComplexityRoot struct {
 		Belts                 func(childComplexity int, sessionID string) int
 		Cables                func(childComplexity int, sessionID string) int
 		Circuits              func(childComplexity int, sessionID string) int
-		CircuitsHistory       func(childComplexity int, sessionID string, saveName string, since *int, maxPoints *int) int
+		CircuitsHistory       func(childComplexity int, sessionID string, since *int, bucketSeconds *int) int
 		ClientIP              func(childComplexity int) int
 		Connectivity          func(childComplexity int, sessionID string) int
+		DiscoverSessions      func(childComplexity int) int
 		DroneStations         func(childComplexity int, sessionID string) int
 		Drones                func(childComplexity int, sessionID string) int
 		Explorers             func(childComplexity int, sessionID string) int
 		FactoryStats          func(childComplexity int, sessionID string) int
-		FactoryStatsHistory   func(childComplexity int, sessionID string, saveName string, since *int, maxPoints *int) int
+		FactoryStatsHistory   func(childComplexity int, sessionID string, since *int, bucketSeconds *int) int
 		GeneratorStats        func(childComplexity int, sessionID string) int
-		GeneratorStatsHistory func(childComplexity int, sessionID string, saveName string, since *int, maxPoints *int) int
-		HistorySaves          func(childComplexity int, sessionID string) int
+		GeneratorStatsHistory func(childComplexity int, sessionID string, since *int, bucketSeconds *int) int
 		Hub                   func(childComplexity int, sessionID string) int
 		HypertubeEntrances    func(childComplexity int, sessionID string) int
 		Hypertubes            func(childComplexity int, sessionID string) int
@@ -400,7 +406,7 @@ type ComplexityRoot struct {
 		Players               func(childComplexity int, sessionID string) int
 		PreviewSession        func(childComplexity int, address string) int
 		ProdStats             func(childComplexity int, sessionID string) int
-		ProdStatsHistory      func(childComplexity int, sessionID string, saveName string, since *int, maxPoints *int) int
+		ProdStatsHistory      func(childComplexity int, sessionID string, since *int, bucketSeconds *int) int
 		RadarTowers           func(childComplexity int, sessionID string) int
 		ResourceNodes         func(childComplexity int, sessionID string) int
 		SatisfactoryAPIStatus func(childComplexity int, sessionID string) int
@@ -409,7 +415,7 @@ type ComplexityRoot struct {
 		Sessions              func(childComplexity int) int
 		Settings              func(childComplexity int) int
 		SinkStats             func(childComplexity int, sessionID string) int
-		SinkStatsHistory      func(childComplexity int, sessionID string, saveName string, since *int, maxPoints *int) int
+		SinkStatsHistory      func(childComplexity int, sessionID string, since *int, bucketSeconds *int) int
 		SpaceElevator         func(childComplexity int, sessionID string) int
 		SplitterMergers       func(childComplexity int, sessionID string) int
 		Storages              func(childComplexity int, sessionID string) int
@@ -492,15 +498,16 @@ type ComplexityRoot struct {
 	}
 
 	Session struct {
-		Address         func(childComplexity int) int
-		ConnectionState func(childComplexity int) int
-		CreatedAt       func(childComplexity int) int
-		ID              func(childComplexity int) int
-		IsPaused        func(childComplexity int) int
-		Name            func(childComplexity int) int
-		OfflineReason   func(childComplexity int) int
-		SessionName     func(childComplexity int) int
-		Stage           func(childComplexity int) int
+		Address            func(childComplexity int) int
+		ConnectionState    func(childComplexity int) int
+		CreatedAt          func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		IsPaused           func(childComplexity int) int
+		MismatchedSaveName func(childComplexity int) int
+		Name               func(childComplexity int) int
+		OfflineReason      func(childComplexity int) int
+		SaveName           func(childComplexity int) int
+		Stage              func(childComplexity int) int
 	}
 
 	SessionInfo struct {
@@ -512,8 +519,8 @@ type ComplexityRoot struct {
 		NightLength                func(childComplexity int) int
 		NumberOfDaysSinceLastDeath func(childComplexity int) int
 		PassedDays                 func(childComplexity int) int
+		SaveName                   func(childComplexity int) int
 		Seconds                    func(childComplexity int) int
-		SessionName                func(childComplexity int) int
 		TotalPlayDuration          func(childComplexity int) int
 		TotalPlayDurationText      func(childComplexity int) int
 	}
@@ -743,13 +750,13 @@ type MutationResolver interface {
 	CreateSession(ctx context.Context, input model.CreateSessionInput) (*model.Session, error)
 	UpdateSession(ctx context.Context, id string, input model.UpdateSessionInput) (*model.Session, error)
 	DeleteSession(ctx context.Context, id string) (bool, error)
-	ValidateSession(ctx context.Context, id string) (*model.SessionInfo, error)
 	UpdateSettings(ctx context.Context, input model.UpdateSettingsInput) (*model.Settings, error)
 }
 type QueryResolver interface {
 	Sessions(ctx context.Context) ([]*model.Session, error)
 	Session(ctx context.Context, id string) (*model.Session, error)
 	PreviewSession(ctx context.Context, address string) (*model.SessionInfo, error)
+	DiscoverSessions(ctx context.Context) ([]*model.DiscoveredSession, error)
 	Settings(ctx context.Context) (*model.Settings, error)
 	AuthStatus(ctx context.Context) (*model.AuthStatus, error)
 	ClientIP(ctx context.Context) (string, error)
@@ -785,12 +792,11 @@ type QueryResolver interface {
 	RadarTowers(ctx context.Context, sessionID string) ([]*model.RadarTower, error)
 	ResourceNodes(ctx context.Context, sessionID string) ([]*model.ResourceNode, error)
 	Schematics(ctx context.Context, sessionID string) ([]*model.Schematic, error)
-	HistorySaves(ctx context.Context, sessionID string) ([]string, error)
-	CircuitsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.CircuitsHistoryPoint, error)
-	FactoryStatsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.FactoryStatsHistoryPoint, error)
-	ProdStatsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.ProdStatsHistoryPoint, error)
-	GeneratorStatsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.GeneratorStatsHistoryPoint, error)
-	SinkStatsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.SinkStatsHistoryPoint, error)
+	CircuitsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.CircuitsHistoryPoint, error)
+	FactoryStatsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.FactoryStatsHistoryPoint, error)
+	ProdStatsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.ProdStatsHistoryPoint, error)
+	GeneratorStatsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.GeneratorStatsHistoryPoint, error)
+	SinkStatsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.SinkStatsHistoryPoint, error)
 }
 type SubscriptionResolver interface {
 	SatisfactoryAPIStatusChanged(ctx context.Context, sessionID string) (<-chan *model.SatisfactoryAPIStatus, error)
@@ -1099,6 +1105,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ConnectivityStatus.ConnectionState(childComplexity), true
+	case "ConnectivityStatus.mismatchedSaveName":
+		if e.ComplexityRoot.ConnectivityStatus.MismatchedSaveName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ConnectivityStatus.MismatchedSaveName(childComplexity), true
 	case "ConnectivityStatus.reason":
 		if e.ComplexityRoot.ConnectivityStatus.Reason == nil {
 			break
@@ -1111,6 +1123,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ConnectivityStatus.Stage(childComplexity), true
+
+	case "DiscoveredSession.address":
+		if e.ComplexityRoot.DiscoveredSession.Address == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DiscoveredSession.Address(childComplexity), true
+	case "DiscoveredSession.alreadyAdded":
+		if e.ComplexityRoot.DiscoveredSession.AlreadyAdded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DiscoveredSession.AlreadyAdded(childComplexity), true
+	case "DiscoveredSession.info":
+		if e.ComplexityRoot.DiscoveredSession.Info == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DiscoveredSession.Info(childComplexity), true
 
 	case "Drone.circuitGroupId":
 		if e.ComplexityRoot.Drone.CircuitGroupID == nil {
@@ -1952,17 +1983,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateSettings(childComplexity, args["input"].(model.UpdateSettingsInput)), true
-	case "Mutation.validateSession":
-		if e.ComplexityRoot.Mutation.ValidateSession == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_validateSession_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.ValidateSession(childComplexity, args["id"].(string)), true
 
 	case "Pipe.connected0":
 		if e.ComplexityRoot.Pipe.Connected0 == nil {
@@ -2249,7 +2269,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.CircuitsHistory(childComplexity, args["sessionId"].(string), args["saveName"].(string), args["since"].(*int), args["maxPoints"].(*int)), true
+		return e.ComplexityRoot.Query.CircuitsHistory(childComplexity, args["sessionId"].(string), args["since"].(*int), args["bucketSeconds"].(*int)), true
 	case "Query.clientIp":
 		if e.ComplexityRoot.Query.ClientIP == nil {
 			break
@@ -2267,6 +2287,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Connectivity(childComplexity, args["sessionId"].(string)), true
+	case "Query.discoverSessions":
+		if e.ComplexityRoot.Query.DiscoverSessions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DiscoverSessions(childComplexity), true
 	case "Query.droneStations":
 		if e.ComplexityRoot.Query.DroneStations == nil {
 			break
@@ -2321,7 +2347,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.FactoryStatsHistory(childComplexity, args["sessionId"].(string), args["saveName"].(string), args["since"].(*int), args["maxPoints"].(*int)), true
+		return e.ComplexityRoot.Query.FactoryStatsHistory(childComplexity, args["sessionId"].(string), args["since"].(*int), args["bucketSeconds"].(*int)), true
 	case "Query.generatorStats":
 		if e.ComplexityRoot.Query.GeneratorStats == nil {
 			break
@@ -2343,18 +2369,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.GeneratorStatsHistory(childComplexity, args["sessionId"].(string), args["saveName"].(string), args["since"].(*int), args["maxPoints"].(*int)), true
-	case "Query.historySaves":
-		if e.ComplexityRoot.Query.HistorySaves == nil {
-			break
-		}
-
-		args, err := ec.field_Query_historySaves_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.HistorySaves(childComplexity, args["sessionId"].(string)), true
+		return e.ComplexityRoot.Query.GeneratorStatsHistory(childComplexity, args["sessionId"].(string), args["since"].(*int), args["bucketSeconds"].(*int)), true
 	case "Query.hub":
 		if e.ComplexityRoot.Query.Hub == nil {
 			break
@@ -2465,7 +2480,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.ProdStatsHistory(childComplexity, args["sessionId"].(string), args["saveName"].(string), args["since"].(*int), args["maxPoints"].(*int)), true
+		return e.ComplexityRoot.Query.ProdStatsHistory(childComplexity, args["sessionId"].(string), args["since"].(*int), args["bucketSeconds"].(*int)), true
 	case "Query.radarTowers":
 		if e.ComplexityRoot.Query.RadarTowers == nil {
 			break
@@ -2554,7 +2569,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.SinkStatsHistory(childComplexity, args["sessionId"].(string), args["saveName"].(string), args["since"].(*int), args["maxPoints"].(*int)), true
+		return e.ComplexityRoot.Query.SinkStatsHistory(childComplexity, args["sessionId"].(string), args["since"].(*int), args["bucketSeconds"].(*int)), true
 	case "Query.spaceElevator":
 		if e.ComplexityRoot.Query.SpaceElevator == nil {
 			break
@@ -2974,6 +2989,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Session.IsPaused(childComplexity), true
+	case "Session.mismatchedSaveName":
+		if e.ComplexityRoot.Session.MismatchedSaveName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Session.MismatchedSaveName(childComplexity), true
 	case "Session.name":
 		if e.ComplexityRoot.Session.Name == nil {
 			break
@@ -2986,12 +3007,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Session.OfflineReason(childComplexity), true
-	case "Session.sessionName":
-		if e.ComplexityRoot.Session.SessionName == nil {
+	case "Session.saveName":
+		if e.ComplexityRoot.Session.SaveName == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Session.SessionName(childComplexity), true
+		return e.ComplexityRoot.Session.SaveName(childComplexity), true
 	case "Session.stage":
 		if e.ComplexityRoot.Session.Stage == nil {
 			break
@@ -3047,18 +3068,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SessionInfo.PassedDays(childComplexity), true
+	case "SessionInfo.saveName":
+		if e.ComplexityRoot.SessionInfo.SaveName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SessionInfo.SaveName(childComplexity), true
 	case "SessionInfo.seconds":
 		if e.ComplexityRoot.SessionInfo.Seconds == nil {
 			break
 		}
 
 		return e.ComplexityRoot.SessionInfo.Seconds(childComplexity), true
-	case "SessionInfo.sessionName":
-		if e.ComplexityRoot.SessionInfo.SessionName == nil {
-			break
-		}
-
-		return e.ComplexityRoot.SessionInfo.SessionName(childComplexity), true
 	case "SessionInfo.totalPlayDuration":
 		if e.ComplexityRoot.SessionInfo.TotalPlayDuration == nil {
 			break
@@ -5049,16 +5070,31 @@ type Session {
   id: String!
   name: String!
   address: String!
-  sessionName: String!
+  "The save this session is pinned to, fixed when the session is created."
+  saveName: String!
   isPaused: Boolean!
   createdAt: DateTime!
   connectionState: ConnectionState!
   stage: SessionStage!
   offlineReason: ConnectivityReason!
+  "The save the server has loaded instead. Non-null exactly when connectionState is SAVE_MISMATCH."
+  mismatchedSaveName: String
+}
+
+"""
+DiscoveredSession is an FRM server found by sweeping the network. info is the
+same probe result the add-session form shows, so choosing one needs no second
+round trip.
+"""
+type DiscoveredSession {
+  address: String!
+  info: SessionInfo!
+  "True when a session already exists for this server, so the client can show it without offering it."
+  alreadyAdded: Boolean!
 }
 
 type SessionInfo {
-  sessionName: String!
+  saveName: String!
   isPaused: Boolean!
   dayLength: Int!
   nightLength: Int!
@@ -5105,12 +5141,16 @@ enum ConnectionState {
   ONLINE
   "FRM could not be reached; reason says why."
   OFFLINE
+  "FRM answered but has a save loaded other than the one this session is pinned to."
+  SAVE_MISMATCH
 }
 
 type ConnectivityStatus {
   connectionState: ConnectionState!
   stage: SessionStage!
   reason: ConnectivityReason!
+  "The save the server has loaded instead. Non-null exactly when connectionState is SAVE_MISMATCH."
+  mismatchedSaveName: String
 }
 
 """
@@ -5196,6 +5236,12 @@ input ChangePasswordInput {
 input CreateSessionInput {
   name: String!
   address: String!
+  """
+  The save the client saw when it probed the address. The server re-probes and
+  rejects the mutation if the server has since loaded a different save, so a
+  session can never be pinned to a save nobody confirmed.
+  """
+  expectedSaveName: String!
 }
 
 input UpdateSessionInput {
@@ -5235,6 +5281,7 @@ type Query {
   sessions: [Session!]! @auth
   session(id: ID!): Session @auth
   previewSession(address: String!): SessionInfo! @auth
+  discoverSessions: [DiscoveredSession!]! @auth
   settings: Settings! @auth
   authStatus: AuthStatus!
   clientIp: String! @auth
@@ -5272,12 +5319,11 @@ type Query {
   resourceNodes(sessionId: ID!): [ResourceNode!]! @auth
   schematics(sessionId: ID!): [Schematic!]! @auth
 
-  historySaves(sessionId: ID!): [String!]! @auth
-  circuitsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [CircuitsHistoryPoint!]! @auth
-  factoryStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [FactoryStatsHistoryPoint!]! @auth
-  prodStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [ProdStatsHistoryPoint!]! @auth
-  generatorStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [GeneratorStatsHistoryPoint!]! @auth
-  sinkStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [SinkStatsHistoryPoint!]! @auth
+  circuitsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [CircuitsHistoryPoint!]! @auth
+  factoryStatsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [FactoryStatsHistoryPoint!]! @auth
+  prodStatsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [ProdStatsHistoryPoint!]! @auth
+  generatorStatsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [GeneratorStatsHistoryPoint!]! @auth
+  sinkStatsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [SinkStatsHistoryPoint!]! @auth
 }
 
 type Mutation {
@@ -5299,7 +5345,6 @@ type Mutation {
   createSession(input: CreateSessionInput!): Session! @auth
   updateSession(id: ID!, input: UpdateSessionInput!): Session! @auth
   deleteSession(id: ID!): Boolean! @auth
-  validateSession(id: ID!): SessionInfo! @auth
   updateSettings(input: UpdateSettingsInput!): Settings! @auth
 }
 
@@ -5454,17 +5499,6 @@ func (ec *executionContext) field_Mutation_updateSettings_args(ctx context.Conte
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_validateSession_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -5506,21 +5540,16 @@ func (ec *executionContext) field_Query_circuitsHistory_args(ctx context.Context
 		return nil, err
 	}
 	args["sessionId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "saveName", ec.unmarshalNString2string)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["saveName"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
+	args["since"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "bucketSeconds", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["since"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "maxPoints", ec.unmarshalOInt2ᚖint)
-	if err != nil {
-		return nil, err
-	}
-	args["maxPoints"] = arg3
+	args["bucketSeconds"] = arg2
 	return args, nil
 }
 
@@ -5587,21 +5616,16 @@ func (ec *executionContext) field_Query_factoryStatsHistory_args(ctx context.Con
 		return nil, err
 	}
 	args["sessionId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "saveName", ec.unmarshalNString2string)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["saveName"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
+	args["since"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "bucketSeconds", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["since"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "maxPoints", ec.unmarshalOInt2ᚖint)
-	if err != nil {
-		return nil, err
-	}
-	args["maxPoints"] = arg3
+	args["bucketSeconds"] = arg2
 	return args, nil
 }
 
@@ -5624,36 +5648,20 @@ func (ec *executionContext) field_Query_generatorStatsHistory_args(ctx context.C
 		return nil, err
 	}
 	args["sessionId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "saveName", ec.unmarshalNString2string)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["saveName"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
+	args["since"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "bucketSeconds", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["since"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "maxPoints", ec.unmarshalOInt2ᚖint)
-	if err != nil {
-		return nil, err
-	}
-	args["maxPoints"] = arg3
+	args["bucketSeconds"] = arg2
 	return args, nil
 }
 
 func (ec *executionContext) field_Query_generatorStats_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
-	if err != nil {
-		return nil, err
-	}
-	args["sessionId"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_historySaves_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "sessionId", ec.unmarshalNID2string)
@@ -5760,21 +5768,16 @@ func (ec *executionContext) field_Query_prodStatsHistory_args(ctx context.Contex
 		return nil, err
 	}
 	args["sessionId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "saveName", ec.unmarshalNString2string)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["saveName"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
+	args["since"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "bucketSeconds", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["since"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "maxPoints", ec.unmarshalOInt2ᚖint)
-	if err != nil {
-		return nil, err
-	}
-	args["maxPoints"] = arg3
+	args["bucketSeconds"] = arg2
 	return args, nil
 }
 
@@ -5852,21 +5855,16 @@ func (ec *executionContext) field_Query_sinkStatsHistory_args(ctx context.Contex
 		return nil, err
 	}
 	args["sessionId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "saveName", ec.unmarshalNString2string)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["saveName"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "since", ec.unmarshalOInt2ᚖint)
+	args["since"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "bucketSeconds", ec.unmarshalOInt2ᚖint)
 	if err != nil {
 		return nil, err
 	}
-	args["since"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "maxPoints", ec.unmarshalOInt2ᚖint)
-	if err != nil {
-		return nil, err
-	}
-	args["maxPoints"] = arg3
+	args["bucketSeconds"] = arg2
 	return args, nil
 }
 
@@ -7758,6 +7756,148 @@ func (ec *executionContext) fieldContext_ConnectivityStatus_reason(_ context.Con
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type ConnectivityReason does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConnectivityStatus_mismatchedSaveName(ctx context.Context, field graphql.CollectedField, obj *model.ConnectivityStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ConnectivityStatus_mismatchedSaveName,
+		func(ctx context.Context) (any, error) {
+			return obj.MismatchedSaveName, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ConnectivityStatus_mismatchedSaveName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConnectivityStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DiscoveredSession_address(ctx context.Context, field graphql.CollectedField, obj *model.DiscoveredSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DiscoveredSession_address,
+		func(ctx context.Context) (any, error) {
+			return obj.Address, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DiscoveredSession_address(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DiscoveredSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DiscoveredSession_info(ctx context.Context, field graphql.CollectedField, obj *model.DiscoveredSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DiscoveredSession_info,
+		func(ctx context.Context) (any, error) {
+			return obj.Info, nil
+		},
+		nil,
+		ec.marshalNSessionInfo2ᚖapiᚋinternalᚋgraphᚋmodelᚐSessionInfo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DiscoveredSession_info(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DiscoveredSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "saveName":
+				return ec.fieldContext_SessionInfo_saveName(ctx, field)
+			case "isPaused":
+				return ec.fieldContext_SessionInfo_isPaused(ctx, field)
+			case "dayLength":
+				return ec.fieldContext_SessionInfo_dayLength(ctx, field)
+			case "nightLength":
+				return ec.fieldContext_SessionInfo_nightLength(ctx, field)
+			case "passedDays":
+				return ec.fieldContext_SessionInfo_passedDays(ctx, field)
+			case "numberOfDaysSinceLastDeath":
+				return ec.fieldContext_SessionInfo_numberOfDaysSinceLastDeath(ctx, field)
+			case "hours":
+				return ec.fieldContext_SessionInfo_hours(ctx, field)
+			case "minutes":
+				return ec.fieldContext_SessionInfo_minutes(ctx, field)
+			case "seconds":
+				return ec.fieldContext_SessionInfo_seconds(ctx, field)
+			case "isDay":
+				return ec.fieldContext_SessionInfo_isDay(ctx, field)
+			case "totalPlayDuration":
+				return ec.fieldContext_SessionInfo_totalPlayDuration(ctx, field)
+			case "totalPlayDurationText":
+				return ec.fieldContext_SessionInfo_totalPlayDurationText(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SessionInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DiscoveredSession_alreadyAdded(ctx context.Context, field graphql.CollectedField, obj *model.DiscoveredSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_DiscoveredSession_alreadyAdded,
+		func(ctx context.Context) (any, error) {
+			return obj.AlreadyAdded, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_DiscoveredSession_alreadyAdded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DiscoveredSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -11834,8 +11974,8 @@ func (ec *executionContext) fieldContext_Mutation_createSession(ctx context.Cont
 				return ec.fieldContext_Session_name(ctx, field)
 			case "address":
 				return ec.fieldContext_Session_address(ctx, field)
-			case "sessionName":
-				return ec.fieldContext_Session_sessionName(ctx, field)
+			case "saveName":
+				return ec.fieldContext_Session_saveName(ctx, field)
 			case "isPaused":
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
@@ -11846,6 +11986,8 @@ func (ec *executionContext) fieldContext_Mutation_createSession(ctx context.Cont
 				return ec.fieldContext_Session_stage(ctx, field)
 			case "offlineReason":
 				return ec.fieldContext_Session_offlineReason(ctx, field)
+			case "mismatchedSaveName":
+				return ec.fieldContext_Session_mismatchedSaveName(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -11908,8 +12050,8 @@ func (ec *executionContext) fieldContext_Mutation_updateSession(ctx context.Cont
 				return ec.fieldContext_Session_name(ctx, field)
 			case "address":
 				return ec.fieldContext_Session_address(ctx, field)
-			case "sessionName":
-				return ec.fieldContext_Session_sessionName(ctx, field)
+			case "saveName":
+				return ec.fieldContext_Session_saveName(ctx, field)
 			case "isPaused":
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
@@ -11920,6 +12062,8 @@ func (ec *executionContext) fieldContext_Mutation_updateSession(ctx context.Cont
 				return ec.fieldContext_Session_stage(ctx, field)
 			case "offlineReason":
 				return ec.fieldContext_Session_offlineReason(ctx, field)
+			case "mismatchedSaveName":
+				return ec.fieldContext_Session_mismatchedSaveName(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -11986,86 +12130,6 @@ func (ec *executionContext) fieldContext_Mutation_deleteSession(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteSession_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_validateSession(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Mutation_validateSession,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ValidateSession(ctx, fc.Args["id"].(string))
-		},
-		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
-			directive0 := next
-
-			directive1 := func(ctx context.Context) (any, error) {
-				if ec.Directives.Auth == nil {
-					var zeroVal *model.SessionInfo
-					return zeroVal, errors.New("directive auth is not implemented")
-				}
-				return ec.Directives.Auth(ctx, nil, directive0)
-			}
-
-			next = directive1
-			return next
-		},
-		ec.marshalNSessionInfo2ᚖapiᚋinternalᚋgraphᚋmodelᚐSessionInfo,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Mutation_validateSession(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "sessionName":
-				return ec.fieldContext_SessionInfo_sessionName(ctx, field)
-			case "isPaused":
-				return ec.fieldContext_SessionInfo_isPaused(ctx, field)
-			case "dayLength":
-				return ec.fieldContext_SessionInfo_dayLength(ctx, field)
-			case "nightLength":
-				return ec.fieldContext_SessionInfo_nightLength(ctx, field)
-			case "passedDays":
-				return ec.fieldContext_SessionInfo_passedDays(ctx, field)
-			case "numberOfDaysSinceLastDeath":
-				return ec.fieldContext_SessionInfo_numberOfDaysSinceLastDeath(ctx, field)
-			case "hours":
-				return ec.fieldContext_SessionInfo_hours(ctx, field)
-			case "minutes":
-				return ec.fieldContext_SessionInfo_minutes(ctx, field)
-			case "seconds":
-				return ec.fieldContext_SessionInfo_seconds(ctx, field)
-			case "isDay":
-				return ec.fieldContext_SessionInfo_isDay(ctx, field)
-			case "totalPlayDuration":
-				return ec.fieldContext_SessionInfo_totalPlayDuration(ctx, field)
-			case "totalPlayDurationText":
-				return ec.fieldContext_SessionInfo_totalPlayDurationText(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type SessionInfo", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_validateSession_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -13351,8 +13415,8 @@ func (ec *executionContext) fieldContext_Query_sessions(_ context.Context, field
 				return ec.fieldContext_Session_name(ctx, field)
 			case "address":
 				return ec.fieldContext_Session_address(ctx, field)
-			case "sessionName":
-				return ec.fieldContext_Session_sessionName(ctx, field)
+			case "saveName":
+				return ec.fieldContext_Session_saveName(ctx, field)
 			case "isPaused":
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
@@ -13363,6 +13427,8 @@ func (ec *executionContext) fieldContext_Query_sessions(_ context.Context, field
 				return ec.fieldContext_Session_stage(ctx, field)
 			case "offlineReason":
 				return ec.fieldContext_Session_offlineReason(ctx, field)
+			case "mismatchedSaveName":
+				return ec.fieldContext_Session_mismatchedSaveName(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -13414,8 +13480,8 @@ func (ec *executionContext) fieldContext_Query_session(ctx context.Context, fiel
 				return ec.fieldContext_Session_name(ctx, field)
 			case "address":
 				return ec.fieldContext_Session_address(ctx, field)
-			case "sessionName":
-				return ec.fieldContext_Session_sessionName(ctx, field)
+			case "saveName":
+				return ec.fieldContext_Session_saveName(ctx, field)
 			case "isPaused":
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
@@ -13426,6 +13492,8 @@ func (ec *executionContext) fieldContext_Query_session(ctx context.Context, fiel
 				return ec.fieldContext_Session_stage(ctx, field)
 			case "offlineReason":
 				return ec.fieldContext_Session_offlineReason(ctx, field)
+			case "mismatchedSaveName":
+				return ec.fieldContext_Session_mismatchedSaveName(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -13482,8 +13550,8 @@ func (ec *executionContext) fieldContext_Query_previewSession(ctx context.Contex
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "sessionName":
-				return ec.fieldContext_SessionInfo_sessionName(ctx, field)
+			case "saveName":
+				return ec.fieldContext_SessionInfo_saveName(ctx, field)
 			case "isPaused":
 				return ec.fieldContext_SessionInfo_isPaused(ctx, field)
 			case "dayLength":
@@ -13520,6 +13588,56 @@ func (ec *executionContext) fieldContext_Query_previewSession(ctx context.Contex
 	if fc.Args, err = ec.field_Query_previewSession_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_discoverSessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_discoverSessions,
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DiscoverSessions(ctx)
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Auth == nil {
+					var zeroVal []*model.DiscoveredSession
+					return zeroVal, errors.New("directive auth is not implemented")
+				}
+				return ec.Directives.Auth(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		ec.marshalNDiscoveredSession2ᚕᚖapiᚋinternalᚋgraphᚋmodelᚐDiscoveredSessionᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_discoverSessions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "address":
+				return ec.fieldContext_DiscoveredSession_address(ctx, field)
+			case "info":
+				return ec.fieldContext_DiscoveredSession_info(ctx, field)
+			case "alreadyAdded":
+				return ec.fieldContext_DiscoveredSession_alreadyAdded(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DiscoveredSession", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -13753,6 +13871,8 @@ func (ec *executionContext) fieldContext_Query_connectivity(ctx context.Context,
 				return ec.fieldContext_ConnectivityStatus_stage(ctx, field)
 			case "reason":
 				return ec.fieldContext_ConnectivityStatus_reason(ctx, field)
+			case "mismatchedSaveName":
+				return ec.fieldContext_ConnectivityStatus_mismatchedSaveName(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ConnectivityStatus", field.Name)
 		},
@@ -15963,60 +16083,6 @@ func (ec *executionContext) fieldContext_Query_schematics(ctx context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_historySaves(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_historySaves,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().HistorySaves(ctx, fc.Args["sessionId"].(string))
-		},
-		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
-			directive0 := next
-
-			directive1 := func(ctx context.Context) (any, error) {
-				if ec.Directives.Auth == nil {
-					var zeroVal []string
-					return zeroVal, errors.New("directive auth is not implemented")
-				}
-				return ec.Directives.Auth(ctx, nil, directive0)
-			}
-
-			next = directive1
-			return next
-		},
-		ec.marshalNString2ᚕstringᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_historySaves(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_historySaves_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Query_circuitsHistory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -16025,7 +16091,7 @@ func (ec *executionContext) _Query_circuitsHistory(ctx context.Context, field gr
 		ec.fieldContext_Query_circuitsHistory,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().CircuitsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["saveName"].(string), fc.Args["since"].(*int), fc.Args["maxPoints"].(*int))
+			return ec.Resolvers.Query().CircuitsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["since"].(*int), fc.Args["bucketSeconds"].(*int))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
@@ -16085,7 +16151,7 @@ func (ec *executionContext) _Query_factoryStatsHistory(ctx context.Context, fiel
 		ec.fieldContext_Query_factoryStatsHistory,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().FactoryStatsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["saveName"].(string), fc.Args["since"].(*int), fc.Args["maxPoints"].(*int))
+			return ec.Resolvers.Query().FactoryStatsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["since"].(*int), fc.Args["bucketSeconds"].(*int))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
@@ -16145,7 +16211,7 @@ func (ec *executionContext) _Query_prodStatsHistory(ctx context.Context, field g
 		ec.fieldContext_Query_prodStatsHistory,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().ProdStatsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["saveName"].(string), fc.Args["since"].(*int), fc.Args["maxPoints"].(*int))
+			return ec.Resolvers.Query().ProdStatsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["since"].(*int), fc.Args["bucketSeconds"].(*int))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
@@ -16205,7 +16271,7 @@ func (ec *executionContext) _Query_generatorStatsHistory(ctx context.Context, fi
 		ec.fieldContext_Query_generatorStatsHistory,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().GeneratorStatsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["saveName"].(string), fc.Args["since"].(*int), fc.Args["maxPoints"].(*int))
+			return ec.Resolvers.Query().GeneratorStatsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["since"].(*int), fc.Args["bucketSeconds"].(*int))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
@@ -16265,7 +16331,7 @@ func (ec *executionContext) _Query_sinkStatsHistory(ctx context.Context, field g
 		ec.fieldContext_Query_sinkStatsHistory,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().SinkStatsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["saveName"].(string), fc.Args["since"].(*int), fc.Args["maxPoints"].(*int))
+			return ec.Resolvers.Query().SinkStatsHistory(ctx, fc.Args["sessionId"].(string), fc.Args["since"].(*int), fc.Args["bucketSeconds"].(*int))
 		},
 		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
 			directive0 := next
@@ -17881,14 +17947,14 @@ func (ec *executionContext) fieldContext_Session_address(_ context.Context, fiel
 	return fc, nil
 }
 
-func (ec *executionContext) _Session_sessionName(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
+func (ec *executionContext) _Session_saveName(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Session_sessionName,
+		ec.fieldContext_Session_saveName,
 		func(ctx context.Context) (any, error) {
-			return obj.SessionName, nil
+			return obj.SaveName, nil
 		},
 		nil,
 		ec.marshalNString2string,
@@ -17897,7 +17963,7 @@ func (ec *executionContext) _Session_sessionName(ctx context.Context, field grap
 	)
 }
 
-func (ec *executionContext) fieldContext_Session_sessionName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Session_saveName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Session",
 		Field:      field,
@@ -18055,14 +18121,43 @@ func (ec *executionContext) fieldContext_Session_offlineReason(_ context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _SessionInfo_sessionName(ctx context.Context, field graphql.CollectedField, obj *model.SessionInfo) (ret graphql.Marshaler) {
+func (ec *executionContext) _Session_mismatchedSaveName(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_SessionInfo_sessionName,
+		ec.fieldContext_Session_mismatchedSaveName,
 		func(ctx context.Context) (any, error) {
-			return obj.SessionName, nil
+			return obj.MismatchedSaveName, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Session_mismatchedSaveName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Session",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SessionInfo_saveName(ctx context.Context, field graphql.CollectedField, obj *model.SessionInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SessionInfo_saveName,
+		func(ctx context.Context) (any, error) {
+			return obj.SaveName, nil
 		},
 		nil,
 		ec.marshalNString2string,
@@ -18071,7 +18166,7 @@ func (ec *executionContext) _SessionInfo_sessionName(ctx context.Context, field 
 	)
 }
 
-func (ec *executionContext) fieldContext_SessionInfo_sessionName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_SessionInfo_saveName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "SessionInfo",
 		Field:      field,
@@ -19622,6 +19717,8 @@ func (ec *executionContext) fieldContext_Subscription_connectivityChanged(ctx co
 				return ec.fieldContext_ConnectivityStatus_stage(ctx, field)
 			case "reason":
 				return ec.fieldContext_ConnectivityStatus_reason(ctx, field)
+			case "mismatchedSaveName":
+				return ec.fieldContext_ConnectivityStatus_mismatchedSaveName(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ConnectivityStatus", field.Name)
 		},
@@ -19684,8 +19781,8 @@ func (ec *executionContext) fieldContext_Subscription_sessionUpdated(ctx context
 				return ec.fieldContext_Session_name(ctx, field)
 			case "address":
 				return ec.fieldContext_Session_address(ctx, field)
-			case "sessionName":
-				return ec.fieldContext_Session_sessionName(ctx, field)
+			case "saveName":
+				return ec.fieldContext_Session_saveName(ctx, field)
 			case "isPaused":
 				return ec.fieldContext_Session_isPaused(ctx, field)
 			case "createdAt":
@@ -19696,6 +19793,8 @@ func (ec *executionContext) fieldContext_Subscription_sessionUpdated(ctx context
 				return ec.fieldContext_Session_stage(ctx, field)
 			case "offlineReason":
 				return ec.fieldContext_Session_offlineReason(ctx, field)
+			case "mismatchedSaveName":
+				return ec.fieldContext_Session_mismatchedSaveName(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
 		},
@@ -26100,7 +26199,7 @@ func (ec *executionContext) unmarshalInputCreateSessionInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "address"}
+	fieldsInOrder := [...]string{"name", "address", "expectedSaveName"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -26121,6 +26220,13 @@ func (ec *executionContext) unmarshalInputCreateSessionInput(ctx context.Context
 				return it, err
 			}
 			it.Address = data
+		case "expectedSaveName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expectedSaveName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpectedSaveName = data
 		}
 	}
 	return it, nil
@@ -26895,6 +27001,57 @@ func (ec *executionContext) _ConnectivityStatus(ctx context.Context, sel ast.Sel
 			}
 		case "reason":
 			out.Values[i] = ec._ConnectivityStatus_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mismatchedSaveName":
+			out.Values[i] = ec._ConnectivityStatus_mismatchedSaveName(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var discoveredSessionImplementors = []string{"DiscoveredSession"}
+
+func (ec *executionContext) _DiscoveredSession(ctx context.Context, sel ast.SelectionSet, obj *model.DiscoveredSession) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, discoveredSessionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DiscoveredSession")
+		case "address":
+			out.Values[i] = ec._DiscoveredSession_address(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "info":
+			out.Values[i] = ec._DiscoveredSession_info(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "alreadyAdded":
+			out.Values[i] = ec._DiscoveredSession_alreadyAdded(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -28285,13 +28442,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "validateSession":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_validateSession(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "updateSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateSettings(ctx, field)
@@ -28854,6 +29004,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_previewSession(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "discoverSessions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_discoverSessions(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -29630,28 +29802,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "historySaves":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_historySaves(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "circuitsHistory":
 			field := field
 
@@ -30316,8 +30466,8 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "sessionName":
-			out.Values[i] = ec._Session_sessionName(ctx, field, obj)
+		case "saveName":
+			out.Values[i] = ec._Session_saveName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -30346,6 +30496,8 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "mismatchedSaveName":
+			out.Values[i] = ec._Session_mismatchedSaveName(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -30380,8 +30532,8 @@ func (ec *executionContext) _SessionInfo(ctx context.Context, sel ast.SelectionS
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("SessionInfo")
-		case "sessionName":
-			out.Values[i] = ec._SessionInfo_sessionName(ctx, field, obj)
+		case "saveName":
+			out.Values[i] = ec._SessionInfo_saveName(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -32361,6 +32513,32 @@ func (ec *executionContext) unmarshalNDisableAuthInput2apiᚋinternalᚋgraphᚋ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNDiscoveredSession2ᚕᚖapiᚋinternalᚋgraphᚋmodelᚐDiscoveredSessionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DiscoveredSession) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDiscoveredSession2ᚖapiᚋinternalᚋgraphᚋmodelᚐDiscoveredSession(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDiscoveredSession2ᚖapiᚋinternalᚋgraphᚋmodelᚐDiscoveredSession(ctx context.Context, sel ast.SelectionSet, v *model.DiscoveredSession) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DiscoveredSession(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDrone2ᚕᚖapiᚋinternalᚋgraphᚋmodelᚐDroneᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Drone) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -33575,36 +33753,6 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
-	var vSlice []any
-	vSlice = graphql.CoerceList(v)
-	var err error
-	res := make([]string, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	for i := range v {
-		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
-	}
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
 }
 
 func (ec *executionContext) marshalNTractor2ᚕᚖapiᚋinternalᚋgraphᚋmodelᚐTractorᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Tractor) graphql.Marshaler {

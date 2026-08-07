@@ -741,16 +741,31 @@ type Session {
   id: String!
   name: String!
   address: String!
-  sessionName: String!
+  "The save this session is pinned to, fixed when the session is created."
+  saveName: String!
   isPaused: Boolean!
   createdAt: DateTime!
   connectionState: ConnectionState!
   stage: SessionStage!
   offlineReason: ConnectivityReason!
+  "The save the server has loaded instead. Non-null exactly when connectionState is SAVE_MISMATCH."
+  mismatchedSaveName: String
+}
+
+"""
+DiscoveredSession is an FRM server found by sweeping the network. info is the
+same probe result the add-session form shows, so choosing one needs no second
+round trip.
+"""
+type DiscoveredSession {
+  address: String!
+  info: SessionInfo!
+  "True when a session already exists for this server, so the client can show it without offering it."
+  alreadyAdded: Boolean!
 }
 
 type SessionInfo {
-  sessionName: String!
+  saveName: String!
   isPaused: Boolean!
   dayLength: Int!
   nightLength: Int!
@@ -797,12 +812,16 @@ enum ConnectionState {
   ONLINE
   "FRM could not be reached; reason says why."
   OFFLINE
+  "FRM answered but has a save loaded other than the one this session is pinned to."
+  SAVE_MISMATCH
 }
 
 type ConnectivityStatus {
   connectionState: ConnectionState!
   stage: SessionStage!
   reason: ConnectivityReason!
+  "The save the server has loaded instead. Non-null exactly when connectionState is SAVE_MISMATCH."
+  mismatchedSaveName: String
 }
 
 """
@@ -888,6 +907,12 @@ input ChangePasswordInput {
 input CreateSessionInput {
   name: String!
   address: String!
+  """
+  The save the client saw when it probed the address. The server re-probes and
+  rejects the mutation if the server has since loaded a different save, so a
+  session can never be pinned to a save nobody confirmed.
+  """
+  expectedSaveName: String!
 }
 
 input UpdateSessionInput {
@@ -927,6 +952,7 @@ type Query {
   sessions: [Session!]! @auth
   session(id: ID!): Session @auth
   previewSession(address: String!): SessionInfo! @auth
+  discoverSessions: [DiscoveredSession!]! @auth
   settings: Settings! @auth
   authStatus: AuthStatus!
   clientIp: String! @auth
@@ -964,12 +990,11 @@ type Query {
   resourceNodes(sessionId: ID!): [ResourceNode!]! @auth
   schematics(sessionId: ID!): [Schematic!]! @auth
 
-  historySaves(sessionId: ID!): [String!]! @auth
-  circuitsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [CircuitsHistoryPoint!]! @auth
-  factoryStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [FactoryStatsHistoryPoint!]! @auth
-  prodStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [ProdStatsHistoryPoint!]! @auth
-  generatorStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [GeneratorStatsHistoryPoint!]! @auth
-  sinkStatsHistory(sessionId: ID!, saveName: String!, since: Int, maxPoints: Int): [SinkStatsHistoryPoint!]! @auth
+  circuitsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [CircuitsHistoryPoint!]! @auth
+  factoryStatsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [FactoryStatsHistoryPoint!]! @auth
+  prodStatsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [ProdStatsHistoryPoint!]! @auth
+  generatorStatsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [GeneratorStatsHistoryPoint!]! @auth
+  sinkStatsHistory(sessionId: ID!, since: Int, bucketSeconds: Int): [SinkStatsHistoryPoint!]! @auth
 }
 
 type Mutation {
@@ -991,7 +1016,6 @@ type Mutation {
   createSession(input: CreateSessionInput!): Session! @auth
   updateSession(id: ID!, input: UpdateSessionInput!): Session! @auth
   deleteSession(id: ID!): Boolean! @auth
-  validateSession(id: ID!): SessionInfo! @auth
   updateSettings(input: UpdateSettingsInput!): Settings! @auth
 }
 
