@@ -2,6 +2,12 @@ package graph
 
 import (
 	"context"
+	"errors"
+	"fmt"
+
+	"github.com/vektah/gqlparser/v2/gqlerror"
+
+	"api/service/frm_client"
 
 	authctx "api/internal/auth"
 	"api/internal/graph/model"
@@ -19,6 +25,7 @@ func (r *Resolver) sessionWithStatus(s models.Session) *model.Session {
 		s.IsDisconnected = cs.IsDisconnected
 		s.ConnectionState = cs.State
 		s.OfflineReason = cs.Reason
+		s.MismatchedSaveName = cs.MismatchedSaveName
 		stage = cs.Stage
 	}
 	return toSession(s, stage)
@@ -49,12 +56,97 @@ func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session,
 	return r.sessionWithStatus(*s), nil
 }
 
+// probeError converts a failed probe into a client-renderable error. The reason
+// is the same enum a live session reports, so the client reuses one set of copy
+// instead of showing a Go error string; the technical cause rides along in
+// detail for the browser console.
+func probeError(address string, err error) error {
+	reason := models.ConnectivityReasonNoResponse
+	var probeErr *frm_client.ProbeError
+	if errors.As(err, &probeErr) {
+		reason = probeErr.Reason
+	}
+	return &gqlerror.Error{
+		Message: fmt.Sprintf("could not reach FRM at %s", address),
+		Extensions: map[string]any{
+			"code":   "FRM_UNREACHABLE",
+			"reason": toConnectivityReasonEnum(reason).String(),
+			"detail": err.Error(),
+		},
+	}
+}
+
 func (r *queryResolver) PreviewSession(ctx context.Context, address string) (*model.SessionInfo, error) {
 	info, err := r.Poller.PreviewSession(ctx, address)
 	if err != nil {
-		return nil, err
+		return nil, probeError(address, err)
 	}
 	return toSessionInfo(info), nil
+}
+
+// discoveryError names why a sweep could not run, so the client can explain it
+// rather than showing a bare message.
+func discoveryError(err error) error {
+	code := "DISCOVERY_FAILED"
+	switch {
+	case errors.Is(err, frm_client.ErrNoPrivateNetwork):
+		code = "DISCOVERY_NO_NETWORK"
+	case errors.Is(err, frm_client.ErrScanTooLarge):
+		code = "DISCOVERY_TOO_LARGE"
+	}
+	return &gqlerror.Error{
+		Message:    err.Error(),
+		Extensions: map[string]any{"code": code},
+	}
+}
+
+// DiscoverSessions sweeps the caller's network for FRM servers.
+//
+// alreadyAdded is decided here rather than by the client because addresses are
+// stored exactly as they were typed, so the same server may already be recorded
+// under a different spelling; both sides are normalized before comparing.
+func (r *queryResolver) DiscoverSessions(ctx context.Context) ([]*model.DiscoveredSession, error) {
+	sessions, err := r.Store.ListSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	existing, ports := discoveryInputs(sessions)
+
+	found, err := r.Poller.DiscoverSessions(ctx, ClientIPFromContext(ctx), ports)
+	if err != nil {
+		return nil, discoveryError(err)
+	}
+	return markDiscovered(found, existing), nil
+}
+
+// discoveryInputs derives what the sweep needs from the sessions that exist: the
+// ports worth trying alongside the default, and the addresses a result should be
+// marked against.
+func discoveryInputs(sessions []models.Session) (map[string]struct{}, []int) {
+	existing := make(map[string]struct{}, len(sessions))
+	var ports []int
+	for _, s := range sessions {
+		existing[frm_client.NormalizeAddress(s.Address)] = struct{}{}
+		if port := frm_client.PortOf(s.Address); port > 0 {
+			ports = append(ports, port)
+		}
+	}
+	return existing, ports
+}
+
+// markDiscovered flags the servers a session already covers.
+func markDiscovered(found []models.DiscoveredServer, existing map[string]struct{}) []*model.DiscoveredSession {
+	out := make([]*model.DiscoveredSession, 0, len(found))
+	for _, server := range found {
+		_, added := existing[frm_client.NormalizeAddress(server.Address)]
+		out = append(out, &model.DiscoveredSession{
+			Address:      server.Address,
+			Info:         toSessionInfo(server.Info),
+			AlreadyAdded: added,
+		})
+	}
+	return out
 }
 
 func (r *queryResolver) Settings(ctx context.Context) (*model.Settings, error) {
@@ -158,8 +250,42 @@ func (r *mutationResolver) ChangePassword(ctx context.Context, input model.Chang
 	return &model.ChangePasswordResult{Success: true, Message: "access key changed"}, nil
 }
 
+// saveNameMismatchError reports that the server is not running the save the
+// client confirmed. The code lets the client branch without matching on prose.
+func saveNameMismatchError(expected, observed string) error {
+	return &gqlerror.Error{
+		Message: fmt.Sprintf("the server is running %q, not %q", observed, expected),
+		Extensions: map[string]any{
+			"code":             "SAVE_NAME_MISMATCH",
+			"observedSaveName": observed,
+		},
+	}
+}
+
+// pinnedSaveName re-probes the address and confirms it still has the save the
+// client saw. Probing server-side closes the window between the client's probe
+// and this mutation, so a session can never be pinned to a save nobody confirmed.
+func (r *mutationResolver) pinnedSaveName(ctx context.Context, address, expected string) (string, error) {
+	info, err := r.Poller.PreviewSession(ctx, address)
+	if err != nil {
+		return "", probeError(address, err)
+	}
+	if info.SaveName != expected {
+		return "", saveNameMismatchError(expected, info.SaveName)
+	}
+	return info.SaveName, nil
+}
+
 func (r *mutationResolver) CreateSession(ctx context.Context, input model.CreateSessionInput) (*model.Session, error) {
-	s, err := r.Store.CreateSession(ctx, models.CreateSessionRequest{Name: input.Name, Address: input.Address})
+	saveName, err := r.pinnedSaveName(ctx, input.Address, input.ExpectedSaveName)
+	if err != nil {
+		return nil, err
+	}
+	s, err := r.Store.CreateSession(ctx, models.CreateSessionRequest{
+		Name:     input.Name,
+		Address:  input.Address,
+		SaveName: saveName,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -170,6 +296,23 @@ func (r *mutationResolver) CreateSession(ctx context.Context, input model.Create
 }
 
 func (r *mutationResolver) UpdateSession(ctx context.Context, id string, input model.UpdateSessionInput) (*model.Session, error) {
+	// A session is pinned to one save, so repointing it at a server running a
+	// different save is rejected rather than silently re-pinning it.
+	if address := input.Address.Value(); address != nil {
+		current, err := r.Store.GetSession(ctx, session.ID(id))
+		if err != nil {
+			return nil, err
+		}
+		if current == nil {
+			return nil, fmt.Errorf("session %s not found", id)
+		}
+		if *address != current.Address {
+			if _, err := r.pinnedSaveName(ctx, *address, current.SaveName); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	s, err := r.Store.UpdateSession(ctx, session.ID(id), models.UpdateSessionRequest{
 		Name:     input.Name.Value(),
 		IsPaused: input.IsPaused.Value(),
@@ -194,14 +337,6 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 		return false, err
 	}
 	return true, nil
-}
-
-func (r *mutationResolver) ValidateSession(ctx context.Context, id string) (*model.SessionInfo, error) {
-	info, err := r.Poller.ValidateSession(ctx, session.ID(id))
-	if err != nil {
-		return nil, err
-	}
-	return toSessionInfo(info), nil
 }
 
 func (r *mutationResolver) UpdateSettings(ctx context.Context, input model.UpdateSettingsInput) (*model.Settings, error) {

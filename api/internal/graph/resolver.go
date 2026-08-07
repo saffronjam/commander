@@ -23,14 +23,12 @@ type GraphStore interface {
 	GetSettings(ctx context.Context) (*models.Settings, error)
 	UpdateSettings(ctx context.Context, s models.Settings) (*models.Settings, error)
 
-	ListHistorySaves(ctx context.Context, sessionID session.ID) ([]string, error)
 	QueryHistory(ctx context.Context, q store.HistoryQuery) ([]store.HistoryPoint, error)
 }
 
 // Snapshotter reads the poller's in-memory latest state and derived status.
 type Snapshotter interface {
 	Latest(sessionID session.ID, dataType string) (any, bool)
-	CurrentSaveName(sessionID session.ID) string
 	Stage(sessionID session.ID) models.SessionStage
 	Connectivity(sessionID session.ID) models.ConnectivityStatus
 }
@@ -38,7 +36,10 @@ type Snapshotter interface {
 // Poller covers lifecycle + live-probe operations.
 type Poller interface {
 	PreviewSession(ctx context.Context, address string) (models.SessionInfo, error)
-	ValidateSession(ctx context.Context, id session.ID) (models.SessionInfo, error)
+	// DiscoverSessions sweeps the caller's network for FRM servers. ports carries
+	// the ports already in use by existing sessions, which are swept alongside the
+	// default.
+	DiscoverSessions(ctx context.Context, clientIP string, ports []int) ([]models.DiscoveredServer, error)
 	StartSession(id session.ID)
 	StopSession(id session.ID)
 	// RestartSession reconnects a session after its address changed. It is a

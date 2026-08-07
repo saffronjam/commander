@@ -27,12 +27,12 @@ func NewStoreAdapter(db *store.DB) *StoreAdapter {
 
 func toModelsSession(s store.Session) models.Session {
 	return models.Session{
-		ID:          string(s.ID),
-		Name:        s.Name,
-		Address:     s.Address,
-		SessionName: s.SessionName,
-		IsPaused:    s.IsPaused,
-		CreatedAt:   s.CreatedAt,
+		ID:        string(s.ID),
+		Name:      s.Name,
+		Address:   s.Address,
+		SaveName:  s.SaveName,
+		IsPaused:  s.IsPaused,
+		CreatedAt: s.CreatedAt,
 	}
 }
 
@@ -65,7 +65,7 @@ func (a *StoreAdapter) GetSession(ctx context.Context, id session.ID) (*models.S
 // CreateSession generates an id, persists the config, and returns it.
 func (a *StoreAdapter) CreateSession(ctx context.Context, in models.CreateSessionRequest) (*models.Session, error) {
 	id := session.ID(uuid.New().String())
-	if err := a.DB.CreateSession(ctx, id, in.Name, in.Address); err != nil {
+	if err := a.DB.CreateSession(ctx, id, in.Name, in.Address, in.SaveName); err != nil {
 		return nil, err
 	}
 	return a.GetSession(ctx, id)
@@ -123,11 +123,6 @@ func (a *StoreAdapter) UpdateSettings(ctx context.Context, s models.Settings) (*
 		return nil, err
 	}
 	return &s, nil
-}
-
-// ListHistorySaves returns the distinct save names recorded for a session.
-func (a *StoreAdapter) ListHistorySaves(ctx context.Context, sessionID session.ID) ([]string, error) {
-	return a.DB.ListHistorySaves(ctx, sessionID)
 }
 
 // QueryHistory passes through to the store's history query.

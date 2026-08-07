@@ -7,21 +7,22 @@ import (
 
 func toSession(in models.Session, stage models.SessionStage) *model.Session {
 	return &model.Session{
-		ID:              in.ID,
-		Name:            in.Name,
-		Address:         in.Address,
-		SessionName:     in.SessionName,
-		IsPaused:        in.IsPaused,
-		CreatedAt:       in.CreatedAt,
-		ConnectionState: toConnectionStateEnum(in.ConnectionState),
-		Stage:           toSessionStageEnum(stage),
-		OfflineReason:   toConnectivityReasonEnum(in.OfflineReason),
+		ID:                 in.ID,
+		Name:               in.Name,
+		Address:            in.Address,
+		SaveName:           in.SaveName,
+		IsPaused:           in.IsPaused,
+		CreatedAt:          in.CreatedAt,
+		ConnectionState:    toConnectionStateEnum(in.ConnectionState),
+		Stage:              toSessionStageEnum(stage),
+		OfflineReason:      toConnectivityReasonEnum(in.OfflineReason),
+		MismatchedSaveName: optionalString(in.MismatchedSaveName),
 	}
 }
 
 func toSessionInfo(in models.SessionInfo) *model.SessionInfo {
 	return &model.SessionInfo{
-		SessionName:                in.SessionName,
+		SaveName:                   in.SaveName,
 		IsPaused:                   in.IsPaused,
 		DayLength:                  in.DayLength,
 		NightLength:                in.NightLength,
@@ -43,12 +44,22 @@ func toSatisfactoryApiStatus(in models.SatisfactoryApiStatus) *model.Satisfactor
 	}
 }
 
-func toConnectivityStatus(state models.ConnectionState, stage models.SessionStage, reason models.ConnectivityReason) *model.ConnectivityStatus {
+func toConnectivityStatus(in models.ConnectivityStatus) *model.ConnectivityStatus {
 	return &model.ConnectivityStatus{
-		ConnectionState: toConnectionStateEnum(state),
-		Stage:           toSessionStageEnum(stage),
-		Reason:          toConnectivityReasonEnum(reason),
+		ConnectionState:    toConnectionStateEnum(in.State),
+		Stage:              toSessionStageEnum(in.Stage),
+		Reason:             toConnectivityReasonEnum(in.Reason),
+		MismatchedSaveName: optionalString(in.MismatchedSaveName),
 	}
+}
+
+// optionalString maps the domain's empty string onto GraphQL null, so a nullable
+// field is absent rather than blank when it does not apply.
+func optionalString(in string) *string {
+	if in == "" {
+		return nil
+	}
+	return &in
 }
 
 func toConnectionStateEnum(in models.ConnectionState) model.ConnectionState {
@@ -57,6 +68,8 @@ func toConnectionStateEnum(in models.ConnectionState) model.ConnectionState {
 		return model.ConnectionStateOnline
 	case models.ConnectionStateOffline:
 		return model.ConnectionStateOffline
+	case models.ConnectionStateSaveMismatch:
+		return model.ConnectionStateSaveMismatch
 	default:
 		return model.ConnectionStateConnecting
 	}
