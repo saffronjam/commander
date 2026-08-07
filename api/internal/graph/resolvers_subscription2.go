@@ -12,8 +12,7 @@ import (
 
 func (r *subscriptionResolver) MachinesChanged(ctx context.Context, sessionID string) (<-chan []*model.Machine, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventMachines))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventMachines))
 	out := make(chan []*model.Machine, 1)
 	go func() {
 		defer close(out)
@@ -56,8 +55,7 @@ func (r *subscriptionResolver) MachinesChanged(ctx context.Context, sessionID st
 
 func (r *subscriptionResolver) StoragesChanged(ctx context.Context, sessionID string) (<-chan []*model.Storage, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventStorages))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventStorages))
 	out := make(chan []*model.Storage, 1)
 	go func() {
 		defer close(out)
@@ -100,8 +98,7 @@ func (r *subscriptionResolver) StoragesChanged(ctx context.Context, sessionID st
 
 func (r *subscriptionResolver) BeltsChanged(ctx context.Context, sessionID string) (<-chan []*model.Belt, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventBelts))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventBelts))
 	out := make(chan []*model.Belt, 1)
 	go func() {
 		defer close(out)
@@ -144,8 +141,7 @@ func (r *subscriptionResolver) BeltsChanged(ctx context.Context, sessionID strin
 
 func (r *subscriptionResolver) SplitterMergersChanged(ctx context.Context, sessionID string) (<-chan []*model.SplitterMerger, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventBelts))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventBelts))
 	out := make(chan []*model.SplitterMerger, 1)
 	go func() {
 		defer close(out)
@@ -188,8 +184,7 @@ func (r *subscriptionResolver) SplitterMergersChanged(ctx context.Context, sessi
 
 func (r *subscriptionResolver) PipesChanged(ctx context.Context, sessionID string) (<-chan []*model.Pipe, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventPipes))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventPipes))
 	out := make(chan []*model.Pipe, 1)
 	go func() {
 		defer close(out)
@@ -232,8 +227,7 @@ func (r *subscriptionResolver) PipesChanged(ctx context.Context, sessionID strin
 
 func (r *subscriptionResolver) PipeJunctionsChanged(ctx context.Context, sessionID string) (<-chan []*model.PipeJunction, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventPipes))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventPipes))
 	out := make(chan []*model.PipeJunction, 1)
 	go func() {
 		defer close(out)
@@ -276,8 +270,7 @@ func (r *subscriptionResolver) PipeJunctionsChanged(ctx context.Context, session
 
 func (r *subscriptionResolver) CablesChanged(ctx context.Context, sessionID string) (<-chan []*model.Cable, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventCables))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventCables))
 	out := make(chan []*model.Cable, 1)
 	go func() {
 		defer close(out)
@@ -320,8 +313,7 @@ func (r *subscriptionResolver) CablesChanged(ctx context.Context, sessionID stri
 
 func (r *subscriptionResolver) TrainRailsChanged(ctx context.Context, sessionID string) (<-chan []*model.TrainRail, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventTrainRails))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventTrainRails))
 	out := make(chan []*model.TrainRail, 1)
 	go func() {
 		defer close(out)
@@ -364,8 +356,7 @@ func (r *subscriptionResolver) TrainRailsChanged(ctx context.Context, sessionID 
 
 func (r *subscriptionResolver) HypertubesChanged(ctx context.Context, sessionID string) (<-chan []*model.Hypertube, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventHypertubes))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventHypertubes))
 	out := make(chan []*model.Hypertube, 1)
 	go func() {
 		defer close(out)
@@ -408,8 +399,7 @@ func (r *subscriptionResolver) HypertubesChanged(ctx context.Context, sessionID 
 
 func (r *subscriptionResolver) HypertubeEntrancesChanged(ctx context.Context, sessionID string) (<-chan []*model.HypertubeEntrance, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventHypertubes))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventHypertubes))
 	out := make(chan []*model.HypertubeEntrance, 1)
 	go func() {
 		defer close(out)
@@ -452,8 +442,7 @@ func (r *subscriptionResolver) HypertubeEntrancesChanged(ctx context.Context, se
 
 func (r *subscriptionResolver) SpaceElevatorChanged(ctx context.Context, sessionID string) (<-chan *model.SpaceElevator, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventSpaceElevator))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventSpaceElevator))
 	out := make(chan *model.SpaceElevator, 1)
 	go func() {
 		defer close(out)
@@ -496,8 +485,7 @@ func (r *subscriptionResolver) SpaceElevatorChanged(ctx context.Context, session
 
 func (r *subscriptionResolver) HubChanged(ctx context.Context, sessionID string) (<-chan *model.Hub, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventHub))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventHub))
 	out := make(chan *model.Hub, 1)
 	go func() {
 		defer close(out)
@@ -540,8 +528,7 @@ func (r *subscriptionResolver) HubChanged(ctx context.Context, sessionID string)
 
 func (r *subscriptionResolver) RadarTowersChanged(ctx context.Context, sessionID string) (<-chan []*model.RadarTower, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventRadarTowers))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventRadarTowers))
 	out := make(chan []*model.RadarTower, 1)
 	go func() {
 		defer close(out)
@@ -584,8 +571,7 @@ func (r *subscriptionResolver) RadarTowersChanged(ctx context.Context, sessionID
 
 func (r *subscriptionResolver) ResourceNodesChanged(ctx context.Context, sessionID string) (<-chan []*model.ResourceNode, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventResourceNodes))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventResourceNodes))
 	out := make(chan []*model.ResourceNode, 1)
 	go func() {
 		defer close(out)
@@ -628,8 +614,7 @@ func (r *subscriptionResolver) ResourceNodesChanged(ctx context.Context, session
 
 func (r *subscriptionResolver) SchematicsChanged(ctx context.Context, sessionID string) (<-chan []*model.Schematic, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventSchematics))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventSchematics))
 	out := make(chan []*model.Schematic, 1)
 	go func() {
 		defer close(out)

@@ -12,8 +12,7 @@ import (
 // SatisfactoryAPIStatusChanged streams API status updates for the session.
 func (r *subscriptionResolver) SatisfactoryAPIStatusChanged(ctx context.Context, sessionID string) (<-chan *model.SatisfactoryAPIStatus, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventApiStatus))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventApiStatus))
 	out := make(chan *model.SatisfactoryAPIStatus, 1)
 	go func() {
 		defer close(out)
@@ -64,7 +63,7 @@ func (r *subscriptionResolver) ConnectivityChanged(ctx context.Context, sessionI
 		defer r.EventBus.Unsubscribe(ch)
 		cs := r.Snapshot.Connectivity(sid)
 		select {
-		case out <- toConnectivityStatus(cs.State, cs.Stage, cs.Reason):
+		case out <- toConnectivityStatus(cs):
 		case <-ctx.Done():
 			return
 		}
@@ -78,7 +77,7 @@ func (r *subscriptionResolver) ConnectivityChanged(ctx context.Context, sessionI
 				}
 				cs := r.Snapshot.Connectivity(sid)
 				select {
-				case out <- toConnectivityStatus(cs.State, cs.Stage, cs.Reason):
+				case out <- toConnectivityStatus(cs):
 				case <-ctx.Done():
 					return
 				}
@@ -91,8 +90,7 @@ func (r *subscriptionResolver) ConnectivityChanged(ctx context.Context, sessionI
 // SessionUpdated streams session metadata updates for the session.
 func (r *subscriptionResolver) SessionUpdated(ctx context.Context, sessionID string) (<-chan *model.Session, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventSessionUpdate))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventSessionUpdate))
 	out := make(chan *model.Session, 1)
 	go func() {
 		defer close(out)
@@ -127,8 +125,7 @@ func (r *subscriptionResolver) SessionUpdated(ctx context.Context, sessionID str
 // CircuitsChanged streams power circuit updates for the session.
 func (r *subscriptionResolver) CircuitsChanged(ctx context.Context, sessionID string) (<-chan []*model.Circuit, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventCircuits))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventCircuits))
 	out := make(chan []*model.Circuit, 1)
 	go func() {
 		defer close(out)
@@ -172,8 +169,7 @@ func (r *subscriptionResolver) CircuitsChanged(ctx context.Context, sessionID st
 // FactoryStatsChanged streams factory statistics updates for the session.
 func (r *subscriptionResolver) FactoryStatsChanged(ctx context.Context, sessionID string) (<-chan *model.FactoryStats, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventFactoryStats))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventFactoryStats))
 	out := make(chan *model.FactoryStats, 1)
 	go func() {
 		defer close(out)
@@ -217,8 +213,7 @@ func (r *subscriptionResolver) FactoryStatsChanged(ctx context.Context, sessionI
 // ProdStatsChanged streams production statistics updates for the session.
 func (r *subscriptionResolver) ProdStatsChanged(ctx context.Context, sessionID string) (<-chan *model.ProdStats, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventProdStats))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventProdStats))
 	out := make(chan *model.ProdStats, 1)
 	go func() {
 		defer close(out)
@@ -262,8 +257,7 @@ func (r *subscriptionResolver) ProdStatsChanged(ctx context.Context, sessionID s
 // GeneratorStatsChanged streams generator statistics updates for the session.
 func (r *subscriptionResolver) GeneratorStatsChanged(ctx context.Context, sessionID string) (<-chan *model.GeneratorStats, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventGeneratorStats))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventGeneratorStats))
 	out := make(chan *model.GeneratorStats, 1)
 	go func() {
 		defer close(out)
@@ -307,8 +301,7 @@ func (r *subscriptionResolver) GeneratorStatsChanged(ctx context.Context, sessio
 // SinkStatsChanged streams awesome sink statistics updates for the session.
 func (r *subscriptionResolver) SinkStatsChanged(ctx context.Context, sessionID string) (<-chan *model.SinkStats, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventSinkStats))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventSinkStats))
 	out := make(chan *model.SinkStats, 1)
 	go func() {
 		defer close(out)
@@ -352,8 +345,7 @@ func (r *subscriptionResolver) SinkStatsChanged(ctx context.Context, sessionID s
 // PlayersChanged streams player list updates for the session.
 func (r *subscriptionResolver) PlayersChanged(ctx context.Context, sessionID string) (<-chan []*model.Player, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventPlayers))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventPlayers))
 	out := make(chan []*model.Player, 1)
 	go func() {
 		defer close(out)
@@ -397,8 +389,7 @@ func (r *subscriptionResolver) PlayersChanged(ctx context.Context, sessionID str
 // DronesChanged streams drone updates for the session.
 func (r *subscriptionResolver) DronesChanged(ctx context.Context, sessionID string) (<-chan []*model.Drone, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventVehicles))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventVehicles))
 	out := make(chan []*model.Drone, 1)
 	go func() {
 		defer close(out)
@@ -442,8 +433,7 @@ func (r *subscriptionResolver) DronesChanged(ctx context.Context, sessionID stri
 // DroneStationsChanged streams drone station updates for the session.
 func (r *subscriptionResolver) DroneStationsChanged(ctx context.Context, sessionID string) (<-chan []*model.DroneStation, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventVehicleStations))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventVehicleStations))
 	out := make(chan []*model.DroneStation, 1)
 	go func() {
 		defer close(out)
@@ -487,8 +477,7 @@ func (r *subscriptionResolver) DroneStationsChanged(ctx context.Context, session
 // TrainsChanged streams train updates for the session.
 func (r *subscriptionResolver) TrainsChanged(ctx context.Context, sessionID string) (<-chan []*model.Train, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventVehicles))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventVehicles))
 	out := make(chan []*model.Train, 1)
 	go func() {
 		defer close(out)
@@ -532,8 +521,7 @@ func (r *subscriptionResolver) TrainsChanged(ctx context.Context, sessionID stri
 // TrainStationsChanged streams train station updates for the session.
 func (r *subscriptionResolver) TrainStationsChanged(ctx context.Context, sessionID string) (<-chan []*model.TrainStation, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventVehicleStations))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventVehicleStations))
 	out := make(chan []*model.TrainStation, 1)
 	go func() {
 		defer close(out)
@@ -577,8 +565,7 @@ func (r *subscriptionResolver) TrainStationsChanged(ctx context.Context, session
 // TrucksChanged streams truck updates for the session.
 func (r *subscriptionResolver) TrucksChanged(ctx context.Context, sessionID string) (<-chan []*model.Truck, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventVehicles))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventVehicles))
 	out := make(chan []*model.Truck, 1)
 	go func() {
 		defer close(out)
@@ -622,8 +609,7 @@ func (r *subscriptionResolver) TrucksChanged(ctx context.Context, sessionID stri
 // TruckStationsChanged streams truck station updates for the session.
 func (r *subscriptionResolver) TruckStationsChanged(ctx context.Context, sessionID string) (<-chan []*model.TruckStation, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventVehicleStations))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventVehicleStations))
 	out := make(chan []*model.TruckStation, 1)
 	go func() {
 		defer close(out)
@@ -667,8 +653,7 @@ func (r *subscriptionResolver) TruckStationsChanged(ctx context.Context, session
 // TractorsChanged streams tractor updates for the session.
 func (r *subscriptionResolver) TractorsChanged(ctx context.Context, sessionID string) (<-chan []*model.Tractor, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventTractors))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventTractors))
 	out := make(chan []*model.Tractor, 1)
 	go func() {
 		defer close(out)
@@ -712,8 +697,7 @@ func (r *subscriptionResolver) TractorsChanged(ctx context.Context, sessionID st
 // ExplorersChanged streams explorer updates for the session.
 func (r *subscriptionResolver) ExplorersChanged(ctx context.Context, sessionID string) (<-chan []*model.Explorer, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventExplorers))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventExplorers))
 	out := make(chan []*model.Explorer, 1)
 	go func() {
 		defer close(out)
@@ -757,8 +741,7 @@ func (r *subscriptionResolver) ExplorersChanged(ctx context.Context, sessionID s
 // VehiclePathsChanged streams vehicle path updates for the session.
 func (r *subscriptionResolver) VehiclePathsChanged(ctx context.Context, sessionID string) (<-chan []*model.VehiclePath, error) {
 	sid := session.ID(sessionID)
-	save := r.Snapshot.CurrentSaveName(sid)
-	ch := r.EventBus.SubscribeDomain(sessionID, save, string(models.SatisfactoryEventVehiclePaths))
+	ch := r.EventBus.SubscribeDomain(sessionID, string(models.SatisfactoryEventVehiclePaths))
 	out := make(chan []*model.VehiclePath, 1)
 	go func() {
 		defer close(out)

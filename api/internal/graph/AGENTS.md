@@ -31,23 +31,22 @@ method into `schema.resolvers.go` and the package would stop compiling.
 database or a poller:
 
 - `GraphStore` — the slice of `store.DB` the resolvers use (sessions, settings, history).
-- `Snapshotter` — the poller's in-memory state: `Latest`, `CurrentSaveName`, `Stage`, `Connectivity`.
-- `Poller` — lifecycle and live probes: `PreviewSession`, `ValidateSession`, `StartSession`,
-  `StopSession`.
+- `Snapshotter` — the poller's in-memory state: `Latest`, `Stage`, `Connectivity`.
+- `Poller` — lifecycle and live probes: `PreviewSession`, `StartSession`, `StopSession`,
+  `RestartSession`.
 - `EventBus` — `eventbus.Subscriber` only. Resolvers never publish.
 
 ## Subscription pattern
 
 Every `<domain>Changed` resolver follows the same shape, and new ones should too:
 
-1. Resolve the session's current save name via `Snapshot.CurrentSaveName`.
-2. `EventBus.SubscribeDomain(sessionID, save, dataType)`.
-3. Start a goroutine that `defer close(out)` and `defer r.EventBus.Unsubscribe(ch)`.
-4. **Forward the latest snapshot first** (`Snapshot.Latest`), so a new subscriber renders
+1. `EventBus.SubscribeDomain(sessionID, dataType)`.
+2. Start a goroutine that `defer close(out)` and `defer r.EventBus.Unsubscribe(ch)`.
+3. **Forward the latest snapshot first** (`Snapshot.Latest`), so a new subscriber renders
    immediately instead of waiting for the next poll tick.
-5. Loop on `select` over `ctx.Done()` and the bus channel, type-asserting
+4. Loop on `select` over `ctx.Done()` and the bus channel, type-asserting
    `evt.Payload.(eventbus.SatisfactoryEvent)` then `se.Data.(*models.T)`, and mapping before sending.
-6. Every send is itself a `select` against `ctx.Done()` so a disconnecting client cannot wedge the
+5. Every send is itself a `select` against `ctx.Done()` so a disconnecting client cannot wedge the
    goroutine.
 
 Skip malformed payloads with `continue`; return on a closed channel. Payloads carry typed Go values,
