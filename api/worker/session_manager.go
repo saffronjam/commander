@@ -9,6 +9,7 @@ import (
 	"api/pkg/log"
 	"api/service"
 	"api/service/client"
+	"api/service/frm_client"
 	"api/service/session"
 	"context"
 	"encoding/json"
@@ -33,39 +34,90 @@ func isHistoryEnabledType(eventType models.SatisfactoryEventType) bool {
 
 func toModelsSession(s store.Session) *models.Session {
 	return &models.Session{
-		ID:          string(s.ID),
-		Name:        s.Name,
-		Address:     s.Address,
-		SessionName: s.SessionName,
-		IsPaused:    s.IsPaused,
-		CreatedAt:   s.CreatedAt,
+		ID:        string(s.ID),
+		Name:      s.Name,
+		Address:   s.Address,
+		SaveName:  s.SaveName,
+		IsPaused:  s.IsPaused,
+		CreatedAt: s.CreatedAt,
 	}
 }
 
 // publisherState tracks the state of a session's publisher. The poll goroutines
-// read it while the supervisor writes it, so every field but cancel and the
-// tracker is behind mu.
+// read it while the supervisor writes it, so every mutable field is behind mu.
+// saveName has no setter: a session is pinned to one save for its lifetime.
 type publisherState struct {
-	cancel          context.CancelFunc
-	address         string
-	isDisconnected  bool
-	currentSaveName string
-	mu              sync.RWMutex
-	gameTimeTracker *session.GameTimeTracker
+	cancel             context.CancelFunc
+	name               string
+	address            string
+	saveName           string
+	isDisconnected     bool
+	saveConfirmed      bool
+	mismatchedSaveName string
+	mu                 sync.RWMutex
+	gameTimeTracker    *session.GameTimeTracker
 }
 
-// GetSaveName returns the current save name for this publisher.
-func (ps *publisherState) GetSaveName() string {
+// SaveName returns the save this publisher's session is pinned to.
+func (ps *publisherState) SaveName() string {
+	return ps.saveName
+}
+
+// session rebuilds the running session config. Everything restartPublisherLocked
+// needs lives here, so a state transition never has to re-read the store.
+func (ps *publisherState) session(sessionID string) *models.Session {
+	return &models.Session{
+		ID:             sessionID,
+		Name:           ps.name,
+		Address:        ps.address,
+		SaveName:       ps.saveName,
+		IsDisconnected: ps.IsDisconnected(),
+	}
+}
+
+// SaveConfirmed reports whether the server has been asked which save it is
+// running since the last outage, and answered with the pinned one.
+//
+// A save can only change by the world being torn down, which stops FRM's server,
+// so every save change is preceded by an outage. Requiring a fresh confirmation
+// after any outage is therefore enough to guarantee no sample from another save is
+// ever ingested, rather than merely narrowing the window.
+func (ps *publisherState) SaveConfirmed() bool {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
-	return ps.currentSaveName
+	return ps.saveConfirmed
 }
 
-// SetSaveName updates the current save name for this publisher.
-func (ps *publisherState) SetSaveName(name string) {
+// ConfirmSave records that the server reported the pinned save.
+func (ps *publisherState) ConfirmSave() {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	ps.currentSaveName = name
+	ps.saveConfirmed = true
+}
+
+// InvalidateSave suspends ingestion until the server has been asked which save it
+// is running. The observed mismatch name is left alone so a session that was
+// already mismatched keeps reporting why while the server is unreachable.
+func (ps *publisherState) InvalidateSave() {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ps.saveConfirmed = false
+}
+
+// SaveMismatch reports whether the server is running a save other than the
+// pinned one, and which save that is.
+func (ps *publisherState) SaveMismatch() (bool, string) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	return ps.mismatchedSaveName != "", ps.mismatchedSaveName
+}
+
+// SetMismatchedSaveName records the save the server has loaded instead of the
+// pinned one. The empty string clears the mismatch.
+func (ps *publisherState) SetMismatchedSaveName(name string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ps.mismatchedSaveName = name
 }
 
 // IsDisconnected reports whether this publisher is polling in disconnected mode.
@@ -88,10 +140,11 @@ func (ps *publisherState) GameTimeTracker() *session.GameTimeTracker {
 }
 
 type connState struct {
-	state        models.ConnectionState
-	online       bool
-	disconnected bool
-	reason       models.ConnectivityReason
+	state              models.ConnectionState
+	online             bool
+	disconnected       bool
+	reason             models.ConnectivityReason
+	mismatchedSaveName string
 }
 
 // SessionManager is the single in-process supervisor that owns one poll loop per
@@ -237,9 +290,10 @@ func (sm *SessionManager) startPublisher(parentCtx context.Context, sess *models
 	ctx, cancel := context.WithCancel(parentCtx)
 	state := &publisherState{
 		cancel:          cancel,
+		name:            sess.Name,
 		address:         sess.Address,
+		saveName:        sess.SaveName,
 		isDisconnected:  sess.IsDisconnected,
-		currentSaveName: sess.SessionName,
 		gameTimeTracker: session.NewGameTimeTracker(),
 	}
 	sm.publishers[sess.ID] = state
@@ -284,15 +338,22 @@ func (sm *SessionManager) RestartSession(id sessionid.ID) {
 
 	// A new address is a new server. Drop the publisher outright rather than
 	// restarting it, so the replacement inherits neither the light-polling mode
-	// nor the previous save name — carrying that over would file the new server's
-	// first samples under the old save.
+	// nor a stale save mismatch from the previous address.
 	state.cancel()
 	delete(sm.publishers, string(id))
 
 	sess.IsDisconnected = false
-	sess.SessionName = ""
 	sm.setConnecting(sess.ID)
 	sm.restartPublisherLocked(sess.ID, sess)
+}
+
+// DiscoverSessions sweeps the caller's network for reachable FRM servers.
+func (sm *SessionManager) DiscoverSessions(ctx context.Context, clientIP string, ports []int) ([]models.DiscoveredServer, error) {
+	targets, err := frm_client.DiscoverTargets(clientIP, ports)
+	if err != nil {
+		return nil, err
+	}
+	return frm_client.ScanForServers(ctx, targets), nil
 }
 
 // StartSession is the Poller interface entrypoint: load the session and start it.
@@ -316,24 +377,10 @@ func (sm *SessionManager) StopSession(id sessionid.ID) {
 	}
 }
 
-// PreviewSession probes a game server at the address and returns its session info.
+// PreviewSession probes a game server at the address and returns its session
+// info. This is the only way a save name enters the system.
 func (sm *SessionManager) PreviewSession(ctx context.Context, address string) (models.SessionInfo, error) {
-	c := service.NewClientWithAddress(address)
-	info, err := c.GetSessionInfo(ctx)
-	if err != nil {
-		return models.SessionInfo{}, err
-	}
-	return *info, nil
-}
-
-// ValidateSession probes the game server for an existing session.
-func (sm *SessionManager) ValidateSession(ctx context.Context, id sessionid.ID) (models.SessionInfo, error) {
-	sess, err := sm.getSession(ctx, string(id))
-	if err != nil || sess == nil {
-		return models.SessionInfo{}, fmt.Errorf("session %s not found", id)
-	}
-	c := service.NewClientWithAddress(sess.Address)
-	info, err := c.GetSessionInfo(ctx)
+	info, err := frm_client.ProbeSessionInfo(ctx, address)
 	if err != nil {
 		return models.SessionInfo{}, err
 	}
@@ -369,35 +416,23 @@ func (sm *SessionManager) Stop(timeout time.Duration) {
 
 // Latest returns the poller's latest decoded payload for one (session, dataType).
 func (sm *SessionManager) Latest(sessionID sessionid.ID, dataType string) (any, bool) {
-	save := sm.CurrentSaveName(sessionID)
-	if save == "" || sm.latest == nil {
+	if sm.latest == nil {
 		return nil, false
 	}
-	e, ok := sm.latest.Get(string(sessionID), save, dataType)
+	e, ok := sm.latest.Get(string(sessionID), dataType)
 	if !ok {
 		return nil, false
 	}
 	return e.Data, true
 }
 
-// CurrentSaveName returns the active save name for a session.
-func (sm *SessionManager) CurrentSaveName(sessionID sessionid.ID) string {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	if state, ok := sm.publishers[string(sessionID)]; ok {
-		return state.GetSaveName()
-	}
-	return ""
-}
-
 // Stage reports INIT until every required event type has been observed.
 func (sm *SessionManager) Stage(sessionID sessionid.ID) models.SessionStage {
-	save := sm.CurrentSaveName(sessionID)
-	if save == "" || sm.latest == nil {
+	if sm.latest == nil {
 		return models.SessionStageInit
 	}
 	for _, t := range models.RequiredEventTypes {
-		if _, ok := sm.latest.Get(string(sessionID), save, string(t)); !ok {
+		if _, ok := sm.latest.Get(string(sessionID), string(t)); !ok {
 			return models.SessionStageInit
 		}
 	}
@@ -418,31 +453,31 @@ func (sm *SessionManager) Connectivity(sessionID sessionid.ID) models.Connectivi
 		state = models.ConnectionStateConnecting
 	}
 	return models.ConnectivityStatus{
-		IsOnline:       c.online,
-		IsDisconnected: c.disconnected,
-		State:          state,
-		Stage:          sm.Stage(sessionID),
-		Reason:         reason,
+		IsOnline:           c.online,
+		IsDisconnected:     c.disconnected,
+		State:              state,
+		Stage:              sm.Stage(sessionID),
+		Reason:             reason,
+		MismatchedSaveName: c.mismatchedSaveName,
 	}
 }
 
 // --- HistoryFrontier (store.HistoryFrontier) ---
 
-// Series reports the active (session, save, dataType) history series the
-// retention pruner should bound.
+// Series reports the active (session, dataType) history series the retention
+// pruner should bound. A mismatched session is skipped: its game-time tracker is
+// not advancing, so a cutoff derived from it would be meaningless.
 func (sm *SessionManager) Series() []store.HistorySeriesKey {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	var keys []store.HistorySeriesKey
 	for sid, state := range sm.publishers {
-		save := state.GetSaveName()
-		if save == "" {
+		if mismatched, _ := state.SaveMismatch(); mismatched {
 			continue
 		}
 		for t := range historyEnabledTypes {
 			keys = append(keys, store.HistorySeriesKey{
 				SessionID: sessionid.ID(sid),
-				SaveName:  save,
 				DataType:  string(t),
 			})
 		}
@@ -460,20 +495,33 @@ func (sm *SessionManager) CurrentGameTime(key store.HistorySeriesKey) int64 {
 	return 0
 }
 
+// setConn is the only place a connection state is derived. Offline outranks a
+// save mismatch: a dead transport is the more actionable message, and it is the
+// one a ConnectivityReason can explain. The mismatch is read from the publisher
+// rather than passed in, so the api-status tick cannot overwrite it.
 func (sm *SessionManager) setConn(sessionID string, online, disconnected bool, reason models.ConnectivityReason) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
 	state := models.ConnectionStateOffline
+	mismatchedSaveName := ""
 	if online {
 		state = models.ConnectionStateOnline
 		reason = models.ConnectivityReasonNone
+		if ps, ok := sm.publishers[sessionID]; ok {
+			if mismatched, observed := ps.SaveMismatch(); mismatched {
+				state = models.ConnectionStateSaveMismatch
+				mismatchedSaveName = observed
+			}
+		}
 	}
-	sm.mu.Lock()
 	sm.conn[sessionID] = connState{
-		state:        state,
-		online:       online,
-		disconnected: disconnected,
-		reason:       reason,
+		state:              state,
+		online:             online,
+		disconnected:       disconnected,
+		reason:             reason,
+		mismatchedSaveName: mismatchedSaveName,
 	}
-	sm.mu.Unlock()
 }
 
 // setConnecting marks a session as attempting to reach FRM. Called whenever a
@@ -503,16 +551,33 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 			return
 		}
 
-		saveName := state.GetSaveName()
+		// Connectivity bookkeeping runs before the ingestion gate so a server that
+		// goes away while the wrong save is loaded is still noticed as offline.
+		if event.Type == models.SatisfactoryEventApiStatus {
+			status := event.Data.(*models.SatisfactoryApiStatus)
+			if !status.Running {
+				state.InvalidateSave()
+			}
+			sm.setConn(sess.ID, status.Running, state.IsDisconnected(), apiClient.FailureReason())
+			if status.Running && sess.IsDisconnected {
+				sm.transitionToConnected(sess.ID)
+			}
+		}
+
+		// Everything below writes into the session, so it waits until the server has
+		// confirmed which save it is running.
+		if !state.SaveConfirmed() {
+			return
+		}
 
 		if isHistoryEnabledType(event.Type) {
 			gameTimeID := state.gameTimeTracker.CurrentGameTime()
-			if saveName != "" && gameTimeID > 0 {
+			if gameTimeID > 0 {
 				event.GameTimeID = gameTimeID
 
 				if db.DB.Store != nil {
 					if data, err := json.Marshal(event.Data); err == nil {
-						if err := db.DB.Store.UpsertHistoryPoint(ctx, sessionid.ID(sess.ID), saveName, string(event.Type), gameTimeID, data); err != nil {
+						if err := db.DB.Store.UpsertHistoryPoint(ctx, sessionid.ID(sess.ID), string(event.Type), gameTimeID, data); err != nil {
 							log.Warnf("Failed to upsert history point for session %s type %s: %v", sess.ID, event.Type, err)
 						}
 					}
@@ -520,21 +585,8 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 			}
 		}
 
-		if event.Type == models.SatisfactoryEventApiStatus {
-			status := event.Data.(*models.SatisfactoryApiStatus)
-			sm.setConn(sess.ID, status.Running, state.IsDisconnected(), apiClient.FailureReason())
-			if status.Running && sess.IsDisconnected {
-				sm.transitionToConnected(sess.ID)
-			}
-		}
-
-		if saveName == "" {
-			return
-		}
-
 		busEvent := eventbus.SatisfactoryEvent{
 			SessionID:  sess.ID,
-			SaveName:   saveName,
 			DataType:   string(event.Type),
 			Data:       event.Data,
 			GameTimeID: event.GameTimeID,
@@ -546,7 +598,6 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 			sm.bus.Publish(eventbus.Event{
 				Kind:      eventbus.KindSatisfactory,
 				SessionID: sess.ID,
-				SaveName:  saveName,
 				DataType:  string(event.Type),
 				Payload:   busEvent,
 			})
@@ -554,11 +605,22 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 	}
 
 	sm.wg.Add(1)
-	go sm.monitorSessionInfo(ctx, sess, apiClient, state)
+	go sm.monitorSessionInfo(ctx, sess, apiClient)
 
 	var err error
-	if sess.IsDisconnected {
-		log.Infof("Starting in disconnected mode: %s (%s)", sess.Name, sess.ID)
+	// Confirm the save before any endpoint fires. SetupEventStream polls every
+	// endpoint once immediately, and the slowest of them do not poll again for two
+	// minutes, so a first burst rejected by the ingestion gate would leave the
+	// session short of the data it needs to be usable for that long.
+	confirmCtx, cancelConfirm := context.WithTimeout(ctx, 5*time.Second)
+	if info, infoErr := apiClient.GetSessionInfo(confirmCtx); infoErr == nil {
+		sm.observeSessionInfo(sess.ID, info)
+	}
+	cancelConfirm()
+
+	mismatched, _ := state.SaveMismatch()
+	if sess.IsDisconnected || mismatched {
+		log.Infof("Starting in light polling mode: %s (%s)", sess.Name, sess.ID)
 		err = apiClient.SetupLightPolling(ctx, handler)
 	} else {
 		err = apiClient.SetupEventStream(ctx, handler)
@@ -574,14 +636,22 @@ func (sm *SessionManager) publishLoop(ctx context.Context, sess *models.Session,
 	log.Infof("Publisher stopped for session: %s (%s)", sess.Name, sess.ID)
 }
 
-// monitorSessionInfo periodically refreshes session info + save name.
-func (sm *SessionManager) monitorSessionInfo(ctx context.Context, sess *models.Session, apiClient client.Client, state *publisherState) {
+// saveProbeInterval is how often the pinned save is re-confirmed. It is short
+// because it is the gate on all ingestion: nothing is written into a session
+// between an outage and the next successful probe, so the interval is the upper
+// bound on how long a healthy session stalls after a blip. getSessionInfo is a
+// single small response, and this poll deliberately does not go through the
+// request queue that serialises the domain endpoints.
+const saveProbeInterval = time.Second
+
+// monitorSessionInfo re-confirms which save the server is running. It is how a
+// mismatch is detected, how a session recovers from one, and how ingestion is
+// re-enabled after an outage.
+func (sm *SessionManager) monitorSessionInfo(ctx context.Context, sess *models.Session, apiClient client.Client) {
 	defer sm.wg.Done()
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(saveProbeInterval)
 	defer ticker.Stop()
-
-	lastSessionName := state.GetSaveName()
 
 	for {
 		select {
@@ -592,45 +662,54 @@ func (sm *SessionManager) monitorSessionInfo(ctx context.Context, sess *models.S
 			sessionInfo, err := apiClient.GetSessionInfo(fetchCtx)
 			cancel()
 			if err != nil {
+				// The server going away is how a save change begins, so an
+				// unanswered probe suspends ingestion until it answers again.
+				sm.invalidateSave(sess.ID)
 				log.Debugf("Failed to fetch session info for %s: %v", sess.ID, err)
 				continue
 			}
-
-			state.gameTimeTracker.Update(int64(sessionInfo.TotalPlayDuration))
-
-			if sessionInfo.SessionName != lastSessionName {
-				log.Infof("Session info changed for %s: %s -> %s", sess.ID, lastSessionName, sessionInfo.SessionName)
-				lastSessionName = sessionInfo.SessionName
-				state.SetSaveName(sessionInfo.SessionName)
-
-				if err := db.DB.Store.UpdateSessionSaveName(ctx, sessionid.ID(sess.ID), sessionInfo.SessionName); err != nil {
-					log.Warnf("Failed to persist save name for %s: %v", sess.ID, err)
-					continue
-				}
-
-				updated, err := sm.getSession(ctx, sess.ID)
-				if err != nil || updated == nil {
-					log.Warnf("Failed to reload session %s after save name change: %v", sess.ID, err)
-					continue
-				}
-
-				if sm.bus != nil {
-					sm.bus.Publish(eventbus.Event{
-						Kind:      eventbus.KindSatisfactory,
-						SessionID: sess.ID,
-						SaveName:  sessionInfo.SessionName,
-						DataType:  string(models.SatisfactoryEventSessionUpdate),
-						Payload: eventbus.SatisfactoryEvent{
-							SessionID: sess.ID,
-							SaveName:  sessionInfo.SessionName,
-							DataType:  string(models.SatisfactoryEventSessionUpdate),
-							Data:      updated,
-						},
-					})
-				}
-			}
+			sm.observeSessionInfo(sess.ID, sessionInfo)
 		}
 	}
+}
+
+// invalidateSave suspends ingestion for a session until its save is re-confirmed.
+func (sm *SessionManager) invalidateSave(sessionID string) {
+	sm.mu.RLock()
+	state, exists := sm.publishers[sessionID]
+	sm.mu.RUnlock()
+	if exists {
+		state.InvalidateSave()
+	}
+}
+
+// observeSessionInfo reconciles one session-info reading against the pinned save.
+// It reads the live publisher rather than a captured pointer, so a reading that
+// lands after a restart acts on the publisher that is actually running.
+//
+// The game-time tracker is only fed while the pinned save is loaded: it drives
+// the history retention cutoff, so a foreign save's play duration would prune the
+// pinned save's history away.
+func (sm *SessionManager) observeSessionInfo(sessionID string, info *models.SessionInfo) {
+	if info == nil {
+		return
+	}
+
+	sm.mu.RLock()
+	state, exists := sm.publishers[sessionID]
+	sm.mu.RUnlock()
+	if !exists {
+		return
+	}
+
+	if info.SaveName != state.SaveName() {
+		sm.transitionToSaveMismatch(sessionID, info.SaveName)
+		return
+	}
+
+	state.gameTimeTracker.Update(int64(info.TotalPlayDuration))
+	state.ConfirmSave()
+	sm.transitionFromSaveMismatch(sessionID)
 }
 
 func (sm *SessionManager) transitionToDisconnected(sessionID string) {
@@ -664,7 +743,7 @@ func (sm *SessionManager) transitionToDisconnected(sessionID string) {
 		disconnected: true,
 		reason:       sm.conn[sessionID].reason,
 	}
-	sm.publishConnectivity(sessionID, false)
+	sm.publishConnectivity(sessionID)
 
 	log.Infof("Restarting session %s in disconnected mode", sessionID)
 	sm.restartPublisherLocked(sessionID, sess)
@@ -698,13 +777,68 @@ func (sm *SessionManager) transitionToConnected(sessionID string) {
 		disconnected: false,
 		reason:       models.ConnectivityReasonNone,
 	}
-	sm.publishConnectivity(sessionID, true)
+	sm.publishConnectivity(sessionID)
 
 	log.Infof("Restarting session %s in connected mode", sessionID)
 	sm.restartPublisherLocked(sessionID, sess)
 }
 
-func (sm *SessionManager) publishConnectivity(sessionID string, online bool) {
+// transitionToSaveMismatch stops ingesting for a session whose server has the
+// wrong save loaded and drops it to light polling, which keeps monitorSessionInfo
+// running so the session recovers when the pinned save is loaded again.
+func (sm *SessionManager) transitionToSaveMismatch(sessionID, observed string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	state, exists := sm.publishers[sessionID]
+	if !exists {
+		return
+	}
+	if mismatched, previous := state.SaveMismatch(); mismatched && previous == observed {
+		return
+	}
+
+	log.Infof("Session %s is pinned to a save the server does not have loaded: %q", sessionID, observed)
+	state.InvalidateSave()
+	state.SetMismatchedSaveName(observed)
+	sm.conn[sessionID] = connState{
+		state:              models.ConnectionStateSaveMismatch,
+		online:             true,
+		disconnected:       state.IsDisconnected(),
+		reason:             models.ConnectivityReasonNone,
+		mismatchedSaveName: observed,
+	}
+	sm.publishConnectivity(sessionID)
+	sm.restartPublisherLocked(sessionID, state.session(sessionID))
+}
+
+// transitionFromSaveMismatch resumes a session whose server is back on the
+// pinned save.
+func (sm *SessionManager) transitionFromSaveMismatch(sessionID string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	state, exists := sm.publishers[sessionID]
+	if !exists {
+		return
+	}
+	if mismatched, _ := state.SaveMismatch(); !mismatched {
+		return
+	}
+
+	log.Infof("Session %s is back on its pinned save", sessionID)
+	state.SetMismatchedSaveName("")
+	sm.conn[sessionID] = connState{
+		state:        models.ConnectionStateOnline,
+		online:       true,
+		disconnected: state.IsDisconnected(),
+		reason:       models.ConnectivityReasonNone,
+	}
+	sm.publishConnectivity(sessionID)
+	sm.restartPublisherLocked(sessionID, state.session(sessionID))
+}
+
+func (sm *SessionManager) publishConnectivity(sessionID string) {
 	if sm.bus == nil {
 		return
 	}
@@ -713,7 +847,6 @@ func (sm *SessionManager) publishConnectivity(sessionID string, online bool) {
 		SessionID: sessionID,
 		Payload: eventbus.ConnectivityEvent{
 			SessionID: sessionID,
-			Online:    online,
 			At:        time.Now(),
 		},
 	})
@@ -722,29 +855,34 @@ func (sm *SessionManager) publishConnectivity(sessionID string, online bool) {
 // restartPublisherLocked cancels the current publisher and starts a new one,
 // derived from the supervisor base context. Assumes the lock is held.
 func (sm *SessionManager) restartPublisherLocked(sessionID string, sess *models.Session) {
-	var currentSaveName string
+	// No base context means the manager was never started, so there is no
+	// supervised lifetime to attach a replacement publisher to. Checked before
+	// anything is torn down: failing to restart must not leave the session with
+	// no publisher at all.
+	if sm.baseCtx == nil {
+		return
+	}
+
+	var mismatchedSaveName string
 	var gameTimeTracker *session.GameTimeTracker
 	if existingState, exists := sm.publishers[sessionID]; exists {
-		currentSaveName = existingState.GetSaveName()
+		_, mismatchedSaveName = existingState.SaveMismatch()
 		gameTimeTracker = existingState.gameTimeTracker
 		existingState.cancel()
 		delete(sm.publishers, sessionID)
 	} else {
-		currentSaveName = sess.SessionName
 		gameTimeTracker = session.NewGameTimeTracker()
 	}
 
-	parentCtx := sm.baseCtx
-	if parentCtx == nil {
-		parentCtx = context.Background()
-	}
-	ctx, cancel := context.WithCancel(parentCtx)
+	ctx, cancel := context.WithCancel(sm.baseCtx)
 	state := &publisherState{
-		cancel:          cancel,
-		address:         sess.Address,
-		isDisconnected:  sess.IsDisconnected,
-		currentSaveName: currentSaveName,
-		gameTimeTracker: gameTimeTracker,
+		cancel:             cancel,
+		name:               sess.Name,
+		address:            sess.Address,
+		saveName:           sess.SaveName,
+		isDisconnected:     sess.IsDisconnected,
+		mismatchedSaveName: mismatchedSaveName,
+		gameTimeTracker:    gameTimeTracker,
 	}
 	sm.publishers[sessionID] = state
 

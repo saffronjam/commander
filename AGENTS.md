@@ -53,6 +53,21 @@ user drives service startup and testing.
 `api/schema.graphql` is the contract: ~30 typed domains, ~24 enums, per-type history queries,
 per-domain subscriptions. Field names are lowercase camelCase; enums are SCREAMING_SNAKE.
 
+## Sessions
+
+**A session is pinned to exactly one save, for its whole lifetime.** `saveName` is set when the
+session is created and there is no code path that changes it. `createSession` takes the
+`expectedSaveName` the client confirmed and the server re-probes `/getSessionInfo` before inserting,
+so a session can never be pinned to a save nobody confirmed. Editing the address re-probes and is
+rejected the same way. Nothing downstream carries a save name: `history_points` is keyed
+`(session_id, data_type, game_time_id)`, and so is the eventbus routing key.
+
+When the server later reports a different save, the poller stops ingesting and reports
+`connectionState: SAVE_MISMATCH` with `mismatchedSaveName`. It keeps light-polling
+`/getSessionInfo`, so loading the pinned save back recovers on its own. `setConn`
+(`api/worker/session_manager.go`) is the **only** place a connection state is derived — the mismatch
+is an input to that derivation, never a separate write, or the api-status tick would clobber it.
+
 ## Authorization
 
 An instance is in one of three states, and `authStatus` — the only unguarded query — reports which:
