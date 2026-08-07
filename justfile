@@ -87,11 +87,18 @@ api-live:
     "$(go env GOPATH)/bin/air"
 
 [group('dev')]
+[working-directory('api')]
+[doc('Run a fake Ficsit Remote Monitoring server on :8080 — add a session at 127.0.0.1:8080')]
+frmmock preset='industrial':
+    go run ./cmd/frmmock --preset {{ preset }}
+
+[group('dev')]
 [doc('Stop stray dev processes (vite, air, go run)')]
 kill:
     -pkill -f vite
     -pkill -f air
     -pkill -f 'go run'
+    -pkill -f frmmock
 
 # --- checks ------------------------------------------------------------------
 
