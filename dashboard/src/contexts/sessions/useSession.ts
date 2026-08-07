@@ -16,6 +16,7 @@ export function useSession(): SessionContextType {
   const deleteSession = useContextSelector(SessionContext, (ctx) => ctx.deleteSession);
   const refreshSessions = useContextSelector(SessionContext, (ctx) => ctx.refreshSessions);
   const previewSession = useContextSelector(SessionContext, (ctx) => ctx.previewSession);
+  const discoverSessions = useContextSelector(SessionContext, (ctx) => ctx.discoverSessions);
 
   return {
     sessions,
@@ -29,5 +30,6 @@ export function useSession(): SessionContextType {
     deleteSession,
     refreshSessions,
     previewSession,
+    discoverSessions,
   };
 }

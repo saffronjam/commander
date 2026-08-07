@@ -60,7 +60,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     try {
       const fetchedSessions = await sessionApi.list();
       setSessions((prev) => {
-        // Update isOnline, sessionName, and stage for each session
+        // Only the runtime fields move; the pinned save name never does.
         return prev.map((session) => {
           const updated = fetchedSessions.find((s) => s.id === session.id);
           if (updated) {
@@ -68,7 +68,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
               ...session,
               connectionState: updated.connectionState,
               offlineReason: updated.offlineReason,
-              sessionName: updated.sessionName,
+              mismatchedSaveName: updated.mismatchedSaveName,
               stage: updated.stage,
             };
           }
@@ -112,19 +112,18 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
   }, []);
 
   const createSession = useCallback(
-    async (name: string, address: string): Promise<SessionDTO> => {
-      const newSession = await sessionApi.create(name, address);
+    async (name: string, address: string, expectedSaveName: string): Promise<SessionDTO> => {
+      const newSession = await sessionApi.create(name, address, expectedSaveName);
       setSessions((prev) => [...prev, newSession]);
 
-      // Auto-select if first session
-      if (!selectedSessionId) {
-        setSelectedSessionId(newSession.id);
-        localStorage.setItem(SELECTED_SESSION_KEY, newSession.id);
-      }
+      // Adding a session is a request to look at it, so it always becomes the
+      // selected one rather than only when nothing was selected before.
+      setSelectedSessionId(newSession.id);
+      localStorage.setItem(SELECTED_SESSION_KEY, newSession.id);
 
       return newSession;
     },
-    [selectedSessionId]
+    []
   );
 
   const updateSession = useCallback(
@@ -168,6 +167,8 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
     return result.sessionInfo;
   }, []);
 
+  const discoverSessions = useCallback(() => sessionApi.discover(), []);
+
   const contextValue: SessionContextType = useMemo(
     () => ({
       sessions,
@@ -181,6 +182,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
       deleteSession,
       refreshSessions,
       previewSession,
+      discoverSessions,
     }),
     [
       sessions,
@@ -194,6 +196,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({ children }) =>
       deleteSession,
       refreshSessions,
       previewSession,
+      discoverSessions,
     ]
   );
 

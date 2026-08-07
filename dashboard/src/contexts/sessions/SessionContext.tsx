@@ -1,4 +1,5 @@
 import { SessionDTO, SessionInfo } from 'src/apiTypes';
+import type { DiscoveredSession } from 'src/services/sessionApi';
 import { createContext } from 'use-context-selector';
 
 export interface SessionContextType {
@@ -8,7 +9,7 @@ export interface SessionContextType {
   error: string | null;
 
   selectSession: (id: string) => void;
-  createSession: (name: string, address: string) => Promise<SessionDTO>;
+  createSession: (name: string, address: string, expectedSaveName: string) => Promise<SessionDTO>;
   updateSession: (
     id: string,
     updates: { name?: string; isPaused?: boolean; address?: string }
@@ -17,6 +18,7 @@ export interface SessionContextType {
   deleteSession: (id: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
   previewSession: (address: string) => Promise<SessionInfo>;
+  discoverSessions: () => Promise<DiscoveredSession[]>;
 }
 
 export const defaultSessionContext: SessionContextType = {
@@ -38,6 +40,9 @@ export const defaultSessionContext: SessionContextType = {
   },
   refreshSessions: async () => {},
   previewSession: async () => {
+    throw new Error('SessionProvider not initialized');
+  },
+  discoverSessions: async () => {
     throw new Error('SessionProvider not initialized');
   },
 };
