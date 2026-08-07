@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
+	"net/netip"
+	"strings"
 	"time"
 
 	authctx "api/internal/auth"
@@ -95,14 +98,40 @@ func authMiddleware(authSvc *svcauth.Service) func(http.Handler) http.Handler {
 	}
 }
 
+// clientIP resolves the caller's address to a bare IP.
+//
+// The port must not survive: the rate limiter buckets on this value, and
+// RemoteAddr carries an ephemeral source port, so returning it would give every
+// new connection a fresh bucket and no limit at all. X-Forwarded-For is a list on
+// a multi-hop proxy, and only its first entry is the client.
 func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return xff
+		first, _, _ := strings.Cut(xff, ",")
+		if ip := parseIP(first); ip != "" {
+			return ip
+		}
 	}
-	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
-		return xrip
+	if ip := parseIP(r.Header.Get("X-Real-IP")); ip != "" {
+		return ip
 	}
-	return r.RemoteAddr
+	return parseIP(r.RemoteAddr)
+}
+
+// parseIP normalizes one address, with or without a port, to a bare IP. It
+// returns the empty string for anything that is not one.
+func parseIP(address string) string {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return ""
+	}
+	if host, _, err := net.SplitHostPort(address); err == nil {
+		address = host
+	}
+	addr, err := netip.ParseAddr(strings.Trim(address, "[]"))
+	if err != nil {
+		return ""
+	}
+	return addr.Unmap().String()
 }
 
 // originChecker validates the websocket upgrade Origin against the configured
