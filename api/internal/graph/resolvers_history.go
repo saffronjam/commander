@@ -10,23 +10,32 @@ import (
 	"api/models/models"
 )
 
-func (r *queryResolver) HistorySaves(ctx context.Context, sessionID string) ([]string, error) {
-	saves, err := r.Store.ListHistorySaves(ctx, session.ID(sessionID))
-	if err != nil {
-		return nil, err
-	}
-	if saves == nil {
-		return []string{}, nil
-	}
-	return saves, nil
-}
+// maxHistoryPoints bounds every history response. An unbounded query would scan
+// and serialize the whole retention window, so the cap applies even when the
+// client asks for no downsampling.
+const maxHistoryPoints = 2000
 
-func (r *queryResolver) CircuitsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.CircuitsHistoryPoint, error) {
+// historyQuery builds the bounded store query shared by every history resolver.
+func historyQuery(sessionID string, dataType models.SatisfactoryEventType, since, bucketSeconds *int) store.HistoryQuery {
 	sinceID := int64(-1)
 	if since != nil {
 		sinceID = int64(*since)
 	}
-	q := store.HistoryQuery{SessionID: session.ID(sessionID), SaveName: saveName, DataType: string(models.SatisfactoryEventCircuits), Since: sinceID}
+	bucket := 0
+	if bucketSeconds != nil && *bucketSeconds > 1 {
+		bucket = *bucketSeconds
+	}
+	return store.HistoryQuery{
+		SessionID:     session.ID(sessionID),
+		DataType:      string(dataType),
+		Since:         sinceID,
+		Limit:         maxHistoryPoints,
+		BucketSeconds: bucket,
+	}
+}
+
+func (r *queryResolver) CircuitsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.CircuitsHistoryPoint, error) {
+	q := historyQuery(sessionID, models.SatisfactoryEventCircuits, since, bucketSeconds)
 	pts, err := r.Store.QueryHistory(ctx, q)
 	if err != nil {
 		return nil, err
@@ -42,12 +51,8 @@ func (r *queryResolver) CircuitsHistory(ctx context.Context, sessionID string, s
 	return out, nil
 }
 
-func (r *queryResolver) FactoryStatsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.FactoryStatsHistoryPoint, error) {
-	sinceID := int64(-1)
-	if since != nil {
-		sinceID = int64(*since)
-	}
-	q := store.HistoryQuery{SessionID: session.ID(sessionID), SaveName: saveName, DataType: string(models.SatisfactoryEventFactoryStats), Since: sinceID}
+func (r *queryResolver) FactoryStatsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.FactoryStatsHistoryPoint, error) {
+	q := historyQuery(sessionID, models.SatisfactoryEventFactoryStats, since, bucketSeconds)
 	pts, err := r.Store.QueryHistory(ctx, q)
 	if err != nil {
 		return nil, err
@@ -63,12 +68,8 @@ func (r *queryResolver) FactoryStatsHistory(ctx context.Context, sessionID strin
 	return out, nil
 }
 
-func (r *queryResolver) ProdStatsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.ProdStatsHistoryPoint, error) {
-	sinceID := int64(-1)
-	if since != nil {
-		sinceID = int64(*since)
-	}
-	q := store.HistoryQuery{SessionID: session.ID(sessionID), SaveName: saveName, DataType: string(models.SatisfactoryEventProdStats), Since: sinceID}
+func (r *queryResolver) ProdStatsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.ProdStatsHistoryPoint, error) {
+	q := historyQuery(sessionID, models.SatisfactoryEventProdStats, since, bucketSeconds)
 	pts, err := r.Store.QueryHistory(ctx, q)
 	if err != nil {
 		return nil, err
@@ -84,12 +85,8 @@ func (r *queryResolver) ProdStatsHistory(ctx context.Context, sessionID string, 
 	return out, nil
 }
 
-func (r *queryResolver) GeneratorStatsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.GeneratorStatsHistoryPoint, error) {
-	sinceID := int64(-1)
-	if since != nil {
-		sinceID = int64(*since)
-	}
-	q := store.HistoryQuery{SessionID: session.ID(sessionID), SaveName: saveName, DataType: string(models.SatisfactoryEventGeneratorStats), Since: sinceID}
+func (r *queryResolver) GeneratorStatsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.GeneratorStatsHistoryPoint, error) {
+	q := historyQuery(sessionID, models.SatisfactoryEventGeneratorStats, since, bucketSeconds)
 	pts, err := r.Store.QueryHistory(ctx, q)
 	if err != nil {
 		return nil, err
@@ -105,12 +102,8 @@ func (r *queryResolver) GeneratorStatsHistory(ctx context.Context, sessionID str
 	return out, nil
 }
 
-func (r *queryResolver) SinkStatsHistory(ctx context.Context, sessionID string, saveName string, since *int, maxPoints *int) ([]*model.SinkStatsHistoryPoint, error) {
-	sinceID := int64(-1)
-	if since != nil {
-		sinceID = int64(*since)
-	}
-	q := store.HistoryQuery{SessionID: session.ID(sessionID), SaveName: saveName, DataType: string(models.SatisfactoryEventSinkStats), Since: sinceID}
+func (r *queryResolver) SinkStatsHistory(ctx context.Context, sessionID string, since *int, bucketSeconds *int) ([]*model.SinkStatsHistoryPoint, error) {
+	q := historyQuery(sessionID, models.SatisfactoryEventSinkStats, since, bucketSeconds)
 	pts, err := r.Store.QueryHistory(ctx, q)
 	if err != nil {
 		return nil, err
