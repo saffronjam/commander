@@ -53,7 +53,7 @@ func (client *Client) GetMachines(ctx context.Context) ([]models.Machine, error)
 			}
 
 			machine := models.Machine{
-				Type:         models.MachineType(raw.Name),
+				Type:         machineTypeFromName(raw.Name),
 				Category:     models.MachineCategoryExtractor,
 				Status:       machineStatus(raw.IsConfigured, raw.IsProducing, raw.IsPaused),
 				Productivity: extractorProductivity,
@@ -99,7 +99,7 @@ func (client *Client) GetMachines(ctx context.Context) ([]models.Machine, error)
 			status := machineStatus(raw.IsConfigured, raw.IsProducing, raw.IsPaused)
 
 			machine := models.Machine{
-				Type:         models.MachineType(raw.Name),
+				Type:         machineTypeFromName(raw.Name),
 				Category:     models.MachineCategoryFactory,
 				Status:       status,
 				Productivity: raw.Productivity / 100.0,
@@ -189,7 +189,7 @@ func (client *Client) GetMachines(ctx context.Context) ([]models.Machine, error)
 			maxPower := maxPowerByType(&raw, genType)
 
 			machine := models.Machine{
-				Type:         models.MachineType(raw.Name),
+				Type:         machineTypeFromName(raw.Name),
 				Category:     models.MachineCategoryGenerator,
 				Status:       generatorStatus(power, maxPower),
 				Productivity: productivity,
