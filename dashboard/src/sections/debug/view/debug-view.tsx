@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConnectionStateOnline } from 'src/apiTypes';
@@ -21,6 +24,56 @@ const ARRAY_PAGE_SIZE = 100;
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 type ChangedPaths = Set<string>;
+
+type StateFilter = 'noData';
+
+const STATE_FILTERS: { key: StateFilter; label: string }[] = [{ key: 'noData', label: 'No data' }];
+
+/**
+ * Whether a data root is currently holding nothing.
+ *
+ * This deliberately says "no data" rather than "never fetched", because the two
+ * are not distinguishable from here: ApiContext seeds every list with `[]` and
+ * every object with `{}`, so a domain whose subscription has never emitted looks
+ * exactly like one that emitted an empty result.
+ */
+function hasNoData(value: JsonValue | undefined): boolean {
+  if (value === undefined || value === null) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') return Object.keys(value).length === 0;
+  return false;
+}
+
+const DATA_ROOTS = [
+  { name: 'satisfactoryApiStatus', icon: 'mdi:api' },
+  { name: 'circuits', icon: 'mdi:flash' },
+  { name: 'factoryStats', icon: 'material-symbols:factory' },
+  { name: 'prodStats', icon: 'mdi:chart-line' },
+  { name: 'sinkStats', icon: 'mdi:inbox' },
+  { name: 'players', icon: 'mdi:account-group' },
+  { name: 'generatorStats', icon: 'mdi:lightning-bolt' },
+  { name: 'machines', icon: 'mdi:factory' },
+  { name: 'trains', icon: 'mdi:train' },
+  { name: 'trainStations', icon: 'mdi:train-car' },
+  { name: 'drones', icon: 'mdi:drone' },
+  { name: 'droneStations', icon: 'mdi:drone' },
+  { name: 'belts', icon: 'mdi:conveyor-belt' },
+  { name: 'pipes', icon: 'mdi:pipe' },
+  { name: 'pipeJunctions', icon: 'mdi:pipe-valve' },
+  { name: 'trainRails', icon: 'mdi:railroad-light' },
+  { name: 'hypertubes', icon: 'mdi:transit-connection-variant' },
+  { name: 'hypertubeEntrances', icon: 'mdi:transit-transfer' },
+  { name: 'cables', icon: 'mdi:cable-data' },
+  { name: 'storages', icon: 'mdi:archive' },
+  { name: 'tractors', icon: 'mdi:tractor' },
+  { name: 'explorers', icon: 'mdi:car-outline' },
+  { name: 'vehiclePaths', icon: 'mdi:road-variant' },
+  { name: 'spaceElevator', icon: 'mdi:rocket-launch' },
+  { name: 'hub', icon: 'material-symbols:house-rounded' },
+  { name: 'radarTowers', icon: 'mdi:radar' },
+  { name: 'resourceNodes', icon: 'tabler:pick' },
+  { name: 'schematics', icon: 'mdi:bookmark-check' },
+];
 
 /**
  * Recursive JSON tree node component for rendering nested data structures.
@@ -270,7 +323,20 @@ export function DebugView() {
   const [paused, setPaused] = useState(false);
   const [pausedData, setPausedData] = useState<Record<string, JsonValue> | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stateFilters, setStateFilters] = useState<Set<StateFilter>>(new Set());
   const { selectedSession } = useSession();
+
+  const toggleStateFilter = useCallback((key: StateFilter) => {
+    setStateFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
   const isSessionOnline = selectedSession?.connectionState === ConnectionStateOnline;
 
   const api = useContextSelector(ApiContext, (v) => ({
@@ -361,42 +427,15 @@ export function DebugView() {
     }
   }, [currentData, paused]);
 
-  const dataRoots = [
-    { name: 'satisfactoryApiStatus', icon: 'mdi:api' },
-    { name: 'circuits', icon: 'mdi:flash' },
-    { name: 'factoryStats', icon: 'material-symbols:factory' },
-    { name: 'prodStats', icon: 'mdi:chart-line' },
-    { name: 'sinkStats', icon: 'mdi:inbox' },
-    { name: 'players', icon: 'mdi:account-group' },
-    { name: 'generatorStats', icon: 'mdi:lightning-bolt' },
-    { name: 'machines', icon: 'mdi:factory' },
-    { name: 'trains', icon: 'mdi:train' },
-    { name: 'trainStations', icon: 'mdi:train-car' },
-    { name: 'drones', icon: 'mdi:drone' },
-    { name: 'droneStations', icon: 'mdi:drone' },
-    { name: 'belts', icon: 'mdi:conveyor-belt' },
-    { name: 'pipes', icon: 'mdi:pipe' },
-    { name: 'pipeJunctions', icon: 'mdi:pipe-valve' },
-    { name: 'trainRails', icon: 'mdi:railroad-light' },
-    { name: 'hypertubes', icon: 'mdi:transit-connection-variant' },
-    { name: 'hypertubeEntrances', icon: 'mdi:transit-transfer' },
-    { name: 'cables', icon: 'mdi:cable-data' },
-    { name: 'storages', icon: 'mdi:archive' },
-    { name: 'tractors', icon: 'mdi:tractor' },
-    { name: 'explorers', icon: 'mdi:car-outline' },
-    { name: 'vehiclePaths', icon: 'mdi:road-variant' },
-    { name: 'spaceElevator', icon: 'mdi:rocket-launch' },
-    { name: 'hub', icon: 'material-symbols:house-rounded' },
-    { name: 'radarTowers', icon: 'mdi:radar' },
-    { name: 'resourceNodes', icon: 'tabler:pick' },
-    { name: 'schematics', icon: 'mdi:bookmark-check' },
-  ];
-
   const filteredDataRoots = useMemo(() => {
-    if (!searchTerm.trim()) return dataRoots;
-    const term = searchTerm.toLowerCase();
-    return dataRoots.filter(({ name }) => name.toLowerCase().includes(term));
-  }, [searchTerm]);
+    const term = searchTerm.trim().toLowerCase();
+    return DATA_ROOTS.filter(({ name }) => {
+      if (term && !name.toLowerCase().includes(term)) return false;
+      if (stateFilters.has('noData') && !hasNoData(displayData[name as keyof typeof displayData]))
+        return false;
+      return true;
+    });
+  }, [searchTerm, stateFilters, displayData]);
 
   return (
     <>
@@ -420,7 +459,7 @@ export function DebugView() {
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground"
               />
               <Input
-                placeholder="Filter boxes..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8 pr-8 w-48"
@@ -436,6 +475,41 @@ export function DebugView() {
                 </Button>
               )}
             </div>
+
+            <Popover>
+              <PopoverTrigger className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-sm hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+                <Icon icon="mdi:filter-variant" className="size-4" />
+                State
+                {stateFilters.size > 0 && (
+                  <span className="rounded-sm bg-primary px-1.5 text-xs text-primary-foreground">
+                    {stateFilters.size}
+                  </span>
+                )}
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-72">
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Show only</h4>
+                  <div className="flex flex-col gap-2">
+                    {STATE_FILTERS.map((filter) => (
+                      <div key={filter.key} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`state-${filter.key}`}
+                          checked={stateFilters.has(filter.key)}
+                          onCheckedChange={() => toggleStateFilter(filter.key)}
+                        />
+                        <Label htmlFor={`state-${filter.key}`} className="text-sm">
+                          {filter.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    A box with no data has either never been delivered or arrived empty. The two are
+                    indistinguishable from here, because every list starts as an empty list.
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Chip variant={isSessionOnline ? 'success' : 'error'}>
               {isSessionOnline ? 'Online' : 'Offline'}
             </Chip>
@@ -477,10 +551,14 @@ export function DebugView() {
             />
           ))}
         </div>
-        {filteredDataRoots.length === 0 && searchTerm && (
+        {filteredDataRoots.length === 0 && (searchTerm || stateFilters.size > 0) && (
           <div className="text-center py-8">
             <Icon icon="mdi:database-off" className="size-12 text-muted-foreground mb-2 mx-auto" />
-            <p className="text-muted-foreground">No data sources match "{searchTerm}"</p>
+            <p className="text-muted-foreground">
+              {searchTerm
+                ? `No data sources match "${searchTerm}"`
+                : 'No data sources match the selected state'}
+            </p>
           </div>
         )}
       </div>
