@@ -2,6 +2,7 @@ import {
   ConnectionStateConnecting,
   ConnectionStateOffline,
   ConnectionStateOnline,
+  ConnectionStateSaveMismatch,
   ConnectivityReasonBadResponse,
   ConnectivityReasonNone,
   ConnectivityReasonNoResponse,
@@ -16,6 +17,8 @@ export function connectionStateFromEnum(state: unknown): ConnectionState {
       return ConnectionStateOnline;
     case 'OFFLINE':
       return ConnectionStateOffline;
+    case 'SAVE_MISMATCH':
+      return ConnectionStateSaveMismatch;
     default:
       return ConnectionStateConnecting;
   }
@@ -67,4 +70,33 @@ export function offlineCopy(reason: ConnectivityReason | undefined): OfflineCopy
     detail: 'Ensure that FRM is running and is reachable at this address.',
     bar: 'Session is offline. Ensure that FRM is running and is reachable.',
   };
+}
+
+/**
+ * Wording for a session whose server has a different save loaded.
+ *
+ * Deliberately separate from offlineCopy: the server is reachable here, and the
+ * fix is to load a save rather than to check the network.
+ */
+export function saveMismatchCopy(pinned: string, observed: string | undefined): OfflineCopy {
+  const running = observed ? `"${observed}"` : 'a different save';
+  return {
+    title: 'A different save is loaded',
+    detail: `This session is pinned to "${pinned}", but the server is running ${running}. Load "${pinned}" to resume, or add a session for the other save.`,
+    bar: `A different save is loaded. This session is pinned to "${pinned}"; the server is running ${running}.`,
+  };
+}
+
+/**
+ * Wording for a failed connection attempt in the add-session form.
+ *
+ * Separate from offlineCopy because there is no session yet: the operator is
+ * still typing an address, so the copy names what to check rather than what is
+ * down.
+ */
+export function probeFailureCopy(reason: ConnectivityReason | undefined): string {
+  if (reason === ConnectivityReasonBadResponse) {
+    return 'Something answered at this address, but it was not Ficsit Remote Monitoring. Check the port, and any reverse proxy or HTTPS in front of it.';
+  }
+  return 'Nothing answered at this address. Check that FRM is running and that the address and port are right.';
 }
