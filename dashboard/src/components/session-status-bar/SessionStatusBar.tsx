@@ -1,22 +1,31 @@
 import { Iconify } from '@/components/iconify';
-import { ConnectionStateOffline } from 'src/apiTypes';
+import { ConnectionStateOffline, ConnectionStateSaveMismatch } from 'src/apiTypes';
 import { useSession } from '@/contexts/sessions';
-import { offlineCopy } from 'src/utils/session-offline';
+import { offlineCopy, saveMismatchCopy } from 'src/utils/session-offline';
 
 /**
- * Status bar displayed at the bottom of the screen when a session is offline.
- * The message depends on why the backend could not reach it.
+ * Status bar displayed at the bottom of the screen when the selected session
+ * cannot serve data. The message depends on whether the server is unreachable or
+ * simply running the wrong save.
  */
 export const SessionStatusBar = () => {
   const { selectedSession, isLoading } = useSession();
 
-  // Only a settled offline state warrants the bar; while connecting the overlay
+  // Only a settled failure warrants the bar; while connecting the overlay
   // already says so, and flashing this on every reconnect would be noise.
-  if (isLoading || selectedSession?.connectionState !== ConnectionStateOffline) {
+  if (isLoading || !selectedSession) {
     return null;
   }
 
-  const copy = offlineCopy(selectedSession.offlineReason);
+  const isOffline = selectedSession.connectionState === ConnectionStateOffline;
+  const isSaveMismatch = selectedSession.connectionState === ConnectionStateSaveMismatch;
+  if (!isOffline && !isSaveMismatch) {
+    return null;
+  }
+
+  const copy = isSaveMismatch
+    ? saveMismatchCopy(selectedSession.saveName, selectedSession.mismatchedSaveName)
+    : offlineCopy(selectedSession.offlineReason);
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 h-10 bg-destructive flex items-center justify-center gap-2 px-2">

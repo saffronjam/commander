@@ -1,10 +1,15 @@
-import { PauseCircle, WifiOff } from 'lucide-react';
+import { AlertTriangle, PauseCircle, WifiOff } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
-import { ConnectionStateConnecting, ConnectionStateOffline, SessionStageReady } from 'src/apiTypes';
+import {
+  ConnectionStateConnecting,
+  ConnectionStateOffline,
+  ConnectionStateSaveMismatch,
+  SessionStageReady,
+} from 'src/apiTypes';
 import { Spinner } from '@/components/loading/spinner';
 import { useSession } from 'src/contexts/sessions';
-import { offlineCopy } from 'src/utils/session-offline';
+import { offlineCopy, saveMismatchCopy } from 'src/utils/session-offline';
 
 /** Pages that are instance-wide rather than scoped to the selected session. */
 const INSTANCE_WIDE_PATHS = ['/settings', '/debug'];
@@ -12,9 +17,10 @@ const INSTANCE_WIDE_PATHS = ['/settings', '/debug'];
 /**
  * Covers the session-scoped pages when the selected session cannot show data yet.
  *
- * The three cases are distinct on purpose: a paused session, an unreachable one,
- * and one that is reachable but has not delivered its first data. Only the last
- * is a wait, so only the last gets a spinner.
+ * The cases are distinct on purpose: a paused session, an unreachable one, one
+ * whose server has the wrong save loaded, and one that is reachable but has not
+ * delivered its first data. Only the last is a wait, so only the last gets a
+ * spinner.
  */
 export const SessionInitOverlay = () => {
   const location = useLocation();
@@ -35,8 +41,9 @@ export const SessionInitOverlay = () => {
   const isPaused = selectedSession.isPaused;
   const isOffline = selectedSession.connectionState === ConnectionStateOffline;
   const isConnecting = selectedSession.connectionState === ConnectionStateConnecting;
+  const isSaveMismatch = selectedSession.connectionState === ConnectionStateSaveMismatch;
 
-  if (isReady && !isPaused && !isOffline && !isConnecting) {
+  if (isReady && !isPaused && !isOffline && !isConnecting && !isSaveMismatch) {
     return null;
   }
 
@@ -46,6 +53,14 @@ export const SessionInitOverlay = () => {
         icon: <PauseCircle className="size-16 opacity-80" />,
         title: 'Session is paused',
         detail: 'Enable this session to view its data',
+      };
+    }
+    if (isSaveMismatch) {
+      const copy = saveMismatchCopy(selectedSession.saveName, selectedSession.mismatchedSaveName);
+      return {
+        icon: <AlertTriangle className="size-16 opacity-80" />,
+        title: copy.title,
+        detail: copy.detail,
       };
     }
     if (isOffline) {

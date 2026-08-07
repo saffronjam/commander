@@ -1,6 +1,22 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
-import { ConnectionStateConnecting, ConnectionStateOnline, type SessionDTO } from '@/apiTypes';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+} from 'lucide-react';
+import {
+  ConnectionStateConnecting,
+  ConnectionStateOnline,
+  ConnectionStateSaveMismatch,
+  type SessionDTO,
+} from '@/apiTypes';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +45,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { graphQLFailure } from 'src/utils/graphql-error';
+import { probeFailureCopy } from 'src/utils/session-offline';
 import { useSession } from '@/contexts/sessions';
 
 interface SessionSelectorProps {
@@ -46,6 +64,7 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
   const [editingSession, setEditingSession] = useState<SessionDTO | null>(null);
   const [editName, setEditName] = useState('');
   const [editAddress, setEditAddress] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pausingSessionId, setPausingSessionId] = useState<string | null>(null);
 
@@ -70,6 +89,7 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
     setEditingSession(null);
     setEditName('');
     setEditAddress('');
+    setEditError(null);
     setIsUpdating(false);
   };
 
@@ -77,10 +97,16 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
     if (!editingSession || !editName.trim() || !editAddress.trim()) return;
 
     setIsUpdating(true);
+    setEditError(null);
     try {
       const updates = { name: editName.trim(), address: editAddress.trim() };
       await updateSession(editingSession.id, updates);
       handleEditClose();
+    } catch (err) {
+      const failure = graphQLFailure(err, 'Failed to update this session');
+      setEditError(
+        failure.code === 'FRM_UNREACHABLE' ? probeFailureCopy(failure.reason) : failure.message
+      );
     } finally {
       setIsUpdating(false);
     }
@@ -130,6 +156,15 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
       );
     }
 
+    if (session && !session.isPaused && session.connectionState === ConnectionStateSaveMismatch) {
+      return (
+        <AlertTriangle
+          className="size-3 shrink-0 text-orange-500"
+          aria-label="A different save is loaded"
+        />
+      );
+    }
+
     const color = (() => {
       if (!session) return 'bg-muted';
       if (session.isPaused) return 'bg-yellow-500';
@@ -151,10 +186,8 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
             <p className="truncate text-sm font-semibold text-foreground">
               {selectedSession?.name || 'Select Session'}
             </p>
-            {selectedSession?.sessionName && (
-              <p className="truncate text-xs text-muted-foreground">
-                {selectedSession.sessionName}
-              </p>
+            {selectedSession && (
+              <p className="truncate text-xs text-muted-foreground">{selectedSession.saveName}</p>
             )}
           </div>
           {open ? (
@@ -179,9 +212,7 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
               <StatusIndicator session={session} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{session.name}</p>
-                {session.sessionName && (
-                  <p className="truncate text-xs text-muted-foreground">{session.sessionName}</p>
-                )}
+                <p className="truncate text-xs text-muted-foreground">{session.saveName}</p>
               </div>
               <button
                 type="button"
@@ -226,8 +257,13 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
             <DialogTitle>Edit Session</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {editError && (
+              <Alert variant="destructive">
+                <AlertDescription>{editError}</AlertDescription>
+              </Alert>
+            )}
             <div className="grid gap-2">
-              <Label htmlFor="session-name">Session Name</Label>
+              <Label htmlFor="session-name">Name</Label>
               <Input
                 id="session-name"
                 value={editName}
@@ -241,7 +277,7 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({ onAddSession }
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="session-address">Server URL</Label>
+              <Label htmlFor="session-address">FRM Address</Label>
               <Input
                 id="session-address"
                 value={editAddress}
