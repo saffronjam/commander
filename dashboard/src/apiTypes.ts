@@ -119,6 +119,12 @@ export const ConnectionStateOnline: ConnectionState = "online";
  */
 export const ConnectionStateOffline: ConnectionState = "offline";
 /**
+ * ConnectionStateSaveMismatch means FRM answered but has a different save
+ * loaded than the one this session is pinned to, so its data does not belong
+ * to this session. MismatchedSaveName names what is loaded instead.
+ */
+export const ConnectionStateSaveMismatch: ConnectionState = "saveMismatch";
+/**
  * ConnectivityStatus is the derived live connectivity + readiness for a session,
  * supplied by the poller's in-memory state (not persisted).
  */
@@ -128,6 +134,7 @@ export interface ConnectivityStatus {
   State: ConnectionState;
   Stage: SessionStage;
   Reason: ConnectivityReason;
+  MismatchedSaveName: string;
 }
 
 //////////
@@ -678,9 +685,10 @@ export interface Session {
   id: string; // UUID
   name: string; // User-provided display name
   address: string; // IP:port (e.g., "192.168.1.100:8080")
-  sessionName: string; // From getSessionInfo API
+  saveName: string; // The save this session is pinned to
   isOnline: boolean; // Current connection status
   connectionState: ConnectionState; // Authoritative connection state
+  mismatchedSaveName: string; // Save the server has loaded instead, when it differs
   isPaused: boolean; // True if polling is paused by user
   isDisconnected: boolean; // True if session has failed to connect multiple times
   offlineReason: ConnectivityReason; // Why the session is unreachable
@@ -707,7 +715,7 @@ export interface SessionInfoRaw {
  * SessionInfo is the normalized DTO sent to the frontend (camelCase)
  */
 export interface SessionInfo {
-  sessionName: string;
+  saveName: string;
   isPaused: boolean;
   dayLength: number /* int */;
   nightLength: number /* int */;
@@ -721,11 +729,23 @@ export interface SessionInfo {
   totalPlayDurationText: string;
 }
 /**
+ * DiscoveredServer is one FRM server found by sweeping the network.
+ */
+export interface DiscoveredServer {
+  address: string;
+  info: SessionInfo;
+  /**
+   * AlreadyAdded is true when a session already exists for this server.
+   */
+  alreadyAdded: boolean;
+}
+/**
  * CreateSessionRequest is the request body for creating a new session
  */
 export interface CreateSessionRequest {
   name: string;
   address: string;
+  saveName: string;
 }
 /**
  * UpdateSessionRequest is the request body for updating a session (all fields optional)
@@ -742,8 +762,9 @@ export interface SessionDTO {
   id: string;
   name: string;
   address: string;
-  sessionName: string;
+  saveName: string;
   connectionState: ConnectionState;
+  mismatchedSaveName: string;
   isPaused: boolean;
   offlineReason: ConnectivityReason;
   createdAt: string;
