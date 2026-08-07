@@ -5,27 +5,16 @@ import { ApiContext } from 'src/contexts/api/useApi';
 import { historyApi, HistoryDataType } from '@/services/historyApi';
 import { HistoryDataRange, HistoryWindowSize } from 'src/types';
 
-function downsampleDataPoints(
-  dataPoints: DataPoint[],
+// bucketSecondsFor mirrors the auto rule the window-size selector implies: an
+// explicit width wins, otherwise aim for roughly 100 points across the range.
+function bucketSecondsFor(
   historyDataRange: HistoryDataRange,
   historyWindowSize: HistoryWindowSize
-): DataPoint[] {
-  const windowSize =
-    historyWindowSize > 0
-      ? historyWindowSize
-      : Math.max(1, Math.floor((historyDataRange === -1 ? 3600 : historyDataRange) / 100));
-
-  if (windowSize <= 1 || dataPoints.length === 0) return dataPoints;
-
-  const buckets = new Map<number, DataPoint>();
-  for (const point of dataPoints) {
-    const bucketKey = Math.floor(point.gameTimeId / windowSize) * windowSize;
-    buckets.set(bucketKey, point);
+): number {
+  if (historyWindowSize > 0) {
+    return historyWindowSize;
   }
-
-  return Array.from(buckets.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([bucketKey, point]) => ({ ...point, gameTimeId: bucketKey }));
+  return Math.max(1, Math.floor((historyDataRange === -1 ? 3600 : historyDataRange) / 100));
 }
 
 /**
@@ -55,14 +44,12 @@ export interface UseHistoryDataResult<T> {
  * @param dataType - The type of data to fetch (circuits, generatorStats, prodStats, factoryStats, sinkStats)
  * @param historyDataRange - How much historical data to fetch in seconds (-1 for all time)
  * @param historyWindowSize - Window size for downsampling (0 = auto, 1 = raw, other = fixed bucket size)
- * @param saveName - Optional save name to filter by (uses current save if not provided)
  */
 export function useHistoryData<T>(
   sessionId: string | null,
   dataType: HistoryDataType,
   historyDataRange: HistoryDataRange,
-  historyWindowSize: HistoryWindowSize = 0,
-  saveName?: string
+  historyWindowSize: HistoryWindowSize = 0
 ): UseHistoryDataResult<T> {
   const [dataPoints, setDataPoints] = useState<DataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,6 +58,8 @@ export function useHistoryData<T>(
 
   const latestIdRef = useRef<number>(0);
   const isFetchingRef = useRef<boolean>(false);
+
+  const bucketSeconds = bucketSecondsFor(historyDataRange, historyWindowSize);
 
   const fetchInitialHistory = useCallback(async () => {
     if (!sessionId) {
@@ -88,7 +77,7 @@ export function useHistoryData<T>(
       const chunk = await historyApi.fetchHistory({
         sessionId,
         dataType,
-        saveName,
+        bucketSeconds,
       });
 
       // Apply client-side pruning based on historyDataRange
@@ -109,7 +98,7 @@ export function useHistoryData<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [sessionId, dataType, historyDataRange, saveName]);
+  }, [sessionId, dataType, historyDataRange, bucketSeconds]);
 
   const fetchIncrementalHistory = useCallback(async () => {
     if (!sessionId || isFetchingRef.current) {
@@ -123,7 +112,7 @@ export function useHistoryData<T>(
       const chunk = await historyApi.fetchHistory({
         sessionId,
         dataType,
-        saveName,
+        bucketSeconds,
         since: prevLatestId > 0 ? prevLatestId : undefined,
       });
 
@@ -161,7 +150,7 @@ export function useHistoryData<T>(
     } finally {
       isFetchingRef.current = false;
     }
-  }, [sessionId, dataType, historyDataRange, saveName]);
+  }, [sessionId, dataType, historyDataRange, bucketSeconds]);
 
   useEffect(() => {
     latestIdRef.current = 0;
@@ -195,18 +184,10 @@ export function useHistoryData<T>(
     void fetchIncrementalHistory();
   }, [contextData, isOnline, isLoading, fetchIncrementalHistory]);
 
-  const downsampledDataPoints = useMemo(
-    () => downsampleDataPoints(dataPoints, historyDataRange, historyWindowSize),
-    [dataPoints, historyDataRange, historyWindowSize]
-  );
-
-  const data = useMemo(
-    () => downsampledDataPoints.map((p) => p.data as T),
-    [downsampledDataPoints]
-  );
+  const data = useMemo(() => dataPoints.map((p) => p.data as T), [dataPoints]);
 
   return {
-    dataPoints: downsampledDataPoints,
+    dataPoints,
     data,
     isLoading,
     error,
