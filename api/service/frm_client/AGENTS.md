@@ -16,7 +16,8 @@ FRM mod (game) ──HTTP──> frm_models.*  ──convert──> models.*  �
 | `request_queue.go` | sequential processing + in-flight deduplication per endpoint |
 | `frm_models/models.go` | raw FRM response structs — field names match FRM's JSON exactly |
 | `utils.go` | `parseLocation`, `parseBoundingBox`, coordinate helpers |
-| `session.go` | session info / save name probe |
+| `session.go` | session info via the polling `Client` |
+| `probe.go` | `ProbeSessionInfo`: one-shot save-name probe with no `Client` and no request queue |
 | `stats.go` | factory, production and sink stats |
 | `power.go` | circuits, cables, generator stats |
 | `machines.go` | machines, storages |
