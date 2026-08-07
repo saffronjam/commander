@@ -112,12 +112,13 @@ export const SessionUpdatedSub = graphql(`
       id
       name
       address
-      sessionName
+      saveName
       isPaused
       createdAt
       connectionState
       stage
       offlineReason
+      mismatchedSaveName
     }
   }
 `);

@@ -13,7 +13,7 @@ GraphQL types to `apiTypes` domain shapes, and are published as one `ApiContext`
 | `live_vehicles.ts` | vehicle documents + mappers (drones, trains, trucks, tractors, explorers, stations, paths) |
 | `live_infra.ts` | infrastructure documents + mappers (machines, storages, belts, pipes, cables, rails, hypertubes) |
 | `live_world.ts` | world documents + mappers (space elevator, HUB, radar towers, resource nodes, schematics, generator stats) |
-| `SessionAwareApiProvider.tsx` | binds the provider to the selected session and remounts it on a save switch |
+| `SessionAwareApiProvider.tsx` | binds the provider to the selected session and remounts it on a session switch |
 | `ConnectionChecker.tsx` | renders nothing; toasts on `isOnline` transitions |
 
 ## How a domain flows through
@@ -46,8 +46,12 @@ Components must never subscribe directly or import from `src/gql` for live data 
 subscription tick — roughly once per second across all domains. `useContext` would re-render every
 consumer each time; `useContextSelector` re-renders only components whose selected slices changed.
 
-**A save switch must remount, not update.** `SessionAwareApiProvider` keys `ApiProvider` on
-`` `${session.id}:${sessionName}` ``, so changing save name unmounts and remounts the whole provider,
-dropping every subscription and all accumulated state. Without that, the previous save's data would
-linger in the context until each domain happened to emit again. The backend enforces the same rule —
-`save_name` is part of every history and latest-value key.
+**A session switch must remount, not update.** `SessionAwareApiProvider` keys `ApiProvider` on
+`session.id`, so selecting a different session unmounts and remounts the whole provider, dropping
+every subscription and all accumulated state. Without that, the previous session's data would linger
+in the context until each domain happened to emit again.
+
+A session is pinned to one save for its lifetime, so nothing below the session can invalidate the
+context. When the server has a different save loaded the backend reports
+`connectionState: SAVE_MISMATCH` and stops ingesting; the overlay covers the page and the last-known
+values are deliberately kept, so loading the pinned save back re-renders instantly.

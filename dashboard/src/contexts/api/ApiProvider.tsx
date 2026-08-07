@@ -85,6 +85,7 @@ export const ApiProvider: React.FC<ApiProviderProps> = ({
         stage: s.stage === 'READY' ? 'ready' : 'init',
         connectionState: connectionStateFromEnum(s.connectionState),
         offlineReason: connectivityReasonFromEnum(s.offlineReason),
+        mismatchedSaveName: s.mismatchedSaveName ?? '',
       } as unknown as API.SessionDTO);
     }
   }, [sessionUpd.data, onSessionUpdate]);
