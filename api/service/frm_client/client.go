@@ -452,40 +452,22 @@ func (client *Client) SetupLightPolling(ctx context.Context, callback func(*mode
 	}
 }
 
-// GetSatisfactoryApiStatus checks if the API root endpoint is reachable
+// GetSatisfactoryApiStatus reports whether the address answers as FRM.
+//
+// Reaching something is not proof of anything: a reverse proxy, a router's
+// captive page and this dashboard's own SPA fallback all answer 200 to every
+// path, so a check that only read the status code would report a session online
+// that can never yield one usable response. Decoding a real FRM payload is the
+// only definitive signal, and it is the same one the save probe and discovery
+// already rely on.
 func (client *Client) GetSatisfactoryApiStatus(ctx context.Context) (*models.SatisfactoryApiStatus, error) {
-	// Use a shorter timeout for the basic check
-	reqCtx, cancel := context.WithTimeout(ctx, statusCheckTimeout)
-	defer cancel()
-
-	apiUrl, err := url.JoinPath(client.apiUrl, "/")
-	if err != nil {
-		log.Warnln("Failed to join URL path:", err)
-		return nil, models.NewSatisfactoryApiError("Failed to join URL path")
-	}
-
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, apiUrl, nil)
-	if err != nil {
-		client.setApiUp(false) // Should not happen, but good practice
-		return nil, models.NewSatisfactoryApiError("Failed to create request for API status check")
-	}
-
-	resp, err := client.httpClient.Do(req)
-	if err != nil {
-		client.setApiUp(false)
-		// Don't wrap error here, the caller (event loop) handles ApiError specifically
+	var raw models.SessionInfoRaw
+	if err := client.makeSatisfactoryCallWithTimeout(ctx, "/getSessionInfo", &raw, statusCheckTimeout); err != nil {
 		return nil, models.NewSatisfactoryApiError("API status check failed")
 	}
-	defer resp.Body.Close()
 
-	// Consider any 2xx status as "up" for this basic check
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		client.setApiUp(true)
-		return &models.SatisfactoryApiStatus{Running: true}, nil
-	} else {
-		client.setApiUp(false)
-		return nil, models.NewSatisfactoryApiError("API status check returned non-2xx status")
-	}
+	client.setApiUp(true)
+	return &models.SatisfactoryApiStatus{Running: true}, nil
 }
 
 // makeSatisfactoryCall performs a GET request and decodes the JSON response
@@ -529,21 +511,25 @@ func (client *Client) makeSatisfactoryCallWithTimeout(ctx context.Context, path 
 	}
 	defer resp.Body.Close()
 
+	// A wrong answer counts as a failure exactly like an unanswered request. Only
+	// counting transport errors let an address that answers every path with HTML
+	// hold the failure counter at zero forever, so the session never reached the
+	// threshold, never dropped to light polling, and every endpoint kept polling at
+	// full rate and logging its own decode error.
 	if resp.StatusCode != http.StatusOK {
 		// HTTP ERROR: something is listening but it is not answering as FRM.
-		statusCode := resp.StatusCode
+		client.setApiUp(false)
 		client.recordFailureReason(models.ConnectivityReasonBadResponse)
-		if statusCode == http.StatusServiceUnavailable || statusCode == http.StatusNotFound {
-			client.setApiUp(false)
-			// Don't increment failure count - server is reachable but returning errors
-		}
-		return models.NewSatisfactoryApiError(fmt.Sprintf("API call to %s failed with status code %d", path, statusCode))
+		client.incrementFailureCount()
+		return models.NewSatisfactoryApiError(fmt.Sprintf("API call to %s failed with status code %d", path, resp.StatusCode))
 	}
 
 	// Decode JSON response
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		// Answered 200 but the body is not FRM's: usually a proxy or login page.
+		client.setApiUp(false)
 		client.recordFailureReason(models.ConnectivityReasonBadResponse)
+		client.incrementFailureCount()
 		return models.NewSatisfactoryApiError(fmt.Sprintf("Failed to decode JSON response from %s: %v", path, err))
 	}
 
