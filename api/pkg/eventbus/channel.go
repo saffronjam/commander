@@ -12,7 +12,6 @@ type subscription struct {
 	ch        chan Event
 	kinds     map[EventKind]struct{}
 	sessionID string
-	saveName  string
 	dataType  string
 }
 
@@ -21,9 +20,6 @@ func (s *subscription) wants(e Event) bool {
 		return false
 	}
 	if s.sessionID != "" && e.SessionID != "" && s.sessionID != e.SessionID {
-		return false
-	}
-	if s.saveName != "" && e.SaveName != "" && s.saveName != e.SaveName {
 		return false
 	}
 	if s.dataType != "" && e.DataType != "" && s.dataType != e.DataType {
@@ -68,21 +64,21 @@ func (b *ChannelBus) Publish(event Event) {
 
 // Subscribe returns a channel receiving every event of the named kinds.
 func (b *ChannelBus) Subscribe(kinds ...EventKind) <-chan Event {
-	return b.subscribe("", "", "", kinds)
+	return b.subscribe("", "", kinds)
 }
 
 // SubscribeSession returns a channel pinned to one session across the kinds.
 func (b *ChannelBus) SubscribeSession(sessionID string, kinds ...EventKind) <-chan Event {
-	return b.subscribe(sessionID, "", "", kinds)
+	return b.subscribe(sessionID, "", kinds)
 }
 
-// SubscribeDomain returns a channel pinned to one (session, save, dataType) on
-// the KindSatisfactory kind.
-func (b *ChannelBus) SubscribeDomain(sessionID, saveName, dataType string) <-chan Event {
-	return b.subscribe(sessionID, saveName, dataType, []EventKind{KindSatisfactory})
+// SubscribeDomain returns a channel pinned to one (session, dataType) on the
+// KindSatisfactory kind.
+func (b *ChannelBus) SubscribeDomain(sessionID, dataType string) <-chan Event {
+	return b.subscribe(sessionID, dataType, []EventKind{KindSatisfactory})
 }
 
-func (b *ChannelBus) subscribe(sessionID, saveName, dataType string, kinds []EventKind) <-chan Event {
+func (b *ChannelBus) subscribe(sessionID, dataType string, kinds []EventKind) <-chan Event {
 	ch := make(chan Event, b.bufferSize)
 	set := make(map[EventKind]struct{}, len(kinds))
 	for _, k := range kinds {
@@ -93,7 +89,6 @@ func (b *ChannelBus) subscribe(sessionID, saveName, dataType string, kinds []Eve
 		ch:        ch,
 		kinds:     set,
 		sessionID: sessionID,
-		saveName:  saveName,
 		dataType:  dataType,
 	}
 	b.mu.Unlock()

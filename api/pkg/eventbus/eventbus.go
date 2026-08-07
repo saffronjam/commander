@@ -11,39 +11,39 @@ type EventKind string
 
 const (
 	// KindSatisfactory carries one live game-state value, routed by
-	// (SessionID, SaveName, DataType).
+	// (SessionID, DataType).
 	KindSatisfactory EventKind = "satisfactory"
-	// KindConnectivity carries an online/offline transition for a session.
+	// KindConnectivity signals that a session's connectivity changed. Consumers
+	// re-read the current status rather than trusting the payload.
 	KindConnectivity EventKind = "connectivity"
 	// KindSettingsChanged signals an in-process settings change. It is never
 	// bridged to a GraphQL subscription.
 	KindSettingsChanged EventKind = "settings_changed"
 )
 
-// Event is the bus envelope. SessionID/SaveName/DataType are the routing keys;
-// Payload is the typed Go value a consumer type-asserts.
+// Event is the bus envelope. SessionID/DataType are the routing keys; Payload is
+// the typed Go value a consumer type-asserts.
 type Event struct {
 	Kind      EventKind
 	SessionID string
-	SaveName  string
 	DataType  string
 	Payload   any
 }
 
 // SatisfactoryEvent is the payload for KindSatisfactory: one decoded live value
-// for a (session, save, dataType) at a given game time.
+// for a (session, dataType) at a given game time.
 type SatisfactoryEvent struct {
 	SessionID  string
-	SaveName   string
 	DataType   string
 	Data       any
 	GameTimeID int64
 }
 
-// ConnectivityEvent is the payload for KindConnectivity.
+// ConnectivityEvent is the payload for KindConnectivity. It names the session
+// whose connectivity moved; the current state is read from the poller, which is
+// the only thing that can express all of it.
 type ConnectivityEvent struct {
 	SessionID string
-	Online    bool
 	At        time.Time
 }
 
@@ -63,8 +63,8 @@ type Subscriber interface {
 	Subscribe(kinds ...EventKind) <-chan Event
 	// SubscribeSession pins one session across the named kinds.
 	SubscribeSession(sessionID string, kinds ...EventKind) <-chan Event
-	// SubscribeDomain pins one (session, save, dataType) on KindSatisfactory.
-	SubscribeDomain(sessionID, saveName, dataType string) <-chan Event
+	// SubscribeDomain pins one (session, dataType) on KindSatisfactory.
+	SubscribeDomain(sessionID, dataType string) <-chan Event
 	// Unsubscribe deregisters and closes a previously returned channel.
 	Unsubscribe(ch <-chan Event)
 }

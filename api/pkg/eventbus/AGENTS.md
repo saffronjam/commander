@@ -22,18 +22,18 @@ filter field means "any".
 
 | Kind | Payload | Subscribe with |
 | --- | --- | --- |
-| `KindSatisfactory` | `SatisfactoryEvent` — one live domain value at a game time | `SubscribeDomain(session, save, dataType)` |
-| `KindConnectivity` | `ConnectivityEvent` — online/offline transition | `SubscribeSession(session, KindConnectivity)` |
+| `KindSatisfactory` | `SatisfactoryEvent` — one live domain value at a game time | `SubscribeDomain(session, dataType)` |
+| `KindConnectivity` | `ConnectivityEvent` — connectivity moved; read the current status from the poller | `SubscribeSession(session, KindConnectivity)` |
 | `KindSettingsChanged` | `SettingsChangedEvent` | `Subscribe(KindSettingsChanged)` — in-process only, never bridged to GraphQL |
 
 ## LatestStore
 
-Latest value per `(sessionID, saveName, dataType)`. It serves two callers: the snapshot queries, and
+Latest value per `(sessionID, dataType)`. It serves two callers: the snapshot queries, and
 a new GraphQL subscription's first forwarded payload so a fresh subscriber renders without waiting a
 poll interval.
 
-`SaveName` is part of the key and `Put` ignores events without one — that is what stops a save switch
-from serving a previous save's state. `Clear(sessionID)` is called on session delete.
+A session is pinned to one save, so the save name is not part of any key here.
+`Clear(sessionID)` is called on session delete.
 
 ## Adding a domain
 

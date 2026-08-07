@@ -8,13 +8,12 @@ import (
 	"api/pkg/eventbus"
 )
 
-func satEvent(sessionID, save, dataType string) eventbus.Event {
+func satEvent(sessionID, dataType string) eventbus.Event {
 	return eventbus.Event{
 		Kind:      eventbus.KindSatisfactory,
 		SessionID: sessionID,
-		SaveName:  save,
 		DataType:  dataType,
-		Payload:   eventbus.SatisfactoryEvent{SessionID: sessionID, SaveName: save, DataType: dataType},
+		Payload:   eventbus.SatisfactoryEvent{SessionID: sessionID, DataType: dataType},
 	}
 }
 
@@ -25,7 +24,7 @@ func TestFanoutToAllSubscribers(t *testing.T) {
 		b.Subscribe(eventbus.KindSatisfactory),
 		b.Subscribe(eventbus.KindSatisfactory),
 	}
-	b.Publish(satEvent("s1", "save", "circuits"))
+	b.Publish(satEvent("s1", "circuits"))
 	for i, ch := range chs {
 		select {
 		case e := <-ch:
@@ -41,7 +40,7 @@ func TestFanoutToAllSubscribers(t *testing.T) {
 func TestKindFilter(t *testing.T) {
 	b := eventbus.NewChannelBus()
 	conn := b.SubscribeSession("s1", eventbus.KindConnectivity)
-	b.Publish(satEvent("s1", "save", "circuits")) // wrong kind
+	b.Publish(satEvent("s1", "circuits")) // wrong kind
 	select {
 	case e := <-conn:
 		t.Fatalf("connectivity sub received non-connectivity event %+v", e)
@@ -49,23 +48,22 @@ func TestKindFilter(t *testing.T) {
 	}
 }
 
-func TestSubscribeDomainPinsSessionSaveType(t *testing.T) {
+func TestSubscribeDomainPinsSessionAndType(t *testing.T) {
 	b := eventbus.NewChannelBus()
-	ch := b.SubscribeDomain("s1", "save1", "circuits")
+	ch := b.SubscribeDomain("s1", "circuits")
 
-	b.Publish(satEvent("s2", "save1", "circuits")) // wrong session
-	b.Publish(satEvent("s1", "save2", "circuits")) // wrong save
-	b.Publish(satEvent("s1", "save1", "players"))  // wrong type
+	b.Publish(satEvent("s2", "circuits")) // wrong session
+	b.Publish(satEvent("s1", "players"))  // wrong type
 	select {
 	case e := <-ch:
 		t.Fatalf("domain sub received mismatched event %+v", e)
 	case <-time.After(50 * time.Millisecond):
 	}
 
-	b.Publish(satEvent("s1", "save1", "circuits")) // exact match
+	b.Publish(satEvent("s1", "circuits")) // exact match
 	select {
 	case e := <-ch:
-		if e.SessionID != "s1" || e.SaveName != "save1" || e.DataType != "circuits" {
+		if e.SessionID != "s1" || e.DataType != "circuits" {
 			t.Fatalf("unexpected event %+v", e)
 		}
 	case <-time.After(time.Second):
@@ -95,7 +93,7 @@ func TestDropOnFullNeverBlocks(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for range published {
-			b.Publish(satEvent("s1", "save", "circuits"))
+			b.Publish(satEvent("s1", "circuits"))
 		}
 		close(done)
 	}()
@@ -129,7 +127,7 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 	for range 8 {
 		wg.Go(func() {
 			for range 200 {
-				b.Publish(satEvent("s1", "save", "circuits"))
+				b.Publish(satEvent("s1", "circuits"))
 			}
 		})
 	}
@@ -148,28 +146,22 @@ func TestConcurrentPublishSubscribe(t *testing.T) {
 	wg.Wait()
 }
 
-func TestLatestStorePutGetSnapshotClear(t *testing.T) {
+func TestLatestStorePutGetClear(t *testing.T) {
 	s := eventbus.NewLatestStore()
-	s.Put(eventbus.SatisfactoryEvent{SessionID: "s1", SaveName: "save", DataType: "circuits", GameTimeID: 1})
-	s.Put(eventbus.SatisfactoryEvent{SessionID: "s1", SaveName: "save", DataType: "players", GameTimeID: 2})
-	s.Put(eventbus.SatisfactoryEvent{SessionID: "s1", SaveName: "save", DataType: "circuits", GameTimeID: 3}) // overwrite
+	s.Put(eventbus.SatisfactoryEvent{SessionID: "s1", DataType: "circuits", GameTimeID: 1})
+	s.Put(eventbus.SatisfactoryEvent{SessionID: "s1", DataType: "players", GameTimeID: 2})
+	s.Put(eventbus.SatisfactoryEvent{SessionID: "s1", DataType: "circuits", GameTimeID: 3}) // overwrite
 
-	got, ok := s.Get("s1", "save", "circuits")
+	got, ok := s.Get("s1", "circuits")
 	if !ok || got.GameTimeID != 3 {
 		t.Fatalf("want latest circuits gameTimeId 3, got %+v ok=%v", got, ok)
 	}
-	if snap := s.Snapshot("s1", "save"); len(snap) != 2 {
-		t.Fatalf("want 2 distinct types in snapshot, got %d", len(snap))
-	}
-
-	// save-name with no name is ignored
-	s.Put(eventbus.SatisfactoryEvent{SessionID: "s1", DataType: "circuits"})
-	if _, ok := s.Get("s1", "", "circuits"); ok {
-		t.Fatal("event without save name must be ignored")
+	if _, ok := s.Get("s1", "players"); !ok {
+		t.Fatal("want players kept alongside circuits")
 	}
 
 	s.Clear("s1")
-	if _, ok := s.Get("s1", "save", "circuits"); ok {
+	if _, ok := s.Get("s1", "circuits"); ok {
 		t.Fatal("expected cleared store")
 	}
 }
